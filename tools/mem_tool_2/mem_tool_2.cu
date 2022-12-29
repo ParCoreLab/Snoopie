@@ -56,6 +56,8 @@
 struct CTXstate {
   /* context id */
   int id;
+  pthread_cond_t cond;
+  bool done;
 
   /* Channel used to communicate from GPU to CPU receiving thread */
   ChannelDev* channel_dev;
@@ -64,7 +66,7 @@ struct CTXstate {
 
 /* lock */
 pthread_mutex_t mutex;
-pthread_cond_t cond;
+// pthread_cond_t cond;
 
 /* map to store context state */
 std::unordered_map<CUcontext, CTXstate*> ctx_state_map;
@@ -78,8 +80,8 @@ uint32_t instr_begin_interval = 0;
 uint32_t instr_end_interval = UINT32_MAX;
 int verbose = 0;
 
-int waitonce = 0;
-bool done = false;
+// int waitonce = 0;
+// bool done = false;
 
 /* opcode to id map and reverse map  */
 std::map<std::string, int> opcode_to_id_map;
@@ -105,7 +107,7 @@ void nvbit_at_init() {
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex, &attr);
-  pthread_cond_init(&cond, NULL);
+  // pthread_cond_init(&cond, NULL);
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -206,12 +208,10 @@ __global__ void flush_channel(ChannelDev* ch_dev) {
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     const char* name, void* params, CUresult* pStatus) {
   pthread_mutex_lock(&mutex);
-  printf("processing cbid: %d\n", cbid);
 
   /* we prevent re-entry on this callback when issuing CUDA functions inside
    * this function */
   if (skip_callback_flag) {
-    printf("finished processing cbid: %d\n", cbid);
     pthread_mutex_unlock(&mutex);
     return;
   }
@@ -253,28 +253,30 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       /* enable instrumented code to run */
       nvbit_enable_instrumented(ctx, p->f, true);
 
-      printf(
-          "MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
-          "name %s - grid launch id %ld - grid size %d,%d,%d - block "
-          "size %d,%d,%d - nregs %d - shmem %d - cuda stream id %ld\n",
-          (uint64_t)ctx, pc, func_name, grid_launch_id, p->gridDimX,
-          p->gridDimY, p->gridDimZ, p->blockDimX, p->blockDimY,
-          p->blockDimZ, nregs, shmem_static_nbytes + p->sharedMemBytes,
-          (uint64_t)p->hStream);
+      if (verbose) {
+        printf(
+            "MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
+            "name %s - grid launch id %ld - grid size %d,%d,%d - block "
+            "size %d,%d,%d - nregs %d - shmem %d - cuda stream id %ld\n",
+            (uint64_t)ctx, pc, func_name, grid_launch_id, p->gridDimX,
+            p->gridDimY, p->gridDimZ, p->blockDimX, p->blockDimY,
+            p->blockDimZ, nregs, shmem_static_nbytes + p->sharedMemBytes,
+            (uint64_t)p->hStream);
+      }
     }
-  } else if ((waitonce == 0) && (cbid == API_CUDA_cuMemFree_v2 || cbid == API_CUDA_cuMemFree || cbid == API_CUDA_cu64MemFree)){
-    printf("free was called\n");
-    flush_channel<<<1, 1>>>(ctx_state->channel_dev);
-    /* Make sure flush of channel is complete */
-    cudaDeviceSynchronize();
-    assert(cudaGetLastError() == cudaSuccess);
-    waitonce = 1;
-    pthread_cond_wait(&cond, &mutex);
-    printf("finished free call\n");
+  }
+  else if ((cbid == API_CUDA_cuMemFree_v2 || cbid == API_CUDA_cuMemFree || cbid == API_CUDA_cu64MemFree)){
+    if (!ctx_state->done) {
+      cudaDeviceSynchronize();
+      flush_channel<<<1, 1>>>(ctx_state->channel_dev);
+      cudaDeviceSynchronize();
+      assert(cudaGetLastError() == cudaSuccess);
+      pthread_cond_wait(&ctx_state->cond, &mutex);
+    }
+    ctx_state->done = true;
   }
 
   skip_callback_flag = false;
-  printf("finished processing cbid: %d\n", cbid);
   pthread_mutex_unlock(&mutex);
 }
 
@@ -290,7 +292,7 @@ void* recv_thread_fun(void* args) {
   pthread_mutex_unlock(&mutex);
   char* recv_buffer = (char*)malloc(CHANNEL_SIZE);
 
-  // bool done = false;
+  bool done = false;
   while (!done) {
     /* receive buffer from channel */
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
@@ -306,7 +308,7 @@ void* recv_thread_fun(void* args) {
          * context */
         if (ma->cta_id_x == -1) {
           done = true;
-          pthread_cond_signal(&cond);
+          pthread_cond_signal(&ctx_state->cond);
           break;
         }
 
@@ -327,8 +329,8 @@ void* recv_thread_fun(void* args) {
       }
     }
   }
-  printf("*** finished processing pointers\n");
   free(recv_buffer);
+  pthread_mutex_unlock(&mutex);
   return NULL;
 }
 
@@ -344,6 +346,9 @@ void nvbit_at_ctx_init(CUcontext ctx) {
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
       ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
+  ctx_state->id = ctx_state_map.size() - 1;
+  pthread_cond_init(&ctx_state->cond, NULL);
+  ctx_state->done = false;
   pthread_mutex_unlock(&mutex);
 }
 
@@ -358,16 +363,16 @@ void nvbit_at_ctx_term(CUcontext ctx) {
   CTXstate* ctx_state = ctx_state_map[ctx];
 
   /* flush channel */
-  // flush_channel<<<1, 1>>>(ctx_state->channel_dev);
-  /* Make sure flush of channel is complete */
-  // cudaDeviceSynchronize();
-  // assert(cudaGetLastError() == cudaSuccess);
+  if (!ctx_state->done) {
+    flush_channel<<<1, 1>>>(ctx_state->channel_dev);
+    cudaDeviceSynchronize();
+    assert(cudaGetLastError() == cudaSuccess);
+  }
 
-  printf("destroyin\n");
+  ctx_state->done = true;
+
   ctx_state->channel_host.destroy(false);
-  printf("freeyin\n");
   cudaFree(ctx_state->channel_dev);
-  printf("freed\n");
   skip_callback_flag = false;
   delete ctx_state;
   pthread_mutex_unlock(&mutex);
