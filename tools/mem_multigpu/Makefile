@@ -1,4 +1,4 @@
-NVCC=nvcc -ccbin=$(CXX) -D_FORCE_INLINES
+NVCC=nvcc -ccbin=$(CXX) -D_FORCE_INLINES -lcudadevrt
 
 NVCC_VER_REQ=10.1
 NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')

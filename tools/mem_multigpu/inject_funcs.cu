@@ -36,7 +36,7 @@
 /* contains definition of the mem_access_t structure */
 #include "common.h"
 
-extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id,
+extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, int dev_id,
                                                        uint64_t addr,
                                                        uint64_t grid_launch_id,
                                                        uint64_t pchannel_dev) {
@@ -61,8 +61,7 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id,
     ma.cta_id_x = cta.x;
     ma.cta_id_y = cta.y;
     ma.cta_id_z = cta.z;
-
-    cudaGetDevice(&(ma.dev_id));
+    ma.dev_id = dev_id;
     ma.warp_id = get_warpid();
     ma.opcode_id = opcode_id;
 

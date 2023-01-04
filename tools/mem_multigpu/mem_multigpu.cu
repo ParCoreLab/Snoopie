@@ -56,17 +56,20 @@
 struct CTXstate {
   /* context id */
   int id;
-  pthread_cond_t cond;
-  bool done;
 
   /* Channel used to communicate from GPU to CPU receiving thread */
   ChannelDev* channel_dev;
   ChannelHost channel_host;
 };
 
+struct MemoryAllocation {
+  int deviceID;
+  uint64_t pointer;
+  uint64_t bytesize;
+};
+
 /* lock */
 pthread_mutex_t mutex;
-// pthread_cond_t cond;
 
 /* map to store context state */
 std::unordered_map<CUcontext, CTXstate*> ctx_state_map;
@@ -80,12 +83,22 @@ uint32_t instr_begin_interval = 0;
 uint32_t instr_end_interval = UINT32_MAX;
 int verbose = 0;
 
-// int waitonce = 0;
-// bool done = false;
-
 /* opcode to id map and reverse map  */
 std::map<std::string, int> opcode_to_id_map;
 std::map<int, std::string> id_to_opcode_map;
+std::vector<MemoryAllocation> mem_allocs;
+
+
+int64_t find_dev_of_ptr(uint64_t ptr) {
+
+  for (MemoryAllocation ma : mem_allocs) {
+    if  (ma.pointer <= ptr  && ptr < ma.pointer + ma.bytesize) {
+      return ma.deviceID;
+    }
+  }
+
+  return -1;
+}
 
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;
@@ -107,7 +120,6 @@ void nvbit_at_init() {
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex, &attr);
-  // pthread_cond_init(&cond, NULL);
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -178,6 +190,10 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
           nvbit_add_call_arg_guard_pred_val(instr);
           /* opcode id */
           nvbit_add_call_arg_const_val32(instr, opcode_id);
+          /* device id */
+          int dev_id = -1;
+          cudaGetDevice(&dev_id);
+          nvbit_add_call_arg_const_val32(instr, dev_id);
           /* memory reference 64 bit address */
           nvbit_add_call_arg_mref_addr64(instr, mref_idx);
           /* add "space" for kernel function pointer that will be set
@@ -225,8 +241,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     cuLaunchKernel_params* p = (cuLaunchKernel_params*)params;
 
     /* Make sure GPU is idle */
-    cudaDeviceSynchronize();
-    assert(cudaGetLastError() == cudaSuccess);
+    // cudaDeviceSynchronize();
+    // assert(cudaGetLastError() == cudaSuccess);
 
     if (!is_exit) {
       /* instrument */
@@ -253,27 +269,31 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       /* enable instrumented code to run */
       nvbit_enable_instrumented(ctx, p->f, true);
 
-      if (verbose) {
-        printf(
-            "MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
-            "name %s - grid launch id %ld - grid size %d,%d,%d - block "
-            "size %d,%d,%d - nregs %d - shmem %d - cuda stream id %ld\n",
-            (uint64_t)ctx, pc, func_name, grid_launch_id, p->gridDimX,
-            p->gridDimY, p->gridDimZ, p->blockDimX, p->blockDimY,
-            p->blockDimZ, nregs, shmem_static_nbytes + p->sharedMemBytes,
-            (uint64_t)p->hStream);
-      }
+      printf(
+          "MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
+          "name %s - grid launch id %ld - grid size %d,%d,%d - block "
+          "size %d,%d,%d - nregs %d - shmem %d - cuda stream id %ld\n",
+          (uint64_t)ctx, pc, func_name, grid_launch_id, p->gridDimX,
+          p->gridDimY, p->gridDimZ, p->blockDimX, p->blockDimY,
+          p->blockDimZ, nregs, shmem_static_nbytes + p->sharedMemBytes,
+          (uint64_t)p->hStream);
     }
-  }
-  else if ((cbid == API_CUDA_cuMemFree_v2 || cbid == API_CUDA_cuMemFree || cbid == API_CUDA_cu64MemFree)){
-    if (!ctx_state->done) {
-      cudaDeviceSynchronize();
-      flush_channel<<<1, 1>>>(ctx_state->channel_dev);
-      cudaDeviceSynchronize();
-      assert(cudaGetLastError() == cudaSuccess);
-      pthread_cond_wait(&ctx_state->cond, &mutex);
-    }
-    ctx_state->done = true;
+  } else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2) {
+    cuMemAlloc_v2_params* p = (cuMemAlloc_v2_params*)params;
+    std::stringstream ss;
+    ss << HEX(*p->dptr);
+    std::stringstream ss2;
+    ss2 << HEX(*p->dptr + p->bytesize);
+    int deviceID = -1;
+    uint64_t pointer = *p->dptr;
+    uint64_t bytesize = p->bytesize;
+
+    cudaGetDevice(&deviceID);
+    assert(cudaGetLastError() == cudaSuccess);
+
+    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    mem_allocs.push_back(ma);
+    printf("{op: \"mem_alloc\", bytesize: %lu, dtpr*: %s, to: %s}\n", p->bytesize, ss.str().c_str(), ss2.str().c_str()); 
   }
 
   skip_callback_flag = false;
@@ -308,20 +328,19 @@ void* recv_thread_fun(void* args) {
          * context */
         if (ma->cta_id_x == -1) {
           done = true;
-          pthread_cond_signal(&ctx_state->cond);
           break;
         }
 
         std::stringstream ss;
 
         for (int i = 0; i < 32; i++) {
-          int device = -1;
-          CUresult res = cuPointerGetAttribute(&device, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, ma->addrs[i]);
-          if (res == 0) {
-            ss << id_to_opcode_map[ma->opcode_id] << " - " << HEX(ma->addrs[i]) << ": from dev (" << ma->dev_id << ") on dev (" << device << ")" << std::endl;
-          } else {
-            ss << id_to_opcode_map[ma->opcode_id] << " - " << HEX(ma->addrs[i]) << ": from dev (" << ma->dev_id << ") but failed to get dev. (errcode: " << res << ")" << std::endl;
-          }
+          if (ma->addrs[i] == 0x0) continue;
+
+          int on = find_dev_of_ptr(ma->addrs[i]);
+          if (on == ma->dev_id) continue;
+          if (on == -1) continue;
+
+          ss << "{op: \"" << id_to_opcode_map[ma->opcode_id] << "\", addr: " << HEX(ma->addrs[i]) << ", from: " << ma->dev_id << ", on: " << on << "}" << std::endl;
         }
 
         printf("\n%s\n", ss.str().c_str());
@@ -330,7 +349,6 @@ void* recv_thread_fun(void* args) {
     }
   }
   free(recv_buffer);
-  pthread_mutex_unlock(&mutex);
   return NULL;
 }
 
@@ -346,9 +364,6 @@ void nvbit_at_ctx_init(CUcontext ctx) {
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
       ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
-  ctx_state->id = ctx_state_map.size() - 1;
-  pthread_cond_init(&ctx_state->cond, NULL);
-  ctx_state->done = false;
   pthread_mutex_unlock(&mutex);
 }
 
@@ -363,13 +378,10 @@ void nvbit_at_ctx_term(CUcontext ctx) {
   CTXstate* ctx_state = ctx_state_map[ctx];
 
   /* flush channel */
-  if (!ctx_state->done) {
-    flush_channel<<<1, 1>>>(ctx_state->channel_dev);
-    cudaDeviceSynchronize();
-    assert(cudaGetLastError() == cudaSuccess);
-  }
-
-  ctx_state->done = true;
+  flush_channel<<<1, 1>>>(ctx_state->channel_dev);
+  /* Make sure flush of channel is complete */
+  cudaDeviceSynchronize();
+  assert(cudaGetLastError() == cudaSuccess);
 
   ctx_state->channel_host.destroy(false);
   cudaFree(ctx_state->channel_dev);
