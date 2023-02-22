@@ -46,25 +46,28 @@
 
 /* contains definition of the mem_access_t structure */
 #include "common.h"
+#include "util.h"
 
-#define HEX(x)                                                            \
+#define HEX(x)                                                          \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
-  << std::dec
+       << std::dec
 
-#define CHANNEL_SIZE (1l << 20)
+#define CHANNEL_SIZE (1l << 30)
 
 #define EQUAL_STRS 0
 
-struct CTXstate {
+struct CTXstate
+{
   /* context id */
   int id;
 
   /* Channel used to communicate from GPU to CPU receiving thread */
-  ChannelDev* channel_dev;
+  ChannelDev *channel_dev;
   ChannelHost channel_host;
 };
 
-struct MemoryAllocation {
+struct MemoryAllocation
+{
   int deviceID;
   uint64_t pointer;
   uint64_t bytesize;
@@ -74,7 +77,7 @@ struct MemoryAllocation {
 pthread_mutex_t mutex;
 
 /* map to store context state */
-std::unordered_map<CUcontext, CTXstate*> ctx_state_map;
+std::unordered_map<CUcontext, CTXstate *> ctx_state_map;
 
 /* skip flag used to avoid re-entry on the nvbit_callback when issuing
  * flush_channel kernel call */
@@ -83,32 +86,33 @@ bool skip_callback_flag = false;
 /* global control variables for this tool */
 uint32_t instr_begin_interval = 0;
 uint32_t instr_end_interval = UINT32_MAX;
-std::string kernel_name; 
+std::string kernel_name;
 int verbose = 0;
-
 
 /* opcode to id map and reverse map  */
 std::map<std::string, int> opcode_to_id_map;
 std::map<int, std::string> id_to_opcode_map;
 std::vector<MemoryAllocation> mem_allocs;
 
+int64_t find_dev_of_ptr(uint64_t ptr)
+{
 
-int64_t find_dev_of_ptr(uint64_t ptr) {
-
-  for (MemoryAllocation ma : mem_allocs) {
-    if  (ma.pointer <= ptr  && ptr < ma.pointer + ma.bytesize) {
+  for (MemoryAllocation ma : mem_allocs)
+  {
+    if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
+    {
       return ma.deviceID;
     }
   }
 
   return -1;
-
 }
 
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;
 
-void nvbit_at_init() {
+void nvbit_at_init()
+{
   setenv("CUDA_MANAGED_FORCE_DEVICE_ALLOC", "1", 1);
   GET_VAR_INT(
       instr_begin_interval, "INSTR_BEGIN", 0,
@@ -121,8 +125,9 @@ void nvbit_at_init() {
   GET_VAR_STR(kernel_name, "KERNEL_NAME", "Specify the name of the kernel to track");
 
   std::string pad(100, '-');
-  if (verbose) {
-    printf("%s\n", pad.c_str());
+  if (verbose)
+  {
+    std::cout << pad << std::endl;
   }
 
   /* set mutex as recursive */
@@ -135,30 +140,34 @@ void nvbit_at_init() {
 /* Set used to avoid re-instrumenting the same functions multiple times */
 std::unordered_set<CUfunction> already_instrumented;
 
-void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
+void instrument_function_if_needed(CUcontext ctx, CUfunction func)
+{
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
-  CTXstate* ctx_state = ctx_state_map[ctx];
+  CTXstate *ctx_state = ctx_state_map[ctx];
 
   /* Get related functions of the kernel (device function that can be
    * called by the kernel) */
   std::vector<CUfunction> related_functions =
-    nvbit_get_related_functions(ctx, func);
+      nvbit_get_related_functions(ctx, func);
 
   /* add kernel itself to the related function vector */
   related_functions.push_back(func);
 
   /* iterate on function */
-  for (auto f : related_functions) {
+  for (auto f : related_functions)
+  {
     /* "recording" function was instrumented, if set insertion failed
      * we have already encountered this function */
-    if (!already_instrumented.insert(f).second) {
+    if (!already_instrumented.insert(f).second)
+    {
       continue;
     }
 
     /* get vector of instructions of function "f" */
-    const std::vector<Instr*>& instrs = nvbit_get_instrs(ctx, f);
+    const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
 
-    if (verbose) {
+    if (verbose)
+    {
       printf(
           "MEMTRACE: CTX %p, Inspecting CUfunction %p name %s at address "
           "0x%lx\n",
@@ -167,19 +176,23 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 
     uint32_t cnt = 0;
     /* iterate on all the static instructions in the function */
-    for (auto instr : instrs) {
+    for (auto instr : instrs)
+    {
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
-          instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT) {
+          instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
+      {
         cnt++;
         continue;
       }
-      if (verbose) {
+      if (verbose)
+      {
         instr->printDecoded();
       }
 
       if (opcode_to_id_map.find(instr->getOpcode()) ==
-          opcode_to_id_map.end()) {
+          opcode_to_id_map.end())
+      {
         int opcode_id = opcode_to_id_map.size();
         opcode_to_id_map[instr->getOpcode()] = opcode_id;
         id_to_opcode_map[opcode_id] = std::string(instr->getOpcode());
@@ -188,11 +201,13 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
       int opcode_id = opcode_to_id_map[instr->getOpcode()];
       int mref_idx = 0;
       /* iterate on the operands */
-      for (int i = 0; i < instr->getNumOperands(); i++) {
+      for (int i = 0; i < instr->getNumOperands(); i++)
+      {
         /* get the operand "i" */
-        const InstrType::operand_t* op = instr->getOperand(i);
+        const InstrType::operand_t *op = instr->getOperand(i);
 
-        if (op->type == InstrType::OperandType::MREF) {
+        if (op->type == InstrType::OperandType::MREF)
+        {
           /* insert call to the instrumentation function with its
            * arguments */
           nvbit_insert_call(instr, "instrument_mem", IPOINT_BEFORE);
@@ -221,7 +236,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
   }
 }
 
-__global__ void flush_channel(ChannelDev* ch_dev) {
+__global__ void flush_channel(ChannelDev *ch_dev)
+{
   /* set a CTA id = -1 to indicate communication thread that this is the
    * termination flag */
   mem_access_t ma;
@@ -232,23 +248,26 @@ __global__ void flush_channel(ChannelDev* ch_dev) {
 }
 
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
-    const char* name, void* params, CUresult* pStatus) {
+                         const char *name, void *params, CUresult *pStatus)
+{
   pthread_mutex_lock(&mutex);
 
   /* we prevent re-entry on this callback when issuing CUDA functions inside
    * this function */
-  if (skip_callback_flag) {
+  if (skip_callback_flag)
+  {
     pthread_mutex_unlock(&mutex);
     return;
   }
   skip_callback_flag = true;
 
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
-  CTXstate* ctx_state = ctx_state_map[ctx];
+  CTXstate *ctx_state = ctx_state_map[ctx];
 
   if (!is_exit && cbid == API_CUDA_cuLaunchKernel_ptsz ||
-      cbid == API_CUDA_cuLaunchKernel ) {
-    cuLaunchKernel_params* p = (cuLaunchKernel_params*)params;
+      cbid == API_CUDA_cuLaunchKernel)
+  {
+    cuLaunchKernel_params *p = (cuLaunchKernel_params *)params;
 
     /* Make sure GPU is idle */
     // cudaDeviceSynchronize();
@@ -260,91 +279,92 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     std::string func_name(nvbit_get_func_name(ctx, p->f));
     uint64_t pc = nvbit_get_func_addr(p->f);
 
-    // only instrument kernel's with the kernel name supplied by the user,
-    // the substr and find are to extract the func name from the func
-    // signature
-    if (kernel_name == func_name.substr(0, func_name.find("("))) {
-      /* instrument */
-      std::cout << "instrumenting kernel: " << func_name << std::endl;
-      instrument_function_if_needed(ctx, p->f);
+    std::vector<CUfunction> related_functions = nvbit_get_related_functions(ctx, p->f);
+    related_functions.push_back(p->f);
+
+    for (auto f : related_functions)
+    {
+      // only instrument kernel's with the kernel name supplied by the user,
+      // the substr and find are to extract the func name from the func
+      // signature
+      std::string func_name(nvbit_get_func_name(ctx, f));
+      if (kernel_name == "all" || kernel_name == func_name.substr(0, func_name.find("(")))
+      {
+        /* instrument */
+        std::cout << "instrumenting: " << func_name << std::endl;
+        instrument_function_if_needed(ctx, f);
+      }
+
+      int nregs = 0;
+      CUDA_SAFECALL(
+          cuFuncGetAttribute(&nregs, CU_FUNC_ATTRIBUTE_NUM_REGS, f));
+
+      int shmem_static_nbytes = 0;
+      CUDA_SAFECALL(
+          cuFuncGetAttribute(&shmem_static_nbytes,
+                             CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, f));
+
+      /* set grid launch id at launch time */
+      nvbit_set_at_launch(ctx, f, &grid_launch_id, sizeof(uint64_t));
+      /* increment grid launch id for next launch */
+      grid_launch_id++;
+
+      /* enable instrumented code to run */
+      nvbit_enable_instrumented(ctx, f, true);
+      if (verbose)
+      {
+        printf(
+            "MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
+            "name %s - grid launch id %ld\n",
+            (uint64_t)ctx, pc, func_name.c_str(), grid_launch_id);
+      }
     }
-
-    int nregs = 0;
-    CUDA_SAFECALL(
-        cuFuncGetAttribute(&nregs, CU_FUNC_ATTRIBUTE_NUM_REGS, p->f));
-
-    int shmem_static_nbytes = 0;
-    CUDA_SAFECALL(
-        cuFuncGetAttribute(&shmem_static_nbytes,
-          CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, p->f));
-
-    /* set grid launch id at launch time */
-    nvbit_set_at_launch(ctx, p->f, &grid_launch_id, sizeof(uint64_t));
-    /* increment grid launch id for next launch */
-    grid_launch_id++;
-
-    /* enable instrumented code to run */
-    nvbit_enable_instrumented(ctx, p->f, true);
-
-    if (verbose) {
-      printf(
-          "MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
-          "name %s - grid launch id %ld - grid size %d,%d,%d - block "
-          "size %d,%d,%d - nregs %d - shmem %d - cuda stream id %ld\n",
-          (uint64_t)ctx, pc, func_name.c_str(), grid_launch_id, p->gridDimX,
-          p->gridDimY, p->gridDimZ, p->blockDimX, p->blockDimY,
-          p->blockDimZ, nregs, shmem_static_nbytes + p->sharedMemBytes,
-          (uint64_t)p->hStream);
-    }
-
-  } else if (!is_exit && cbid == API_CUDA_cuLaunchCooperativeKernel ||
-             cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz) {
-    cuLaunchCooperativeKernel_params* p = (cuLaunchCooperativeKernel_params*)params;
+  }
+  else if (!is_exit && cbid == API_CUDA_cuLaunchCooperativeKernel ||
+           cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz)
+  {
+    cuLaunchCooperativeKernel_params *p = (cuLaunchCooperativeKernel_params *)params;
 
     /* get function name and pc */
     // gets the kernel signature
-    std::string func_name(nvbit_get_func_name(ctx, p->f));
     uint64_t pc = nvbit_get_func_addr(p->f);
-    
+
+    std::vector<CUfunction> related_functions = nvbit_get_related_functions(ctx, p->f);
+    related_functions.push_back(p->f);
+
     // only instrument kernel's with the kernel name supplied by the user,
     // the substr and find are to extract the func name from the func
     // signature
-    if (kernel_name == func_name.substr(0, func_name.find("("))) {
-      /* instrument */
-      std::cout << "instrumenting kernel: " << func_name << std::endl;
-      instrument_function_if_needed(ctx, p->f);
+    for (auto f : related_functions)
+    {
+      std::string func_name(nvbit_get_func_name(ctx, f));
+      if (kernel_name == "all" || kernel_name == func_name.substr(0, func_name.find("(")))
+      {
+        /* instrument */
+        std::cout << "instrumenting: " << func_name << std::endl;
+        instrument_function_if_needed(ctx, p->f);
+      }
+
+      /* set grid launch id at launch time */
+      nvbit_set_at_launch(ctx, f, &grid_launch_id, sizeof(uint64_t));
+      /* increment grid launch id for next launch */
+      grid_launch_id++;
+
+      /* enable instrumented code to run */
+      nvbit_enable_instrumented(ctx, f, true);
+
+      if (verbose)
+      {
+        printf(
+            "MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
+            "name %s - grid launch id %ld\n",
+            (uint64_t)ctx, pc, func_name.c_str(), grid_launch_id);
+      }
     }
-
-    int nregs = 0;
-    CUDA_SAFECALL(
-        cuFuncGetAttribute(&nregs, CU_FUNC_ATTRIBUTE_NUM_REGS, p->f));
-
-    int shmem_static_nbytes = 0;
-    CUDA_SAFECALL(
-        cuFuncGetAttribute(&shmem_static_nbytes,
-          CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, p->f));
-
-    /* set grid launch id at launch time */
-    nvbit_set_at_launch(ctx, p->f, &grid_launch_id, sizeof(uint64_t));
-    /* increment grid launch id for next launch */
-    grid_launch_id++;
-
-    /* enable instrumented code to run */
-    nvbit_enable_instrumented(ctx, p->f, true);
-
-    if (verbose) {
-      printf(
-          "MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
-          "name %s - grid launch id %ld - grid size %d,%d,%d - block "
-          "size %d,%d,%d - nregs %d - shmem %d - cuda stream id %ld\n",
-          (uint64_t)ctx, pc, func_name.c_str(), grid_launch_id, p->gridDimX,
-          p->gridDimY, p->gridDimZ, p->blockDimX, p->blockDimY,
-          p->blockDimZ, nregs, shmem_static_nbytes + p->sharedMemBytes,
-          (uint64_t)p->hStream);
-    }
-
-  } else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2) {
-    cuMemAlloc_v2_params* p = (cuMemAlloc_v2_params*)params;
+  }
+  else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2)
+  {
+    cuMemAlloc_v2_params *p = (cuMemAlloc_v2_params *)params;
     std::stringstream ss;
     ss << HEX(*p->dptr);
     std::stringstream ss2;
@@ -358,57 +378,69 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
-    printf("{op: \"mem_alloc\", bytesize: %lu, dtpr*: %s, to: %s}\n", p->bytesize, ss.str().c_str(), ss2.str().c_str()); 
+    std::cout << "{op: \"mem_alloc\", bytesize: " << p->bytesize << ", dtpr*: " << ss.str() << ", to: " << ss2.str() << "}" << std::endl;
   }
 
   skip_callback_flag = false;
   pthread_mutex_unlock(&mutex);
 }
 
-void* recv_thread_fun(void* args) {
+void *recv_thread_fun(void *args)
+{
   CUcontext ctx = (CUcontext)args;
 
   pthread_mutex_lock(&mutex);
   /* get context state from map */
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
-  CTXstate* ctx_state = ctx_state_map[ctx];
+  CTXstate *ctx_state = ctx_state_map[ctx];
 
-  ChannelHost* ch_host = &ctx_state->channel_host;
+  ChannelHost *ch_host = &ctx_state->channel_host;
   pthread_mutex_unlock(&mutex);
-  char* recv_buffer = (char*)malloc(CHANNEL_SIZE);
+  char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
 
   bool done = false;
-  while (!done) {
+  while (!done)
+  {
     /* receive buffer from channel */
+    // std::cout << "waiting in " << ctx << std::endl;
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
-    if (num_recv_bytes > 0) {
+    // std::cout << "received in " << ctx << std::endl;
+
+    if (num_recv_bytes > 0)
+    {
       uint32_t num_processed_bytes = 0;
-      while (num_processed_bytes < num_recv_bytes) {
-        mem_access_t* ma =
-          (mem_access_t*)&recv_buffer[num_processed_bytes];
+      while (num_processed_bytes < num_recv_bytes)
+      {
+        mem_access_t *ma =
+            (mem_access_t *)&recv_buffer[num_processed_bytes];
 
         /* when we receive a CTA_id_x it means all the kernels
          * completed, this is the special token we receive from the
          * flush channel kernel that is issues at the end of the
          * context */
-        if (ma->cta_id_x == -1) {
+        if (ma->cta_id_x == -1)
+        {
           done = true;
           break;
         }
 
         std::stringstream ss;
 
-        for (int i = 0; i < 32; i++) {
-          if (ma->addrs[i] == 0x0) continue;
+        for (int i = 0; i < 32; i++)
+        {
+          if (ma->addrs[i] == 0x0)
+            continue;
 
           int on = find_dev_of_ptr(ma->addrs[i]);
-          if (on == ma->dev_id) continue;
-          if (on == -1) continue;
+          if (on == ma->dev_id)
+            continue;
+          if (on == -1)
+            continue;
 
           ss << "{op: \"" << id_to_opcode_map[ma->opcode_id] << "\", addr: " << HEX(ma->addrs[i]) << ", from: " << ma->dev_id << ", on: " << on << "}" << std::endl;
         }
 
-        printf("%s", ss.str().c_str());
+        std::cout << ss.str() << std::flush;
         num_processed_bytes += sizeof(mem_access_t);
       }
     }
@@ -417,30 +449,34 @@ void* recv_thread_fun(void* args) {
   return NULL;
 }
 
-void nvbit_at_ctx_init(CUcontext ctx) {
+void nvbit_at_ctx_init(CUcontext ctx)
+{
   pthread_mutex_lock(&mutex);
-  if (verbose) {
+  if (verbose)
+  {
     printf("MEMTRACE: STARTING CONTEXT %p\n", ctx);
   }
-  CTXstate* ctx_state = new CTXstate;
+  CTXstate *ctx_state = new CTXstate;
   assert(ctx_state_map.find(ctx) == ctx_state_map.end());
   ctx_state_map[ctx] = ctx_state;
   cudaMallocManaged(&ctx_state->channel_dev, sizeof(ChannelDev));
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
-      ctx_state->channel_dev, recv_thread_fun, ctx);
+                               ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex);
 }
 
-void nvbit_at_ctx_term(CUcontext ctx) {
+void nvbit_at_ctx_term(CUcontext ctx)
+{
   pthread_mutex_lock(&mutex);
   skip_callback_flag = true;
-  if (verbose) {
+  if (verbose)
+  {
     printf("MEMTRACE: TERMINATING CONTEXT %p\n", ctx);
   }
   /* get context state from map */
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
-  CTXstate* ctx_state = ctx_state_map[ctx];
+  CTXstate *ctx_state = ctx_state_map[ctx];
 
   /* flush channel */
   flush_channel<<<1, 1>>>(ctx_state->channel_dev);
