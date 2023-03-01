@@ -174,10 +174,15 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           ctx, f, nvbit_get_func_name(ctx, f), nvbit_get_func_addr(f));
     }
 
+    std::cout << "how many istrs?: " << instrs.size() << std::endl;
+    
+
     uint32_t cnt = 0;
     /* iterate on all the static instructions in the function */
     for (auto instr : instrs)
     {
+      std::cout << instr->getOpcode() << std::endl;
+      instr->printDecoded();
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -187,7 +192,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       }
       if (verbose)
       {
-        instr->printDecoded();
+        // instr->printDecoded();
       }
 
       if (opcode_to_id_map.find(instr->getOpcode()) ==
@@ -402,9 +407,7 @@ void *recv_thread_fun(void *args)
   while (!done)
   {
     /* receive buffer from channel */
-    // std::cout << "waiting in " << ctx << std::endl;
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
-    // std::cout << "received in " << ctx << std::endl;
 
     if (num_recv_bytes > 0)
     {

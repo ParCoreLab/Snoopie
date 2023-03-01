@@ -6,7 +6,7 @@
         {
             "label": "Build NCCL Test",
             "type": "shell",
-            "command": "source ~/envs/cuda-11-nccl-nvshmem.sh && cd ${workspaceFolder}/test-apps/nccl make",
+            "command": "source ~/envs/cuda-11-nccl-nvshmem.sh && cd ${workspaceFolder}/test-apps/nccl && make clean && make",
             "problemMatcher": [
                 "$nvcc"
             ],
