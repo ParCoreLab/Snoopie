@@ -38,7 +38,7 @@ int main() {
   gpuErrchk(cudaDeviceEnablePeerAccess(2, 0));
   gpuErrchk(cudaDeviceEnablePeerAccess(3, 0));
 
-  const size_t size = 512 * 512 * 32;
+  const size_t size = 32;
   const size_t buf_size = size * sizeof(int);
 
   int *g0 = NULL;
@@ -67,13 +67,9 @@ int main() {
   gpuErrchk(cudaMallocHost(&h2, buf_size));
 
   gpuErrchk(cudaMemcpy(g0, h0, buf_size, cudaMemcpyHostToDevice));
-  // gpuErrchk(cudaMemcpy(g1, g0, buf_size, cudaMemcpyDeviceToDevice));
-  const dim3 threads(512, 1);
-  const dim3 blocks((buf_size / sizeof(int)) / threads.x, 1);
 
   cudaSetDevice(gpuid[0]);
-  // simple_kernel<<<blocks, threads>>>(g0, g1);
-  simple_kernel<<<blocks, threads>>>(g0, g1, g2);
+  simple_kernel<<<1, size>>>(g0, g1, g2);
   gpuErrchk(cudaMemcpy(h1, g1, buf_size, cudaMemcpyDeviceToHost));
   gpuErrchk(cudaMemcpy(h2, g2, buf_size, cudaMemcpyDeviceToHost));
 
