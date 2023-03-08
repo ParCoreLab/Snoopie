@@ -383,7 +383,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
-    std::cout << "{op: \"mem_alloc\", bytesize: " << p->bytesize << ", dtpr*: " << ss.str() << ", to: " << ss2.str() << "}" << std::endl;
+    std::cout << "{\"op\": \"mem_alloc\", \"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
   }
 
   skip_callback_flag = false;
@@ -434,13 +434,17 @@ void *recv_thread_fun(void *args)
           if (ma->addrs[i] == 0x0)
             continue;
 
-          int on = find_dev_of_ptr(ma->addrs[i]);
-          if (on == ma->dev_id)
-            continue;
-          if (on == -1)
+          int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
+
+          // ignore operations on the same device
+          if (mem_device_id == ma->dev_id)
             continue;
 
-          ss << "{op: \"" << id_to_opcode_map[ma->opcode_id] << "\", addr: " << HEX(ma->addrs[i]) << ", from: " << ma->dev_id << ", on: " << on << "}" << std::endl;
+          // ignore operations on memory locations not allocated by cudaMalloc on the host
+          if (mem_device_id == -1)
+            continue;
+
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
         }
 
         std::cout << ss.str() << std::flush;
