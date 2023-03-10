@@ -163,6 +163,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       continue;
     }
 
+    std::cout << "instrumenting: " << nvbit_get_func_name(ctx, f) << std::endl;
+
     /* get vector of instructions of function "f" */
     const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
 
@@ -174,14 +176,12 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           ctx, f, nvbit_get_func_name(ctx, f), nvbit_get_func_addr(f));
     }
 
-    std::cout << "how many istrs?: " << instrs.size() << std::endl;
     
 
     uint32_t cnt = 0;
     /* iterate on all the static instructions in the function */
     for (auto instr : instrs)
     {
-      std::cout << instr->getOpcode() << std::endl;
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -295,7 +295,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       if (kernel_name == "all" || kernel_name == func_name.substr(0, func_name.find("(")))
       {
         /* instrument */
-        std::cout << "instrumenting: " << func_name << std::endl;
         instrument_function_if_needed(ctx, f);
       }
 
