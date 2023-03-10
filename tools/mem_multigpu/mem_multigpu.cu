@@ -182,7 +182,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     for (auto instr : instrs)
     {
       std::cout << instr->getOpcode() << std::endl;
-      instr->printDecoded();
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -192,7 +191,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       }
       if (verbose)
       {
-        // instr->printDecoded();
+        instr->printDecoded();
       }
 
       if (opcode_to_id_map.find(instr->getOpcode()) ==
