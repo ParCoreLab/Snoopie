@@ -14,7 +14,7 @@ INCLUDES=-I$(NVBIT_PATH)
 LIBS=-L$(NVBIT_PATH) -lnvbit
 NVCC_PATH=-L $(subst bin/nvcc,lib64,$(shell which nvcc | tr -s /))
 
-SOURCES=$(wildcard *.cu)
+SOURCES=mem_multigpu.cu inject_funcs.cu
 
 OBJECTS=$(SOURCES:.cu=.o)
 ARCH?=35
@@ -29,11 +29,20 @@ all: $(NVBIT_TOOL)
 $(NVBIT_TOOL): $(OBJECTS) $(NVBIT_PATH)/libnvbit.a
 	$(NVCC) -arch=sm_$(ARCH) -O3 $(OBJECTS) $(LIBS) $(NVCC_PATH) -lcuda -lcudart_static -shared -o $@
 
-%.o: %.cu
-	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -Wall -arch=sm_$(ARCH) -O3 -Xcompiler -fPIC $< -o $@
+mem_multigpu.o: mem_multigpu.cu
+	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -Wall -allow-unsupported-compiler -arch=sm_$(ARCH) -O3 -Xcompiler -fPIC $< -o $@
 
 inject_funcs.o: inject_funcs.cu
-	$(NVCC) $(INCLUDES) -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -c $< -o $@
+	$(NVCC) $(INCLUDES) -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -allow-unsupported-compiler -c $< -o $@
+
+test_code:
+	#nvcc -o test test.cu -l./wrapper.a -cudart shared
+	g++ -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include
+	nvcc -shared -o libwrapper.so wrapper.o
+	nvcc -L. -o test_mult test_mult.cu -lwrapper
+
+test_run:
+	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=./mem_multigpu.so ./test_mult
 
 clean:
-	rm -f *.so *.o
+	rm -f *.so *.o test_mult

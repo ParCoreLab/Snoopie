@@ -365,6 +365,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       }
     }
   }
+#if 0
   else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2)
   {
     cuMemAlloc_v2_params *p = (cuMemAlloc_v2_params *)params;
@@ -382,10 +383,27 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
     std::cout << "{\"op\": \"mem_alloc\", \"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
+    fprintf(stderr, "returned address of cuMemAlloc is %lx\n", (long unsigned int) __builtin_extract_return_addr (__builtin_return_address (0)));
   }
+#endif
 
   skip_callback_flag = false;
   pthread_mutex_unlock(&mutex);
+}
+
+cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
+        fprintf(stderr, "cudaMallocWrap is called\n");
+        //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
+        cudaError_t errorOutput = cudaMalloc( devPtr, size );
+        fprintf(stderr, "cudaMalloc is called with offset: %lx, size: %ld, in file %s, function %s, line %d\n", (long unsigned int) *devPtr, (long unsigned int) size, fname, fxname, lineno);
+        fprintf(stderr, "returned address of cudaMallocWrap is %lx\n", (long unsigned int) __builtin_extract_return_addr (__builtin_return_address (0)));
+#if 0
+        std::cout << "cudaMalloc is called in location:"
+              << location.file_name() << ":"
+              << location.line() << '\n';
+#endif
+
+        return errorOutput;
 }
 
 void *recv_thread_fun(void *args)
