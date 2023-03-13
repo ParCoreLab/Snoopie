@@ -9,9 +9,9 @@ int main(){
 
   int *d_a[4], *d_b[6];
   for(int i = 0; i < 4; i++)
-  	cudaMallocWRAP(&d_a[i], sizeof(*d_a[0]));
+  	cudaMallocWRAP(&d_a[i], 2 * sizeof(*d_a[0]));
   for(int i = 0; i < 6; i++)
-        cudaMallocWRAP(&d_b[i], sizeof(*d_b[0]));
+        cudaMallocWRAP(&d_b[i], 4 * sizeof(*d_b[0]));
   for(int i = 0; i < 4; i++)
   	cudaFree(&d_a[i]);
   for(int i = 0; i < 6; i++)

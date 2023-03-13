@@ -9,12 +9,12 @@ $(error ERROR: nvcc version >= $(NVCC_VER_REQ) required to compile an nvbit tool
 endif
 
 NVBIT_PATH=../../core
-INCLUDES=-I$(NVBIT_PATH)
+INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include
 
-LIBS=-L$(NVBIT_PATH) -lnvbit
+LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib
 NVCC_PATH=-L $(subst bin/nvcc,lib64,$(shell which nvcc | tr -s /))
 
-SOURCES=mem_multigpu.cu inject_funcs.cu
+SOURCES=mem_multigpu.cu inject_funcs.cu obj_database.cu
 
 OBJECTS=$(SOURCES:.cu=.o)
 ARCH?=35
@@ -34,6 +34,9 @@ mem_multigpu.o: mem_multigpu.cu
 
 inject_funcs.o: inject_funcs.cu
 	$(NVCC) $(INCLUDES) -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -allow-unsupported-compiler -c $< -o $@
+
+obj_database.o: obj_database.cu
+	$(NVCC) $(INCLUDES) -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -allow-unsupported-compiler -c $< -o $@
 
 test_code:
 	#nvcc -o test test.cu -l./wrapper.a -cudart shared

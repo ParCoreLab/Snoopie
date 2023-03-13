@@ -35,6 +35,12 @@
 #include <unordered_set>
 #include <unordered_map>
 
+#include <adm_config.h>
+#include <adm_common.h>
+#include <adm_splay.h>
+#include <adm_memory.h>
+#include <adm_database.h>
+
 /* every tool needs to include this once */
 #include "nvbit_tool.h"
 
@@ -55,6 +61,12 @@
 #define CHANNEL_SIZE (1l << 30)
 
 #define EQUAL_STRS 0
+
+using namespace adamant;
+
+static adm_splay_tree_t* tree = nullptr;
+pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
+pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>* objects = nullptr;
 
 struct CTXstate
 {
@@ -110,7 +122,21 @@ int64_t find_dev_of_ptr(uint64_t ptr)
 
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;
+#if 0
+void adamant::adm_db_init()
+{
+  nodes = new pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>;
+  objects = new pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>;
+  fprintf(stderr, "adm_db_init\n");
+}
 
+void adamant::adm_db_fini()
+{
+  delete nodes;
+  delete objects;
+  fprintf(stderr, "adm_db_fini\n");
+}
+#endif
 void nvbit_at_init()
 {
   setenv("CUDA_MANAGED_FORCE_DEVICE_ALLOC", "1", 1);
@@ -130,6 +156,7 @@ void nvbit_at_init()
     std::cout << pad << std::endl;
   }
 
+  adm_db_init();
   /* set mutex as recursive */
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
@@ -395,6 +422,18 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *fname, cons
         fprintf(stderr, "cudaMallocWrap is called\n");
         //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
         cudaError_t errorOutput = cudaMalloc( devPtr, size );
+	if(*devPtr /*&& adm_set_tracing(0)*/) {
+		fprintf(stderr, "before adm_db_insert\n");
+    		adm_object_t* obj = adm_db_insert(reinterpret_cast<uint64_t>(*devPtr), size, ADM_STATE_ALLOC);
+    		if(obj) {
+      		//fprintf(stderr, "adm_db_insert succeeds for malloc\n");
+#if 0
+      			if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
+        			get_stack(*static_cast<adamant::stack_t*>(obj->meta.meta[ADM_META_STACK_TYPE]));
+#endif
+    		}
+    		//adm_set_tracing(1);
+  	}
         fprintf(stderr, "cudaMalloc is called with offset: %lx, size: %ld, in file %s, function %s, line %d\n", (long unsigned int) *devPtr, (long unsigned int) size, fname, fxname, lineno);
         fprintf(stderr, "returned address of cudaMallocWrap is %lx\n", (long unsigned int) __builtin_extract_return_addr (__builtin_return_address (0)));
 #if 0
@@ -512,4 +551,10 @@ void nvbit_at_ctx_term(CUcontext ctx)
   skip_callback_flag = false;
   delete ctx_state;
   pthread_mutex_unlock(&mutex);
+}
+
+void nvbit_at_term()
+{
+	adm_db_print();
+	adm_db_fini();
 }
