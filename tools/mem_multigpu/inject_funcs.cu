@@ -36,11 +36,13 @@
 /* contains definition of the mem_access_t structure */
 #include "common.h"
 
+#if 0
 #include "adm.h"
 #include "adm_common.h"
 #include "adm_database.h"
 
 using namespace adamant;
+#endif
 
 extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, int dev_id,
                                                        uint64_t addr,
@@ -62,8 +64,8 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
         ma.addrs[i] = __shfl_sync(active_mask, addr, i);
     }
 
-    adm_object_t* obj = adm_db_find(ma.addrs[0]);
-    ma.allocation_pc = obj->get_allocation_pc();
+    //adm_object_t* obj = adm_db_find(ma.addrs[0]);
+    //ma.allocation_pc = obj->get_allocation_pc();
 
     int4 cta = get_ctaid();
     ma.grid_launch_id = grid_launch_id;

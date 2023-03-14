@@ -62,6 +62,10 @@
 
 #define EQUAL_STRS 0
 
+#include "adm.h"
+//#include "adm_common.h"
+//#include "adm_database.h"
+
 using namespace adamant;
 
 static adm_splay_tree_t* tree = nullptr;
@@ -488,6 +492,9 @@ void *recv_thread_fun(void *args)
 
         std::stringstream ss;
 
+	adm_object_t* obj = NULL; //adm_db_find(ma.addrs[0]);
+    	uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
+
         for (int i = 0; i < 32; i++)
         {
           if (ma->addrs[i] == 0x0)
@@ -503,7 +510,12 @@ void *recv_thread_fun(void *args)
           if (mem_device_id == -1)
             continue;
 
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+	  if (allocation_pc == 0) {
+	  	obj = adm_db_find(ma->addrs[i]);
+		allocation_pc = obj->get_allocation_pc();
+	  }
+
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
         }
 
         std::cout << ss.str() << std::flush;
