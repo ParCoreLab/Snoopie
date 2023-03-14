@@ -424,18 +424,22 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *fname, cons
         cudaError_t errorOutput = cudaMalloc( devPtr, size );
 	if(*devPtr /*&& adm_set_tracing(0)*/) {
 		fprintf(stderr, "before adm_db_insert\n");
-    		adm_object_t* obj = adm_db_insert(reinterpret_cast<uint64_t>(*devPtr), size, ADM_STATE_ALLOC);
+		uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
+    		adm_object_t* obj = adm_db_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, ADM_STATE_ALLOC);
+		
+//#if 0
     		if(obj) {
       		//fprintf(stderr, "adm_db_insert succeeds for malloc\n");
+			fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) allocation_pc);
 #if 0
       			if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
         			get_stack(*static_cast<adamant::stack_t*>(obj->meta.meta[ADM_META_STACK_TYPE]));
 #endif
     		}
+//#endif
     		//adm_set_tracing(1);
   	}
         fprintf(stderr, "cudaMalloc is called with offset: %lx, size: %ld, in file %s, function %s, line %d\n", (long unsigned int) *devPtr, (long unsigned int) size, fname, fxname, lineno);
-        fprintf(stderr, "returned address of cudaMallocWrap is %lx\n", (long unsigned int) __builtin_extract_return_addr (__builtin_return_address (0)));
 #if 0
         std::cout << "cudaMalloc is called in location:"
               << location.file_name() << ":"
