@@ -392,7 +392,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       }
     }
   }
-#if 0
+//#if 0
   else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2)
   {
     cuMemAlloc_v2_params *p = (cuMemAlloc_v2_params *)params;
@@ -410,9 +410,9 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
     std::cout << "{\"op\": \"mem_alloc\", \"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
-    fprintf(stderr, "returned address of cuMemAlloc is %lx\n", (long unsigned int) __builtin_extract_return_addr (__builtin_return_address (0)));
+    //fprintf(stderr, "returned address of cuMemAlloc is %lx\n", (long unsigned int) __builtin_extract_return_addr (__builtin_return_address (0)));
   }
-#endif
+//#endif
 
   skip_callback_flag = false;
   pthread_mutex_unlock(&mutex);
