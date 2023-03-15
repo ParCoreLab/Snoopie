@@ -132,7 +132,7 @@ class adm_object_t
     void process(const adm_event_t& event) noexcept { meta.process(event); }
 
     void print() const noexcept;
-};
+};	
 
 adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, const state_t state=ADM_STATE_STATIC) noexcept;
 

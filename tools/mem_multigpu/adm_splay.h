@@ -2,6 +2,8 @@
 #define __ADAMANT_SPLAY
 
 #include <adm_database.h>
+#include <bits/stdc++.h>
+using namespace std;
 
 namespace adamant
 {
@@ -193,6 +195,60 @@ class adm_splay_tree_t
     }
 
 };
+
+class adm_hash_table_t
+{
+    int hash_table_size;    // No. of buckets
+
+    // Pointer to an array containing buckets
+    list<adm_object_t*> *table;
+public:
+
+    // hash function to map values to key
+    int hashFunction(int x) {
+        return (x % 54121 % hash_table_size);
+    }
+
+    adm_hash_table_t(int bucket)
+    {
+        hash_table_size = bucket;
+        table = new list<adm_object_t*>[hash_table_size];
+    }  // Constructor
+
+    // inserts a key into hash table
+    void insert(adm_object_t* obj) noexcept
+    {
+        int index = hashFunction(obj->get_allocation_pc());
+        table[index].push_back(obj);
+    }
+
+    // deletes a key from hash table
+    adm_object_t* find(uint64_t pc) noexcept
+    {
+        // get the hash index of key
+        int index = hashFunction(pc);
+
+        if(table[index].empty())
+                return NULL;
+        // find the key in (index)th list
+        list <adm_object_t*> :: iterator i;
+        for (i = table[index].begin(); i != table[index].end(); i++) {
+                if ((*i)->get_allocation_pc() == pc)
+                        break;
+        }
+
+        // if key is found in hash table, remove it
+        if (i != table[index].end())
+                return *i;
+        return NULL;
+    }
+
+#if 0
+    void displayHash() noexcept
+    {
+    }
+#endif
+}; 
 
 }
 

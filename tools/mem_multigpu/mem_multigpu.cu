@@ -89,8 +89,10 @@ struct MemoryAllocation
   uint64_t bytesize;
 };
 
+void initialize_object_table(int size);
+
 /* lock */
-pthread_mutex_t mutex;
+pthread_mutex_t mutex1;
 
 /* map to store context state */
 std::unordered_map<CUcontext, CTXstate *> ctx_state_map;
@@ -159,13 +161,13 @@ void nvbit_at_init()
   {
     std::cout << pad << std::endl;
   }
-
+  initialize_object_table(100);
   adm_db_init();
   /* set mutex as recursive */
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-  pthread_mutex_init(&mutex, &attr);
+  pthread_mutex_init(&mutex1, &attr);
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -285,13 +287,13 @@ __global__ void flush_channel(ChannelDev *ch_dev)
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
                          const char *name, void *params, CUresult *pStatus)
 {
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex1);
 
   /* we prevent re-entry on this callback when issuing CUDA functions inside
    * this function */
   if (skip_callback_flag)
   {
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&mutex1);
     return;
   }
   skip_callback_flag = true;
@@ -419,7 +421,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 //#endif
 
   skip_callback_flag = false;
-  pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex1);
 }
 
 cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
@@ -459,13 +461,13 @@ void *recv_thread_fun(void *args)
   fprintf(stderr, "recv_thread_fun is called\n");
   CUcontext ctx = (CUcontext)args;
 
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex1);
   /* get context state from map */
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
 
   ChannelHost *ch_host = &ctx_state->channel_host;
-  pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex1);
   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
 
   bool done = false;
@@ -547,7 +549,7 @@ void *recv_thread_fun(void *args)
 
 void nvbit_at_ctx_init(CUcontext ctx)
 {
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex1);
   if (verbose)
   {
     printf("MEMTRACE: STARTING CONTEXT %p\n", ctx);
@@ -559,12 +561,12 @@ void nvbit_at_ctx_init(CUcontext ctx)
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
                                ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
-  pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex1);
 }
 
 void nvbit_at_ctx_term(CUcontext ctx)
 {
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex1);
   skip_callback_flag = true;
   if (verbose)
   {
@@ -584,7 +586,7 @@ void nvbit_at_ctx_term(CUcontext ctx)
   cudaFree(ctx_state->channel_dev);
   skip_callback_flag = false;
   delete ctx_state;
-  pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex1);
 }
 
 void nvbit_at_term()

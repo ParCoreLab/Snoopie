@@ -11,9 +11,14 @@
 using namespace adamant;
 
 static adm_splay_tree_t* range_tree = nullptr;
+static adm_hash_table_t* object_table; 
 static pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* range_nodes = nullptr;
 static pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 static pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>* objects = nullptr;
+
+void initialize_object_table(int size) {
+	object_table = new adm_hash_table_t(size);
+}
 
 static inline
 adm_splay_tree_t* adm_range_find_node(const uint64_t address) noexcept
