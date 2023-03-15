@@ -93,6 +93,51 @@ adm_range_t* adm_range_insert(const uint64_t address, const uint64_t size, const
 
 adm_range_t* adm_range_find(const uint64_t address) noexcept;
 
+class adm_object_t
+{
+    uint64_t allocation_pc;
+    std::string var_name;
+    std::string file_name;
+    std::string func_name;
+    uint32_t line_num;
+
+  public:
+
+    adm_meta_t meta;
+
+    adm_object_t(): allocation_pc(0), var_name(NULL), file_name(NULL), func_name(NULL), line_num(0) {}
+
+    uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
+
+    void set_allocation_pc(const uint64_t pc) noexcept { allocation_pc=pc; };
+
+    std::string get_var_name() const noexcept { return var_name; };
+
+    void set_var_name(std::string varname) {var_name = varname; };
+
+    std::string get_file_name() const noexcept { return file_name; };
+
+    void set_file_name(std::string filename) noexcept { file_name=filename; };
+
+    std::string get_func_name() const noexcept { return func_name; };
+
+    void set_func_name(std::string funcname) noexcept { func_name=funcname; };
+
+    uint32_t get_line_num() const noexcept { return line_num; };
+
+    void set_line_num(const uint64_t linenum) noexcept { line_num=linenum; };
+
+    bool has_events() const noexcept { return meta.has_events(); }
+
+    void process(const adm_event_t& event) noexcept { meta.process(event); }
+
+    void print() const noexcept;
+};
+
+adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, const state_t state=ADM_STATE_STATIC) noexcept;
+
+adm_object_t* adm_object_find(const uint64_t allocation_pc) noexcept;
+
 void adm_db_update_size(const uint64_t address, const uint64_t size) noexcept;
 
 void adm_db_update_state(const uint64_t address, const state_t state) noexcept;
@@ -105,7 +150,7 @@ static inline void adm_meta_init() noexcept {};
 
 static inline void adm_meta_fini() noexcept {};
 
-void adm_db_print() noexcept;
+void adm_ranges_print() noexcept;
 
 }
 

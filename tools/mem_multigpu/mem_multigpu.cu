@@ -589,6 +589,6 @@ void nvbit_at_ctx_term(CUcontext ctx)
 
 void nvbit_at_term()
 {
-	adm_db_print();
+	adm_ranges_print();
 	adm_db_fini();
 }

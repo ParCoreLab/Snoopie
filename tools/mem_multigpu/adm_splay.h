@@ -130,6 +130,8 @@ class adm_splay_tree_t
 
     adm_range_t* range;
 
+    adm_object_t* object;
+
     adm_splay_tree_t(): parent(nullptr), left(nullptr), right(nullptr), start(0), end(0), range(nullptr) {}
 
     adm_splay_tree_t* min() noexcept
