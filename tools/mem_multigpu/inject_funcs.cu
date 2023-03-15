@@ -64,7 +64,7 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
         ma.addrs[i] = __shfl_sync(active_mask, addr, i);
     }
 
-    //adm_object_t* obj = adm_db_find(ma.addrs[0]);
+    //adm_range_t* obj = adm_range_find(ma.addrs[0]);
     //ma.allocation_pc = obj->get_allocation_pc();
 
     int4 cta = get_ctaid();

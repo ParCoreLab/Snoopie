@@ -70,7 +70,7 @@ using namespace adamant;
 
 static adm_splay_tree_t* tree = nullptr;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
-pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>* objects = nullptr;
+pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 
 struct CTXstate
 {
@@ -130,14 +130,14 @@ uint64_t grid_launch_id = 0;
 void adamant::adm_db_init()
 {
   nodes = new pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>;
-  objects = new pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>;
+  ranges = new pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>;
   fprintf(stderr, "adm_db_init\n");
 }
 
 void adamant::adm_db_fini()
 {
   delete nodes;
-  delete objects;
+  delete ranges;
   fprintf(stderr, "adm_db_fini\n");
 }
 #endif
@@ -427,15 +427,15 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
         //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
         cudaError_t errorOutput = cudaMalloc( devPtr, size );
 	if(*devPtr /*&& adm_set_tracing(0)*/) {
-		fprintf(stderr, "before adm_db_insert\n");
+		fprintf(stderr, "before adm_range_insert\n");
 		uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
 		std::string vname = var_name;
-    		adm_object_t* obj = adm_db_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
+    		adm_range_t* obj = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
 		
 //#if 0
     		if(obj) {
-      		//fprintf(stderr, "adm_db_insert succeeds for malloc\n");
-			fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) allocation_pc);
+      		//fprintf(stderr, "adm_range_insert succeeds for malloc\n");
+			fprintf(stderr, "An range is created by cudaMallocWrap in %lx\n", (long unsigned int) allocation_pc);
 #if 0
       			if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
         			get_stack(*static_cast<adamant::stack_t*>(obj->meta.meta[ADM_META_STACK_TYPE]));
@@ -496,7 +496,7 @@ void *recv_thread_fun(void *args)
 //#endif
         std::stringstream ss;
 
-	adm_object_t* obj = NULL; //adm_db_find(ma.addrs[0]);
+	adm_range_t* obj = NULL; //adm_range_find(ma.addrs[0]);
     	uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
 	std::string varname = NULL;
 
@@ -520,7 +520,7 @@ void *recv_thread_fun(void *args)
 	  //ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
 //#if 0
 	  if (allocation_pc == 0) {
-	  	obj = adm_db_find(ma->addrs[i]);
+	  	obj = adm_range_find(ma->addrs[i]);
 		allocation_pc = obj->get_allocation_pc();
 		varname = obj->get_var_name();
 	  }

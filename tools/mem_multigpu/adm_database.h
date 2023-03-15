@@ -47,7 +47,7 @@ class stack_t
     unw_word_t ip[ADM_META_STACK_DEPTH];
 };
 
-class adm_object_t
+class adm_range_t
 {
     uint64_t size;
     uint64_t address;
@@ -58,7 +58,7 @@ class adm_object_t
 
     adm_meta_t meta;
 
-    adm_object_t(): size(0), address(0) {}
+    adm_range_t(): size(0), address(0) {}
 
     uint64_t get_address() const noexcept { return address; };
 
@@ -89,9 +89,9 @@ class adm_object_t
     void print() const noexcept;
 };
  
-adm_object_t* adm_db_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, std::string var_name, const state_t state=ADM_STATE_STATIC) noexcept;
+adm_range_t* adm_range_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, std::string var_name, const state_t state=ADM_STATE_STATIC) noexcept;
 
-adm_object_t* adm_db_find(const uint64_t address) noexcept;
+adm_range_t* adm_range_find(const uint64_t address) noexcept;
 
 void adm_db_update_size(const uint64_t address, const uint64_t size) noexcept;
 

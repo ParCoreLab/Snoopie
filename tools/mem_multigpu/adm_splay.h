@@ -128,9 +128,9 @@ class adm_splay_tree_t
     uint64_t start;
     uint64_t end;
 
-    adm_object_t* object;
+    adm_range_t* range;
 
-    adm_splay_tree_t(): parent(nullptr), left(nullptr), right(nullptr), start(0), end(0), object(nullptr) {}
+    adm_splay_tree_t(): parent(nullptr), left(nullptr), right(nullptr), start(0), end(0), range(nullptr) {}
 
     adm_splay_tree_t* min() noexcept
     {
