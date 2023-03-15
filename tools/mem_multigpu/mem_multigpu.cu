@@ -62,11 +62,15 @@
 
 #define EQUAL_STRS 0
 
+#include "adm.h"
+//#include "adm_common.h"
+//#include "adm_database.h"
+
 using namespace adamant;
 
 static adm_splay_tree_t* tree = nullptr;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
-pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>* objects = nullptr;
+pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 
 struct CTXstate
 {
@@ -85,8 +89,10 @@ struct MemoryAllocation
   uint64_t bytesize;
 };
 
+void initialize_object_table(int size);
+
 /* lock */
-pthread_mutex_t mutex;
+pthread_mutex_t mutex1;
 
 /* map to store context state */
 std::unordered_map<CUcontext, CTXstate *> ctx_state_map;
@@ -126,14 +132,14 @@ uint64_t grid_launch_id = 0;
 void adamant::adm_db_init()
 {
   nodes = new pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>;
-  objects = new pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>;
+  ranges = new pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>;
   fprintf(stderr, "adm_db_init\n");
 }
 
 void adamant::adm_db_fini()
 {
   delete nodes;
-  delete objects;
+  delete ranges;
   fprintf(stderr, "adm_db_fini\n");
 }
 #endif
@@ -155,13 +161,13 @@ void nvbit_at_init()
   {
     std::cout << pad << std::endl;
   }
-
+  initialize_object_table(100);
   adm_db_init();
   /* set mutex as recursive */
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-  pthread_mutex_init(&mutex, &attr);
+  pthread_mutex_init(&mutex1, &attr);
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -281,13 +287,13 @@ __global__ void flush_channel(ChannelDev *ch_dev)
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
                          const char *name, void *params, CUresult *pStatus)
 {
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex1);
 
   /* we prevent re-entry on this callback when issuing CUDA functions inside
    * this function */
   if (skip_callback_flag)
   {
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&mutex1);
     return;
   }
   skip_callback_flag = true;
@@ -415,22 +421,27 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 //#endif
 
   skip_callback_flag = false;
-  pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex1);
 }
 
-cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
+cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
         fprintf(stderr, "cudaMallocWrap is called\n");
         //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
         cudaError_t errorOutput = cudaMalloc( devPtr, size );
 	if(*devPtr /*&& adm_set_tracing(0)*/) {
-		fprintf(stderr, "before adm_db_insert\n");
+		fprintf(stderr, "before adm_range_insert\n");
 		uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
-    		adm_object_t* obj = adm_db_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, ADM_STATE_ALLOC);
+		std::string vname = var_name;
+    		adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
 		
 //#if 0
-    		if(obj) {
-      		//fprintf(stderr, "adm_db_insert succeeds for malloc\n");
-			fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) allocation_pc);
+    		if(range) {
+      		//fprintf(stderr, "adm_range_insert succeeds for malloc\n");
+			fprintf(stderr, "A range is created by cudaMallocWrap with offset %lx\n", (long unsigned int) range->get_address());
+			adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, ADM_STATE_ALLOC);	
+			if(obj) {
+				fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
+			}
 #if 0
       			if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
         			get_stack(*static_cast<adamant::stack_t*>(obj->meta.meta[ADM_META_STACK_TYPE]));
@@ -451,15 +462,16 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *fname, cons
 
 void *recv_thread_fun(void *args)
 {
+  fprintf(stderr, "recv_thread_fun is called\n");
   CUcontext ctx = (CUcontext)args;
 
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex1);
   /* get context state from map */
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
 
   ChannelHost *ch_host = &ctx_state->channel_host;
-  pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex1);
   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
 
   bool done = false;
@@ -467,7 +479,7 @@ void *recv_thread_fun(void *args)
   {
     /* receive buffer from channel */
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
-
+    //fprintf(stderr, "num_recv_bytes is %d\n", num_recv_bytes);
     if (num_recv_bytes > 0)
     {
       uint32_t num_processed_bytes = 0;
@@ -480,14 +492,21 @@ void *recv_thread_fun(void *args)
          * completed, this is the special token we receive from the
          * flush channel kernel that is issues at the end of the
          * context */
+//#if 0
         if (ma->cta_id_x == -1)
         {
           done = true;
+	  fprintf(stderr, "break here after %d bytes\n", num_processed_bytes);
           break;
         }
-
+//#endif
         std::stringstream ss;
 
+	adm_range_t* obj = nullptr; //adm_range_find(ma.addrs[0]);
+    	uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
+	std::string varname = nullptr;
+
+        fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
         {
           if (ma->addrs[i] == 0x0)
@@ -495,19 +514,36 @@ void *recv_thread_fun(void *args)
 
           int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
 
+//#if 0
           // ignore operations on the same device
           if (mem_device_id == ma->dev_id)
             continue;
-
+//#endif
           // ignore operations on memory locations not allocated by cudaMalloc on the host
           if (mem_device_id == -1)
             continue;
 
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+	  //ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+//#if 0
+	  if (allocation_pc == 0) {
+	  	obj = adm_range_find(ma->addrs[i]);
+		allocation_pc = obj->get_allocation_pc();
+		varname = obj->get_var_name();
+	  }
+
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"variable_name\": " << varname << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+//#endif
         }
 
         std::cout << ss.str() << std::flush;
         num_processed_bytes += sizeof(mem_access_t);
+#if 0
+	if (ma->cta_id_x == -1)
+        {
+          done = true;
+          break;
+        }
+#endif	
       }
     }
   }
@@ -517,7 +553,7 @@ void *recv_thread_fun(void *args)
 
 void nvbit_at_ctx_init(CUcontext ctx)
 {
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex1);
   if (verbose)
   {
     printf("MEMTRACE: STARTING CONTEXT %p\n", ctx);
@@ -529,12 +565,12 @@ void nvbit_at_ctx_init(CUcontext ctx)
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
                                ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
-  pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex1);
 }
 
 void nvbit_at_ctx_term(CUcontext ctx)
 {
-  pthread_mutex_lock(&mutex);
+  pthread_mutex_lock(&mutex1);
   skip_callback_flag = true;
   if (verbose)
   {
@@ -554,11 +590,11 @@ void nvbit_at_ctx_term(CUcontext ctx)
   cudaFree(ctx_state->channel_dev);
   skip_callback_flag = false;
   delete ctx_state;
-  pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex1);
 }
 
 void nvbit_at_term()
 {
-	adm_db_print();
+	adm_ranges_print();
 	adm_db_fini();
 }

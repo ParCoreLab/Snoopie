@@ -38,14 +38,29 @@ inject_funcs.o: inject_funcs.cu
 obj_database.o: obj_database.cu
 	$(NVCC) $(INCLUDES) -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -allow-unsupported-compiler -c $< -o $@
 
-test_code:
+allocation_only_test_compile:
 	#nvcc -o test test.cu -l./wrapper.a -cudart shared
-	g++ -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include
-	nvcc -shared -o libwrapper.so wrapper.o
-	nvcc -L. -o test_mult test_mult.cu -lwrapper
+	g++ -c -Wall -Werror -fPIC allocation-only-test/wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o allocation-only-test/wrapper.o
+	nvcc -shared -o allocation-only-test/libwrapper.so allocation-only-test/wrapper.o
+	nvcc -L./allocation-only-test -o allocation-only-test/test_mult allocation-only-test/test_mult.cu -lwrapper
 
-test_run:
-	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=./mem_multigpu.so ./test_mult
+allocation_only_test_run:
+	LD_LIBRARY_PATH=/usr/local/cuda/lib64:./allocation-only-test:$$LD_LIBRARY_PATH LD_PRELOAD=./mem_multigpu.so allocation-only-test/test_mult
+
+allocation_only_test_clean:
+	rm -f allocation-only-test/*.so allocation-only-test/*.o allocation-only-test/test_mult
+
+vector_add_test_compile:
+	#nvcc -o test test.cu -l./wrapper.a -cudart shared
+	g++ -c -Wall -Werror -fPIC vector-add-test/wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o vector-add-test/wrapper.o
+	nvcc -shared -o vector-add-test/libwrapper.so vector-add-test/wrapper.o
+	nvcc -L./vector-add-test -o vector-add-test/vectoradd vector-add-test/vectoradd.cu -lwrapper
+
+vector_add_test_run:
+	LD_LIBRARY_PATH=/usr/local/cuda/lib64:./vector-add-test:$$LD_LIBRARY_PATH LD_PRELOAD=./mem_multigpu.so vector-add-test/vectoradd
+
+vector_add_test_clean:
+	rm -f vector-add-test/*.so vector-add-test/*.o vector-add-test/vectoradd
 
 clean:
 	rm -f *.so *.o test_mult
