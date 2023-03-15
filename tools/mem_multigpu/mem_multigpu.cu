@@ -455,6 +455,7 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *fname, cons
 
 void *recv_thread_fun(void *args)
 {
+  fprintf(stderr, "recv_thread_fun is called\n");
   CUcontext ctx = (CUcontext)args;
 
   pthread_mutex_lock(&mutex);
@@ -471,7 +472,7 @@ void *recv_thread_fun(void *args)
   {
     /* receive buffer from channel */
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
-
+    //fprintf(stderr, "num_recv_bytes is %d\n", num_recv_bytes);
     if (num_recv_bytes > 0)
     {
       uint32_t num_processed_bytes = 0;
@@ -484,17 +485,20 @@ void *recv_thread_fun(void *args)
          * completed, this is the special token we receive from the
          * flush channel kernel that is issues at the end of the
          * context */
+//#if 0
         if (ma->cta_id_x == -1)
         {
           done = true;
+	  fprintf(stderr, "break here after %d bytes\n", num_processed_bytes);
           break;
         }
-
+//#endif
         std::stringstream ss;
 
 	adm_object_t* obj = NULL; //adm_db_find(ma.addrs[0]);
     	uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
 
+        fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
         {
           if (ma->addrs[i] == 0x0)
@@ -502,24 +506,35 @@ void *recv_thread_fun(void *args)
 
           int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
 
+//#if 0
           // ignore operations on the same device
           if (mem_device_id == ma->dev_id)
             continue;
-
+//#endif
           // ignore operations on memory locations not allocated by cudaMalloc on the host
           if (mem_device_id == -1)
             continue;
 
+	  //ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+//#if 0
 	  if (allocation_pc == 0) {
 	  	obj = adm_db_find(ma->addrs[i]);
 		allocation_pc = obj->get_allocation_pc();
 	  }
 
           ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+//#endif
         }
 
         std::cout << ss.str() << std::flush;
         num_processed_bytes += sizeof(mem_access_t);
+#if 0
+	if (ma->cta_id_x == -1)
+        {
+          done = true;
+          break;
+        }
+#endif	
       }
     }
   }
