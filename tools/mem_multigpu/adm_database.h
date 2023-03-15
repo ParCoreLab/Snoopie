@@ -105,7 +105,7 @@ class adm_object_t
 
     adm_meta_t meta;
 
-    adm_object_t(): allocation_pc(0), var_name(NULL), file_name(NULL), func_name(NULL), line_num(0) {}
+    adm_object_t(): allocation_pc(0), line_num(0) {}
 
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 

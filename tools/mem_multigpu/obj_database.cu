@@ -36,21 +36,39 @@ adm_range_t* adamant::adm_range_find(const uint64_t address) noexcept
   return nullptr;
 }
 
+ADM_VISIBILITY 
+adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, const state_t state) noexcept
+{
+	adm_object_t* obj = object_table->find(allocation_pc);
+	if(obj == nullptr) {
+		obj = new adm_object_t();
+		obj->set_allocation_pc(allocation_pc);
+		obj->set_var_name(varname);
+		obj->set_file_name(filename);
+		obj->set_func_name(funcname);
+		obj->set_line_num(linenum);
+		object_table->insert(obj);
+	}
+	if(obj->get_allocation_pc() == allocation_pc)
+                return obj;
+	return nullptr;	
+}
+
 ADM_VISIBILITY
 adm_range_t* adamant::adm_range_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, std::string var_name, const state_t state) noexcept
 {
   adm_splay_tree_t* obj = nullptr;
   adm_splay_tree_t* pos = nullptr;
 
-  fprintf(stderr, "inside adm_range_insert before range_tree->find_with_parent\n");
+  //fprintf(stderr, "inside adm_range_insert before range_tree->find_with_parent\n");
   if(range_tree) range_tree->find_with_parent(address, pos, obj);
-  fprintf(stderr, "inside adm_range_insert after range_tree->find_with_parent\n");
+  //fprintf(stderr, "inside adm_range_insert after range_tree->find_with_parent\n");
   if(obj==nullptr) {
-    fprintf(stderr, "inside adm_range_insert before range_nodes->malloc\n");
+    //fprintf(stderr, "inside adm_range_insert before range_nodes->malloc\n");
     obj = range_nodes->malloc();
     if(obj==nullptr) return nullptr;
 
-    fprintf(stderr, "inside adm_range_insert before ranges->malloc\n");
+    //fprintf(stderr, "inside adm_range_insert before ranges->malloc\n");
     obj->range = ranges->malloc();
     if(obj->range==nullptr) return nullptr;
 
@@ -64,7 +82,7 @@ adm_range_t* adamant::adm_range_insert(const uint64_t address, const uint64_t si
     if(pos!=nullptr)
       pos->insert(obj);
     range_tree = obj->splay();
-    fprintf(stderr, "range is inserted to the splay tree\n");
+    //fprintf(stderr, "range is inserted to the splay tree\n");
   }
   else {
     if(!(obj->range->get_state()&ADM_STATE_FREE)) {
@@ -163,7 +181,12 @@ void adm_range_t::print() const noexcept
   uint64_t z = get_size();
   std::cout << "size: " << z << ", ";
   uint64_t p = get_allocation_pc();
+  adm_object_t* obj = object_table->find(p);
+  obj->print();
+#if 0
+  uint64_t p = get_allocation_pc();
   std::cout << "allocation_pc: " << p << std::endl; 
+#endif
   //std::string varname = get_var_name();
   //std::cout << varname << std::endl;
 }
@@ -171,7 +194,7 @@ void adm_range_t::print() const noexcept
 ADM_VISIBILITY
 void adm_object_t::print() const noexcept
 {
-  std::cout << "in adm_object_t::print\n";
+  //std::cout << "in adm_object_t::print\n";
   uint64_t p = get_allocation_pc();
   std::cout << "allocation_pc: " << p << ", "; 
   std::string varname = get_var_name();

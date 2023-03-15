@@ -432,12 +432,16 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
 		fprintf(stderr, "before adm_range_insert\n");
 		uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
 		std::string vname = var_name;
-    		adm_range_t* obj = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
+    		adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
 		
 //#if 0
-    		if(obj) {
+    		if(range) {
       		//fprintf(stderr, "adm_range_insert succeeds for malloc\n");
-			fprintf(stderr, "An range is created by cudaMallocWrap in %lx\n", (long unsigned int) allocation_pc);
+			fprintf(stderr, "A range is created by cudaMallocWrap with offset %lx\n", (long unsigned int) range->get_address());
+			adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, ADM_STATE_ALLOC);	
+			if(obj) {
+				fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
+			}
 #if 0
       			if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
         			get_stack(*static_cast<adamant::stack_t*>(obj->meta.meta[ADM_META_STACK_TYPE]));
@@ -498,9 +502,9 @@ void *recv_thread_fun(void *args)
 //#endif
         std::stringstream ss;
 
-	adm_range_t* obj = NULL; //adm_range_find(ma.addrs[0]);
+	adm_range_t* obj = nullptr; //adm_range_find(ma.addrs[0]);
     	uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
-	std::string varname = NULL;
+	std::string varname = nullptr;
 
         fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)

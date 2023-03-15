@@ -229,7 +229,7 @@ public:
         int index = hashFunction(pc);
 
         if(table[index].empty())
-                return NULL;
+                return nullptr;
         // find the key in (index)th list
         list <adm_object_t*> :: iterator i;
         for (i = table[index].begin(); i != table[index].end(); i++) {
@@ -240,7 +240,7 @@ public:
         // if key is found in hash table, remove it
         if (i != table[index].end())
                 return *i;
-        return NULL;
+        return nullptr;
     }
 
 #if 0
