@@ -52,6 +52,7 @@ class adm_object_t
     uint64_t size;
     uint64_t address;
     uint64_t allocation_pc;
+    std::string var_name;
 
   public:
 
@@ -71,6 +72,10 @@ class adm_object_t
 
     void set_allocation_pc(const uint64_t a) noexcept { allocation_pc=a; };
 
+    std::string get_var_name() const noexcept { return var_name; };
+
+    void set_var_name(std::string varname) noexcept { var_name=varname; };
+
     state_t get_state() const noexcept { return static_cast<state_t>(size>>60); };
 
     void set_state(const state_t state) {size = (size&0x0FFFFFFFFFFFFFFF)|(static_cast<uint64_t>(state)<<60); };
@@ -84,7 +89,7 @@ class adm_object_t
     void print() const noexcept;
 };
  
-adm_object_t* adm_db_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, const state_t state=ADM_STATE_STATIC) noexcept;
+adm_object_t* adm_db_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, std::string var_name, const state_t state=ADM_STATE_STATIC) noexcept;
 
 adm_object_t* adm_db_find(const uint64_t address) noexcept;
 

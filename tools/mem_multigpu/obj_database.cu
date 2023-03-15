@@ -31,7 +31,7 @@ adm_object_t* adamant::adm_db_find(const uint64_t address) noexcept
 }
 
 ADM_VISIBILITY
-adm_object_t* adamant::adm_db_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, const state_t state) noexcept
+adm_object_t* adamant::adm_db_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, std::string var_name, const state_t state) noexcept
 {
   adm_splay_tree_t* obj = nullptr;
   adm_splay_tree_t* pos = nullptr;
@@ -53,6 +53,7 @@ adm_object_t* adamant::adm_db_insert(const uint64_t address, const uint64_t size
     obj->end = obj->start+size;
     obj->object->set_size(size);
     obj->object->set_allocation_pc(allocation_pc);
+    obj->object->set_var_name(var_name);
     obj->object->set_state(state);
     if(pos!=nullptr)
       pos->insert(obj);
@@ -80,6 +81,7 @@ adm_object_t* adamant::adm_db_insert(const uint64_t address, const uint64_t size
       obj->end = obj->start+size;
       obj->object->set_size(size);
       obj->object->set_allocation_pc(allocation_pc);
+      obj->object->set_var_name(var_name);
       obj->object->set_state(state);
       tree = obj->splay();
     }
@@ -153,5 +155,7 @@ void adm_object_t::print() const noexcept
   uint64_t z = get_size();
   fprintf(stderr, "size: %ld ", z);
   uint64_t p = get_allocation_pc();
-  fprintf(stderr, "allocation_pc: %lx\n", p); 
+  fprintf(stderr, "allocation_pc: %lx ", p); 
+  std::string varname = get_var_name();
+  std::cout << varname << std::endl;
 }

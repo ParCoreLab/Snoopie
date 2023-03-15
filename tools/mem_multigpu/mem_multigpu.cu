@@ -422,14 +422,15 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   pthread_mutex_unlock(&mutex);
 }
 
-cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
+cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
         fprintf(stderr, "cudaMallocWrap is called\n");
         //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
         cudaError_t errorOutput = cudaMalloc( devPtr, size );
 	if(*devPtr /*&& adm_set_tracing(0)*/) {
 		fprintf(stderr, "before adm_db_insert\n");
 		uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
-    		adm_object_t* obj = adm_db_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, ADM_STATE_ALLOC);
+		std::string vname = var_name;
+    		adm_object_t* obj = adm_db_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
 		
 //#if 0
     		if(obj) {
@@ -497,6 +498,7 @@ void *recv_thread_fun(void *args)
 
 	adm_object_t* obj = NULL; //adm_db_find(ma.addrs[0]);
     	uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
+	std::string varname = NULL;
 
         fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
@@ -520,9 +522,10 @@ void *recv_thread_fun(void *args)
 	  if (allocation_pc == 0) {
 	  	obj = adm_db_find(ma->addrs[i]);
 		allocation_pc = obj->get_allocation_pc();
+		varname = obj->get_var_name();
 	  }
 
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"variable_name\": " << varname << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
 //#endif
         }
 

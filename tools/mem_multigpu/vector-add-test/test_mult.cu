@@ -3,7 +3,7 @@
 
 //#include <experimental/source_location>
 //cudaError_t cudaMalloc ( void** devPtr, size_t size, const std::experimental::source_location& location = std::experimental::source_location::current());
-#define cudaMallocWRAP(a, b) cudaMallocWrap((void **)a, b, __FILE__, __func__, __LINE__)
+#define cudaMallocWRAP(a, b) cudaMallocWrap((void **)a, b, (char *) var_name, __FILE__, __func__, __LINE__)
 
 int main(){
 
