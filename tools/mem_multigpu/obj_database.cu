@@ -20,6 +20,46 @@ void initialize_object_table(int size) {
 	object_table = new adm_hash_table_t(size);
 }
 
+bool object_exists(uint64_t pc) {
+	adm_object_t* obj = object_table->find(pc);
+        if(obj) {
+                return true;
+        }
+	return false;	
+}
+
+std::string get_object_var_name(uint64_t pc) {
+	adm_object_t* obj = object_table->find(pc);
+	if(obj) {
+        	return obj->get_var_name();
+	}
+	return "";
+}
+
+std::string get_object_file_name(uint64_t pc) {
+        adm_object_t* obj = object_table->find(pc);
+        if(obj) {
+                return obj->get_file_name();
+        }
+        return "";
+}
+
+std::string get_object_func_name(uint64_t pc) {
+        adm_object_t* obj = object_table->find(pc);
+        if(obj) {
+                return obj->get_func_name();
+        }
+        return "";
+}
+
+uint32_t get_object_line_num(uint64_t pc) {
+        adm_object_t* obj = object_table->find(pc);
+        if(obj) {
+                return obj->get_line_num();
+        }
+        return 0;
+}
+
 static inline
 adm_splay_tree_t* adm_range_find_node(const uint64_t address) noexcept
 {
