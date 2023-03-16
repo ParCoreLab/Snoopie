@@ -462,7 +462,7 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
 
 void *recv_thread_fun(void *args)
 {
-  fprintf(stderr, "recv_thread_fun is called\n");
+  //fprintf(stderr, "recv_thread_fun is called\n");
   CUcontext ctx = (CUcontext)args;
 
   pthread_mutex_lock(&mutex1);
@@ -496,7 +496,7 @@ void *recv_thread_fun(void *args)
         if (ma->cta_id_x == -1)
         {
           done = true;
-	  fprintf(stderr, "break here after %d bytes\n", num_processed_bytes);
+	  //fprintf(stderr, "break here after %d bytes\n", num_processed_bytes);
           break;
         }
 //#endif
@@ -506,7 +506,7 @@ void *recv_thread_fun(void *args)
     	uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
 	std::string varname = nullptr;
 
-        fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
+        //fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
         {
           if (ma->addrs[i] == 0x0)
