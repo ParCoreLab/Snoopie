@@ -60,6 +60,21 @@ uint32_t get_object_line_num(uint64_t pc) {
         return 0;
 }
 
+uint32_t get_object_device_id(uint64_t pc) {
+        adm_object_t* obj = object_table->find(pc);
+        if(obj) {
+                return obj->get_device_id();
+        }
+        return 0;
+}
+
+void set_object_device_id(uint64_t pc, int dev_id) {
+        adm_object_t* obj = object_table->find(pc);
+        if(obj) {
+                return obj->set_device_id(dev_id);
+        }
+}
+
 static inline
 adm_splay_tree_t* adm_range_find_node(const uint64_t address) noexcept
 {
@@ -77,7 +92,7 @@ adm_range_t* adamant::adm_range_find(const uint64_t address) noexcept
 }
 
 ADM_VISIBILITY 
-adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, const state_t state) noexcept
+adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, int dev_id, const state_t state) noexcept
 {
 	adm_object_t* obj = object_table->find(allocation_pc);
 	if(obj == nullptr) {
@@ -87,6 +102,7 @@ adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::stri
 		obj->set_file_name(filename);
 		obj->set_func_name(funcname);
 		obj->set_line_num(linenum);
+		obj->set_device_id(dev_id);
 		object_table->insert(obj);
 	}
 	if(obj->get_allocation_pc() == allocation_pc)
@@ -245,5 +261,7 @@ void adm_object_t::print() const noexcept
   std::string funcname = get_func_name();
   std::cout << "func_name: " << funcname << ", ";
   uint32_t linenum = get_line_num();
-  std::cout << "line_num: " << linenum << std::endl; 
+  std::cout << "line_num: " << linenum << ", ";
+  int dev_id = get_device_id();
+  std::cout << "device_id: " << dev_id << std::endl; 
 }
