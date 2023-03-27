@@ -205,7 +205,7 @@ class adm_hash_table_t
 public:
 
     // hash function to map values to key
-    int hashFunction(int x) {
+    int hashFunction(uint64_t x) {
         return (x % 54121 % hash_table_size);
     }
 
