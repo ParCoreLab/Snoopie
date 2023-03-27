@@ -99,6 +99,10 @@ std::string get_object_func_name(uint64_t pc);
 
 uint32_t get_object_line_num(uint64_t pc);
 
+int get_object_device_id(uint64_t pc);
+
+void set_object_device_id(uint64_t pc, int dev_id);
+
 bool object_exists(uint64_t pc);
 /* lock */
 pthread_mutex_t mutex1;
@@ -424,6 +428,24 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
+ #if 0
+    fprintf(stderr, "test 0, pointer: %lx\n", pointer);
+    adm_range_t* range = adm_range_find(pointer);
+
+//#if 0
+    fprintf(stderr, "test 1\n");
+    if(range != nullptr) {
+    	uint64_t allocation_pc = range->get_allocation_pc();
+    	fprintf(stderr, "test 2\n");
+    	if(object_exists(allocation_pc)) {
+    		int dev_id = get_object_device_id(allocation_pc);
+		if(dev_id == -1)
+			set_object_device_id(allocation_pc, deviceID);
+    	}
+//#endif
+    }
+#endif
+
     std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
   }
 
@@ -445,7 +467,7 @@ cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_nam
                 if(range) {
                 //fprintf(stderr, "adm_range_insert succeeds for malloc\n");
                         fprintf(stderr, "A range is created by cudaMallocHostWrap with offset %lx\n", (long unsigned int) range->get_address());
-                        adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, ADM_STATE_ALLOC);
+                        adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, -1, ADM_STATE_ALLOC);
                         if(obj) {
                                 fprintf(stderr, "An object is created by cudaMallocHostWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
                         }
@@ -475,13 +497,15 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
 		fprintf(stderr, "before adm_range_insert\n");
 		uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
 		std::string vname = var_name;
+		int dev_id = -1;
+		cudaGetDevice(&dev_id);
     		adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
 		
 //#if 0
     		if(range) {
       		//fprintf(stderr, "adm_range_insert succeeds for malloc\n");
 			fprintf(stderr, "A range is created by cudaMallocWrap with offset %lx\n", (long unsigned int) range->get_address());
-			adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, ADM_STATE_ALLOC);	
+			adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, dev_id, ADM_STATE_ALLOC);	
 			if(obj) {
 				fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
 			}
@@ -551,6 +575,7 @@ void *recv_thread_fun(void *args)
 	std::string filename;
 	std::string funcname;
 	uint32_t linenum;
+	int dev_id = -1;
 
         //fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
@@ -559,7 +584,6 @@ void *recv_thread_fun(void *args)
             continue;
 
           int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
-
 //#if 0
           // ignore operations on the same device
           if (mem_device_id == ma->dev_id)
@@ -579,11 +603,12 @@ void *recv_thread_fun(void *args)
 			filename = get_object_file_name(allocation_pc);
 			funcname = get_object_func_name(allocation_pc);
 			linenum = get_object_line_num(allocation_pc);
+			dev_id = get_object_device_id(allocation_pc);
 		}
 		//varname = obj->get_var_name();
 	  }
 
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"variable_name\": " << varname << "\", \"file_name\": " << filename << "\", \"func_name\": " << funcname << "\", \"line_num\": " << linenum << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"variable_name\": " << varname << "\", \"file_name\": " << filename << "\", \"func_name\": " << funcname << "\", \"line_num\": " << linenum << "\", \"device id of object\": " << dev_id << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
 //#endif
         }
 

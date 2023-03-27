@@ -100,12 +100,13 @@ class adm_object_t
     std::string file_name;
     std::string func_name;
     uint32_t line_num;
+    int device_id;
 
   public:
 
     adm_meta_t meta;
 
-    adm_object_t(): allocation_pc(0), line_num(0) {}
+    adm_object_t(): allocation_pc(0), line_num(0), device_id(-1) {}
 
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 
@@ -127,6 +128,10 @@ class adm_object_t
 
     void set_line_num(const uint64_t linenum) noexcept { line_num=linenum; };
 
+    int get_device_id() const noexcept { return device_id; };
+
+    void set_device_id(const int input_device_id) noexcept { device_id=input_device_id; };
+
     bool has_events() const noexcept { return meta.has_events(); }
 
     void process(const adm_event_t& event) noexcept { meta.process(event); }
@@ -134,7 +139,7 @@ class adm_object_t
     void print() const noexcept;
 };	
 
-adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, const state_t state=ADM_STATE_STATIC) noexcept;
+adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, int device_id, const state_t state=ADM_STATE_STATIC) noexcept;
 
 adm_object_t* adm_object_find(const uint64_t allocation_pc) noexcept;
 
