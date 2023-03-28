@@ -52,6 +52,7 @@ class adm_range_t
     uint64_t size;
     uint64_t address;
     uint64_t allocation_pc;
+    uint32_t sequence_id;
     std::string var_name;
 
   public:
@@ -71,6 +72,10 @@ class adm_range_t
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 
     void set_allocation_pc(const uint64_t a) noexcept { allocation_pc=a; };
+
+    uint32_t get_sequence_id() const noexcept { return sequence_id; };
+
+    void set_sequence_id(const uint32_t a) noexcept { sequence_id=a; };
 
     std::string get_var_name() const noexcept { return var_name; };
 
@@ -101,12 +106,14 @@ class adm_object_t
     std::string func_name;
     uint32_t line_num;
     int device_id;
+    uint32_t data_type_size;
+    uint32_t range_count;
 
   public:
 
     adm_meta_t meta;
 
-    adm_object_t(): allocation_pc(0), line_num(0), device_id(-1) {}
+    adm_object_t(): allocation_pc(0), line_num(0), device_id(-1), data_type_size(0), range_count(0) {}
 
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 
@@ -131,6 +138,14 @@ class adm_object_t
     int get_device_id() const noexcept { return device_id; };
 
     void set_device_id(const int input_device_id) noexcept { device_id=input_device_id; };
+
+    uint32_t get_data_type_size() const noexcept { return data_type_size; };
+
+    void set_data_type_size(const int type_size) noexcept { data_type_size=type_size; }; 
+
+    uint32_t get_range_count() const noexcept { return range_count; };
+
+    void inc_range_count() noexcept { range_count++; }; 
 
     bool has_events() const noexcept { return meta.has_events(); }
 
