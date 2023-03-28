@@ -69,6 +69,7 @@
 using namespace adamant;
 
 static adm_splay_tree_t* tree = nullptr;
+static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 
@@ -458,6 +459,9 @@ cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_nam
         //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
         cudaError_t errorOutput = cudaMallocHost( devPtr, size );
         if(*devPtr /*&& adm_set_tracing(0)*/) {
+		if(!object_attribution) {
+			object_attribution = true;
+		}
                 fprintf(stderr, "before adm_range_insert\n");
                 uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
                 std::string vname = var_name;
@@ -494,6 +498,9 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
         //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
         cudaError_t errorOutput = cudaMalloc( devPtr, size );
 	if(*devPtr /*&& adm_set_tracing(0)*/) {
+		if(!object_attribution) {
+                        object_attribution = true;
+                }
 		fprintf(stderr, "before adm_range_insert\n");
 		uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
 		std::string vname = var_name;
@@ -595,7 +602,7 @@ void *recv_thread_fun(void *args)
 
 	  //ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
 //#if 0
-	  if (allocation_pc == 0) {
+	  if (allocation_pc == 0 && object_attribution) {
 	  	range = adm_range_find(ma->addrs[i]);
 		allocation_pc = range->get_allocation_pc();
 		if(object_exists(allocation_pc)) {
