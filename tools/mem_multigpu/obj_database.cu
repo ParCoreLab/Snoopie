@@ -75,6 +75,21 @@ void set_object_device_id(uint64_t pc, int dev_id) {
         }
 }
 
+uint32_t get_object_data_type_size(uint64_t pc) {
+        adm_object_t* obj = object_table->find(pc);
+        if(obj) {
+                return obj->get_data_type_size();
+        }
+        return 0;
+}
+
+void set_object_data_type_size(uint64_t pc, const uint32_t type_size) {
+        adm_object_t* obj = object_table->find(pc);
+        if(obj) {
+                return obj->set_data_type_size(type_size);
+        }
+}
+
 static inline
 adm_splay_tree_t* adm_range_find_node(const uint64_t address) noexcept
 {
@@ -92,13 +107,14 @@ adm_range_t* adamant::adm_range_find(const uint64_t address) noexcept
 }
 
 ADM_VISIBILITY 
-adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, int dev_id, const state_t state) noexcept
+adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::string varname, const uint32_t element_size, std::string filename, std::string funcname, uint32_t linenum, int dev_id, const state_t state) noexcept
 {
 	adm_object_t* obj = object_table->find(allocation_pc);
 	if(obj == nullptr) {
 		obj = new adm_object_t();
 		obj->set_allocation_pc(allocation_pc);
 		obj->set_var_name(varname);
+		obj->set_data_type_size(element_size);
 		obj->set_file_name(filename);
 		obj->set_func_name(funcname);
 		obj->set_line_num(linenum);
@@ -135,6 +151,16 @@ adm_range_t* adamant::adm_range_insert(const uint64_t address, const uint64_t si
     obj->range->set_allocation_pc(allocation_pc);
     obj->range->set_var_name(var_name);
     obj->range->set_state(state);
+
+// before
+#if 0
+    adm_object_t* data_obj = object_table->find(allocation_pc);
+    if(data_obj) {
+	obj->range->set_index_in_object(data_obj->get_range_count());
+	data_obj->inc_range_count();
+    }
+#endif
+// after    
     if(pos!=nullptr)
       pos->insert(obj);
     range_tree = obj->splay();
@@ -256,6 +282,8 @@ void adm_object_t::print() const noexcept
   std::cout << "allocation_pc: " << p << ", "; 
   std::string varname = get_var_name();
   std::cout << "var_name: " << varname << ", ";
+  uint32_t range_count = get_range_count();
+  std::cout << "number_of_mallocs: " << range_count << ", ";
   std::string filename = get_file_name();
   std::cout << "file_name: " << filename << ", ";
   std::string funcname = get_func_name();
