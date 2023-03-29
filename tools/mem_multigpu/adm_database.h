@@ -52,7 +52,7 @@ class adm_range_t
     uint64_t size;
     uint64_t address;
     uint64_t allocation_pc;
-    uint32_t sequence_id;
+    uint32_t index_in_object;
     std::string var_name;
 
   public:
@@ -73,9 +73,9 @@ class adm_range_t
 
     void set_allocation_pc(const uint64_t a) noexcept { allocation_pc=a; };
 
-    uint32_t get_sequence_id() const noexcept { return sequence_id; };
+    uint32_t get_index_in_object() const noexcept { return index_in_object; };
 
-    void set_sequence_id(const uint32_t a) noexcept { sequence_id=a; };
+    void set_index_in_object(const uint32_t a) noexcept { index_in_object=a; };
 
     std::string get_var_name() const noexcept { return var_name; };
 
@@ -154,7 +154,7 @@ class adm_object_t
     void print() const noexcept;
 };	
 
-adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, int device_id, const state_t state=ADM_STATE_STATIC) noexcept;
+adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, const uint32_t element_size, std::string filename, std::string funcname, uint32_t linenum, int device_id, const state_t state=ADM_STATE_STATIC) noexcept;
 
 adm_object_t* adm_object_find(const uint64_t allocation_pc) noexcept;
 

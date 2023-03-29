@@ -45,28 +45,28 @@ int main() {
 
   int *g0 = NULL;
   cudaSetDevice(gpuid[0]);
-  gpuErrchk(cudaMallocWRAP(&g0, buf_size, "g0"));
+  gpuErrchk(cudaMallocWRAP(&g0, buf_size, "g0", 4));
 
   int *g1 = NULL;
 
   cudaSetDevice(gpuid[1]);
-  gpuErrchk(cudaMallocWRAP(&g1, buf_size, "g1"));
+  gpuErrchk(cudaMallocWRAP(&g1, buf_size, "g1", 4));
   cudaSetDevice(gpuid[0]);
 
   int *g2 = NULL;
 
   cudaSetDevice(gpuid[2]);
-  gpuErrchk(cudaMallocWRAP(&g2, buf_size, "g2"));
+  gpuErrchk(cudaMallocWRAP(&g2, buf_size, "g2", 4));
   cudaSetDevice(gpuid[0]);
 
   int *h0 = NULL;
-  gpuErrchk(cudaMallocHostWRAP(&h0, buf_size, "h0"));
+  gpuErrchk(cudaMallocHostWRAP(&h0, buf_size, "h0", 4));
 
   int *h1 = NULL;
-  gpuErrchk(cudaMallocHostWRAP(&h1, buf_size, "h1"));
+  gpuErrchk(cudaMallocHostWRAP(&h1, buf_size, "h1", 4));
 
   int *h2 = NULL;
-  gpuErrchk(cudaMallocHostWRAP(&h2, buf_size, "h2"));
+  gpuErrchk(cudaMallocHostWRAP(&h2, buf_size, "h2", 4));
 
   gpuErrchk(cudaMemcpy(g0, h0, buf_size, cudaMemcpyHostToDevice));
 

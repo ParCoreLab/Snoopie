@@ -104,6 +104,10 @@ int get_object_device_id(uint64_t pc);
 
 void set_object_device_id(uint64_t pc, int dev_id);
 
+uint32_t get_object_data_type_size(uint64_t pc);
+
+void set_object_data_type_size(uint64_t pc, const uint32_t type_size);
+
 bool object_exists(uint64_t pc);
 /* lock */
 pthread_mutex_t mutex1;
@@ -454,7 +458,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   pthread_mutex_unlock(&mutex1);
 }
 
-cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_name, const char *fname, const char *fxname, int lineno) {
+cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno) {
 	fprintf(stderr, "cudaMallocWrap is called\n");
         //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
         cudaError_t errorOutput = cudaMallocHost( devPtr, size );
@@ -471,9 +475,11 @@ cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_nam
                 if(range) {
                 //fprintf(stderr, "adm_range_insert succeeds for malloc\n");
                         fprintf(stderr, "A range is created by cudaMallocHostWrap with offset %lx\n", (long unsigned int) range->get_address());
-                        adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, -1, ADM_STATE_ALLOC);
+                        adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, -1, ADM_STATE_ALLOC);
                         if(obj) {
                                 fprintf(stderr, "An object is created by cudaMallocHostWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
+				range->set_index_in_object(obj->get_range_count());
+                                obj->inc_range_count();
                         }
 #if 0
                         if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
@@ -493,7 +499,7 @@ cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_nam
         return errorOutput;	
 }
 
-cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
+cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
         fprintf(stderr, "cudaMallocWrap is called\n");
         //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
         cudaError_t errorOutput = cudaMalloc( devPtr, size );
@@ -512,9 +518,11 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
     		if(range) {
       		//fprintf(stderr, "adm_range_insert succeeds for malloc\n");
 			fprintf(stderr, "A range is created by cudaMallocWrap with offset %lx\n", (long unsigned int) range->get_address());
-			adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, dev_id, ADM_STATE_ALLOC);	
+			adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, dev_id, ADM_STATE_ALLOC);	
 			if(obj) {
 				fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
+				range->set_index_in_object(obj->get_range_count());
+                                obj->inc_range_count();
 			}
 #if 0
       			if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
@@ -582,6 +590,7 @@ void *recv_thread_fun(void *args)
 	std::string filename;
 	std::string funcname;
 	uint32_t linenum;
+	uint32_t data_type_size = 1;
 	int dev_id = -1;
 
         //fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
@@ -591,6 +600,8 @@ void *recv_thread_fun(void *args)
             continue;
 
           int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
+	  uint32_t index_in_object = 0;
+	  uint32_t index_in_malloc = 0;
 //#if 0
           // ignore operations on the same device
           if (mem_device_id == ma->dev_id)
@@ -611,11 +622,17 @@ void *recv_thread_fun(void *args)
 			funcname = get_object_func_name(allocation_pc);
 			linenum = get_object_line_num(allocation_pc);
 			dev_id = get_object_device_id(allocation_pc);
+			data_type_size = get_object_data_type_size(allocation_pc);
+			index_in_object = range->get_index_in_object();;
 		}
 		//varname = obj->get_var_name();
 	  }
 
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"variable_name\": " << varname << "\", \"file_name\": " << filename << "\", \"func_name\": " << funcname << "\", \"line_num\": " << linenum << "\", \"device id of object\": " << dev_id << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+	  if (allocation_pc > 0 && object_attribution) {
+	  	index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
+	  }
+
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": " << HEX(allocation_pc) << "\", \"variable_name\": " << varname << "\", \"index_in_object\": \"" << index_in_object << "\", \"index_in_malloc\": \"" << index_in_malloc << "\", \"file_name\": " << filename << "\", \"func_name\": " << funcname << "\", \"line_num\": " << linenum << "\", \"device id of object\": " << dev_id << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
 //#endif
         }
 
