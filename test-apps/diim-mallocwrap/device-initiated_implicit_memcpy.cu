@@ -25,12 +25,12 @@ __global__ void simple_kernel(int *src, int *dst1, int *dst2){
   a += b;
   if (idx % 2 == 0) {
     dst1[idx] = modify_cell(src[idx]);
-    dst1[idx] += a;
+    //dst1[idx] += a;
     //dst1[idx] += dst2[idx];
   }
   else {
     dst2[idx] = modify_cell(src[idx]);
-    dst2[idx] += b;
+    //dst2[idx] += b;
     //dst2[idx] += dst1[idx];
   }
 #if 0
