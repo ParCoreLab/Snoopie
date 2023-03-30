@@ -62,6 +62,9 @@
 
 #define EQUAL_STRS 0
 
+#define FILE_NAME_SIZE 256
+#define PATH_NAME_SIZE 5000
+
 #include "adm.h"
 //#include "adm_common.h"
 //#include "adm_database.h"
@@ -72,6 +75,7 @@ static adm_splay_tree_t* tree = nullptr;
 static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
+static int global_index = 0;
 
 struct CTXstate
 {
@@ -91,6 +95,18 @@ struct MemoryAllocation
 };
 
 void initialize_object_table(int size);
+
+void initialize_line_table(int size);
+
+bool line_exists(int index);
+
+std::string get_line_file_name(int index);
+
+std::string get_line_dir_name(int index); 
+
+uint32_t get_line_line_num(int index); 
+
+short get_line_estimated_status(int index);
 
 std::string get_object_var_name(uint64_t pc);
 
@@ -180,6 +196,7 @@ void nvbit_at_init()
     std::cout << pad << std::endl;
   }
   initialize_object_table(100);
+  initialize_line_table(100);
   adm_db_init();
   /* set mutex as recursive */
   pthread_mutexattr_t attr;
@@ -228,11 +245,32 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     }
 
     
-
+    //char *file_name = (char*)malloc(sizeof(char)*FILE_NAME_SIZE);
+    //file_name[0] = '\0';
+    //char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
+    //dir_name[0] = '\0';
     uint32_t cnt = 0;
     /* iterate on all the static instructions in the function */
     for (auto instr : instrs)
     {
+      uint32_t instr_offset = instr->getOffset();
+      char *file_name = (char*)malloc(sizeof(char)*FILE_NAME_SIZE);
+      file_name[0] = '\0';
+      char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
+      dir_name[0] = '\0';
+      uint32_t line_num = 0;
+      bool ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num);
+      std::string filename = file_name;
+      std::string dirname = dir_name;
+      //free(file_name);
+      //free(dir_name);
+      short estimated_status = 0;
+      if(line_num != 0)
+		estimated_status = 1;
+      adm_line_location_insert(global_index, filename, dirname, line_num, estimated_status);
+      global_index++; 
+      fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
+ 
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -255,6 +293,17 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
       int opcode_id = opcode_to_id_map[instr->getOpcode()];
       int mref_idx = 0;
+#if 0
+      uint32_t instr_offset = instr->getOffset();
+      char *file_name = (char*)malloc(sizeof(char)*FILE_NAME_SIZE);
+      file_name[0] = '\0';
+      char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
+      dir_name[0] = '\0';
+      uint32_t line_num = 0;
+      bool ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num); 
+
+      fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
+#endif
       /* iterate on the operands */
       for (int i = 0; i < instr->getNumOperands(); i++)
       {
@@ -263,6 +312,21 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
         if (op->type == InstrType::OperandType::MREF)
         {
+#if 0
+	  uint32_t instr_offset = instr->getOffset();
+      	  char *file_name = (char*)malloc(sizeof(char)*FILE_NAME_SIZE);
+          file_name[0] = '\0';
+          char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
+          dir_name[0] = '\0';
+          uint32_t line_num = 0;
+          bool ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num);
+
+          fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d\n", file_name, dir_name, line_num); 
+	  if(file_name)
+	  	free(file_name);
+	  if(dir_name)
+	  	free(dir_name);
+#endif
           /* insert call to the instrumentation function with its
            * arguments */
           nvbit_insert_call(instr, "instrument_mem", IPOINT_BEFORE);
@@ -697,5 +761,8 @@ void nvbit_at_ctx_term(CUcontext ctx)
 void nvbit_at_term()
 {
 	adm_ranges_print();
+	adm_line_table_print();
+	fprintf(stderr, "before adm_db_fini\n");
 	adm_db_fini();
+	fprintf(stderr, "after adm_db_fini\n");
 }

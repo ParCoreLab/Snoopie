@@ -20,7 +20,41 @@ __host__ __device__ int modify_cell(int a) {
 }
 
 __global__ void simple_kernel(int *src, int *dst1, int *dst2){
-  const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int a = 5, b = 10;
+  a += b;
+  if (idx % 2 == 0) {
+    dst1[idx] = modify_cell(src[idx]);
+    dst1[idx] += a;
+    //dst1[idx] += dst2[idx];
+  }
+  else {
+    dst2[idx] = modify_cell(src[idx]);
+    dst2[idx] += b;
+    //dst2[idx] += dst1[idx];
+  }
+#if 0
+  idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx % 2 == 0) {
+    dst1[idx] += modify_cell(src[idx]);
+  }
+  else {
+    dst2[idx] += modify_cell(src[idx]);
+  }
+#endif
+  //printf("hello\n");
+}
+
+#if 0
+__global__ void simple_kernel1(int *src, int *dst1, int *dst2){
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx % 2 == 0) {
+    dst1[idx] = modify_cell(src[idx]);
+  }
+  else {
+    dst2[idx] = modify_cell(src[idx]);
+  }
+  idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx % 2 == 0) {
     dst1[idx] = modify_cell(src[idx]);
   }
@@ -28,6 +62,7 @@ __global__ void simple_kernel(int *src, int *dst1, int *dst2){
     dst2[idx] = modify_cell(src[idx]);
   }
 }
+#endif
 
 int main() {
   int gpuid[] = {0, 1, 2};
@@ -74,6 +109,7 @@ int main() {
   simple_kernel<<<1, size>>>(g0, g1, g2);
   gpuErrchk(cudaMemcpy(h1, g1, buf_size, cudaMemcpyDeviceToHost));
   gpuErrchk(cudaMemcpy(h2, g2, buf_size, cudaMemcpyDeviceToHost));
+  //simple_kernel1<<<1, size>>>(g0, g1, g2);
 
   for (int i = 0; i < size; i++) {
     printf("\rchecking correctness against CPU: %.2f", ((float) i / (float) size) * 100);
