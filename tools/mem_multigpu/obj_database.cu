@@ -46,6 +46,14 @@ std::string get_line_dir_name(int global_index) {
         return "";
 }
 
+std::string get_line_sass(int global_index) {
+        adm_line_location_t* line = line_table->find(global_index);
+        if(line) {
+                return line->get_sass();
+        }
+        return "";
+}
+
 uint32_t get_line_line_num(int global_index) {
         adm_line_location_t* line = line_table->find(global_index);
         if(line) {
@@ -173,7 +181,7 @@ adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::stri
 }
 
 ADM_VISIBILITY
-adm_line_location_t* adamant::adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, const uint32_t line_num, short estimated) noexcept
+adm_line_location_t* adamant::adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept
 {
         adm_line_location_t* line = line_table->find(global_index);
         if(line == nullptr) {
@@ -181,6 +189,7 @@ adm_line_location_t* adamant::adm_line_location_insert(const int global_index, s
                 line->set_global_index(global_index);
                 line->set_file_name(file_name);
                 line->set_dir_name(dir_name);
+		line->set_sass(sass);
                 line->set_line_num(line_num);
                 line->set_estimated_status(estimated);
                 line_table->insert(line);
@@ -378,7 +387,7 @@ void adm_line_location_t::print() const noexcept
 {
 	std::cout << "global_index: " << global_index << ", file_name: " 
 		<< file_name << ", dir_name: " << dir_name 
-		<< ", line_num: " << line_num;
+		<< ", sass_instruction: " << sass << ", line_num: " << line_num;
 	if(estimated == 1)
 		std::cout << ", original location\n";
 	else if(estimated == 2)
