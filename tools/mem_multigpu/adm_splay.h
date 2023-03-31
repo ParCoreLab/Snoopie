@@ -196,7 +196,7 @@ class adm_splay_tree_t
 
 };
 
-class adm_hash_table_t
+class object_hash_table_t
 {
     int hash_table_size;    // No. of buckets
 
@@ -209,7 +209,7 @@ public:
         return (x % 54121 % hash_table_size);
     }
 
-    adm_hash_table_t(int bucket)
+    object_hash_table_t(int bucket)
     {
         hash_table_size = bucket;
         table = new list<adm_object_t*>[hash_table_size];
@@ -249,6 +249,60 @@ public:
     }
 #endif
 }; 
+
+class line_hash_table_t
+{
+    int hash_table_size;    // No. of buckets
+
+    // Pointer to an array containing buckets
+    list<adm_line_location_t*> *table;
+    uint32_t entry_size;
+public:
+
+    // hash function to map values to key
+    int hashFunction(uint64_t x) {
+        return (x % 54121 % hash_table_size);
+    }
+
+    int get_size() {
+	return entry_size;
+    }
+
+    line_hash_table_t(int bucket)
+    {
+	entry_size = 0;
+        hash_table_size = bucket;
+        table = new list<adm_line_location_t*>[hash_table_size];
+    }  // Constructor
+
+    // inserts a key into hash table
+    void insert(adm_line_location_t* line) noexcept
+    {
+        int index = hashFunction(line->get_global_index());
+        table[index].push_back(line);
+	entry_size++;
+    }
+
+    adm_line_location_t* find(int global_index) noexcept
+    {
+        // get the hash index of key
+        int index = hashFunction(global_index);
+
+        if(table[index].empty())
+                return nullptr;
+        // find the key in (index)th list
+        list <adm_line_location_t*> :: iterator i;
+        for (i = table[index].begin(); i != table[index].end(); i++) {
+                if ((*i)->get_global_index() == global_index)
+                        break;
+        }
+
+        // if key is found in hash table, remove it
+        if (i != table[index].end())
+                return *i;
+        return nullptr;
+    }
+};
 
 }
 

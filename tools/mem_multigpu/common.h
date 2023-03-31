@@ -38,5 +38,7 @@ typedef struct {
     int warp_id;
     int opcode_id;
     uint64_t addrs[32];
+    //uint32_t line_num;
+    int global_index;
     //uint64_t allocation_pc;
 } mem_access_t;

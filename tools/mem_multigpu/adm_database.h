@@ -9,6 +9,7 @@
 #include <adm.h>
 #include <adm_config.h>
 #include <adm_common.h>
+#include <iostream>
 
 namespace adamant
 {
@@ -98,6 +99,35 @@ adm_range_t* adm_range_insert(const uint64_t address, const uint64_t size, const
 
 adm_range_t* adm_range_find(const uint64_t address) noexcept;
 
+class adm_line_location_t
+{
+    int global_index;
+    std::string file_name;
+    std::string dir_name;
+    uint32_t line_num;
+    short estimated;
+
+  public:
+
+    adm_line_location_t(): global_index(-1), line_num(0), estimated(0) {}
+    int get_global_index() const noexcept { return global_index; };
+    void set_global_index(const int idx) noexcept { global_index=idx; };
+    void inc_global_index() noexcept { global_index++; };
+    std::string get_file_name() const noexcept { return file_name; };
+    void set_file_name(std::string filename) {file_name = filename; };
+    std::string get_dir_name() const noexcept { return dir_name; };
+    void set_dir_name(std::string dirname) {dir_name = dirname; };
+    uint32_t get_line_num() const noexcept { return line_num; };
+    void set_line_num(const uint32_t linenum) noexcept { line_num=linenum; };
+    short get_estimated_status() const noexcept { return estimated; };
+    void set_estimated_status(const short estimated_status) noexcept { estimated=estimated_status; };
+    void print() const noexcept;
+};
+
+adm_line_location_t* adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, const uint32_t line_num, short estimated) noexcept;
+
+adm_line_location_t* adm_line_location_find(const int global_index) noexcept;
+
 class adm_object_t
 {
     uint64_t allocation_pc;
@@ -171,6 +201,8 @@ static inline void adm_meta_init() noexcept {};
 static inline void adm_meta_fini() noexcept {};
 
 void adm_ranges_print() noexcept;
+
+void adm_line_table_print() noexcept;
 
 }
 
