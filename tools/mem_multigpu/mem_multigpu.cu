@@ -56,7 +56,7 @@
 
 #define HEX(x)                                                          \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
-       << std::dec
+  << std::dec
 
 #define CHANNEL_SIZE (1l << 30)
 
@@ -66,8 +66,6 @@
 #define PATH_NAME_SIZE 5000
 
 #include "adm.h"
-//#include "adm_common.h"
-//#include "adm_database.h"
 
 using namespace adamant;
 
@@ -148,6 +146,48 @@ std::map<std::string, int> opcode_to_id_map;
 std::map<int, std::string> id_to_opcode_map;
 std::vector<MemoryAllocation> mem_allocs;
 
+int64_t find_nvshmem_dev_of_ptr(int mype, uint64_t mem_addr) {
+
+  int size = 10; 
+
+  int region = -1; 
+
+  // 0x000012020000000 is nvshmem's first address for a remote peer
+  uint64_t start =  0x000012020000000;
+
+  // 0x000010020000000 is nvshmem's address for the peer itself
+  uint64_t incrmnt = (uint64_t) 0x000012020000000 - (uint64_t) 0x000010020000000;
+
+  for (int i = 1; i <= size; i++) {
+    uint64_t bottom =  (uint64_t) start + (i - 1) * incrmnt;
+    uint64_t top =  (uint64_t) start + i * incrmnt;
+    if ((uint64_t) bottom <= (uint64_t) mem_addr && (uint64_t) mem_addr < (uint64_t) top) {
+      region = i - 1; break;
+    }   
+  }
+
+  if (region == -1) {
+    return -1; 
+  }
+
+  if (mype == region) {
+    return (mype + 1) % size;
+  } 
+
+
+  for (int i = 0; i < size; i++) {
+    if (mype == i) continue;
+
+    if (region == 0) {
+      return i;
+    }   
+
+    region--;
+  }   
+
+  return -1;
+}
+
 int64_t find_dev_of_ptr(uint64_t ptr)
 {
 
@@ -164,21 +204,7 @@ int64_t find_dev_of_ptr(uint64_t ptr)
 
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;
-#if 0
-void adamant::adm_db_init()
-{
-  nodes = new pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>;
-  ranges = new pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>;
-  fprintf(stderr, "adm_db_init\n");
-}
 
-void adamant::adm_db_fini()
-{
-  delete nodes;
-  delete ranges;
-  fprintf(stderr, "adm_db_fini\n");
-}
-#endif
 void nvbit_at_init()
 {
   setenv("CUDA_MANAGED_FORCE_DEVICE_ALLOC", "1", 1);
@@ -218,7 +244,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
   /* Get related functions of the kernel (device function that can be
    * called by the kernel) */
   std::vector<CUfunction> related_functions =
-      nvbit_get_related_functions(ctx, func);
+    nvbit_get_related_functions(ctx, func);
 
   /* add kernel itself to the related function vector */
   related_functions.push_back(func);
@@ -246,11 +272,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           ctx, f, nvbit_get_func_name(ctx, f), nvbit_get_func_addr(f));
     }
 
-    
-    //char *file_name = (char*)malloc(sizeof(char)*FILE_NAME_SIZE);
-    //file_name[0] = '\0';
-    //char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
-    //dir_name[0] = '\0';
     std::string prev_valid_file_name;
     std::string prev_valid_dir_name;
     uint32_t prev_valid_line_num = 0;  
@@ -272,6 +293,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       //free(dir_name);
       short estimated_status = 2; // it is estimated
       if(line_num != 0) {
+
 		estimated_status = 1; // it is original
 		adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
 		prev_valid_file_name = filename;
@@ -283,7 +305,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       global_index++;
       //adm_line_location_insert(global_index, filename, dirname, line_num, estimated_status); 
       fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
- 
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -306,17 +327,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
       int opcode_id = opcode_to_id_map[instr->getOpcode()];
       int mref_idx = 0;
-#if 0
-      uint32_t instr_offset = instr->getOffset();
-      char *file_name = (char*)malloc(sizeof(char)*FILE_NAME_SIZE);
-      file_name[0] = '\0';
-      char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
-      dir_name[0] = '\0';
-      uint32_t line_num = 0;
-      bool ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num); 
-
-      fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
-#endif
       /* iterate on the operands */
       for (int i = 0; i < instr->getNumOperands(); i++)
       {
@@ -325,21 +335,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
         if (op->type == InstrType::OperandType::MREF)
         {
-#if 0
-	  uint32_t instr_offset = instr->getOffset();
-      	  char *file_name = (char*)malloc(sizeof(char)*FILE_NAME_SIZE);
-          file_name[0] = '\0';
-          char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
-          dir_name[0] = '\0';
-          uint32_t line_num = 0;
-          bool ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num);
-
-          fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d\n", file_name, dir_name, line_num); 
-	  if(file_name)
-	  	free(file_name);
-	  if(dir_name)
-	  	free(dir_name);
-#endif
           /* insert call to the instrumentation function with its
            * arguments */
           nvbit_insert_call(instr, "instrument_mem", IPOINT_BEFORE);
@@ -381,7 +376,7 @@ __global__ void flush_channel(ChannelDev *ch_dev)
 }
 
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
-                         const char *name, void *params, CUresult *pStatus)
+    const char *name, void *params, CUresult *pStatus)
 {
   pthread_mutex_lock(&mutex1);
 
@@ -434,7 +429,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       int shmem_static_nbytes = 0;
       CUDA_SAFECALL(
           cuFuncGetAttribute(&shmem_static_nbytes,
-                             CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, f));
+            CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, f));
 
       /* set grid launch id at launch time */
       nvbit_set_at_launch(ctx, f, &grid_launch_id, sizeof(uint64_t));
@@ -453,7 +448,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     }
   }
   else if (!is_exit && cbid == API_CUDA_cuLaunchCooperativeKernel ||
-           cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz)
+      cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz)
   {
     cuLaunchCooperativeKernel_params *p = (cuLaunchCooperativeKernel_params *)params;
 
@@ -494,7 +489,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       }
     }
   }
-//#if 0
   else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2)
   {
     cuMemAlloc_v2_params *p = (cuMemAlloc_v2_params *)params;
@@ -511,23 +505,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
- #if 0
-    fprintf(stderr, "test 0, pointer: %lx\n", pointer);
-    adm_range_t* range = adm_range_find(pointer);
-
-//#if 0
-    fprintf(stderr, "test 1\n");
-    if(range != nullptr) {
-    	uint64_t allocation_pc = range->get_allocation_pc();
-    	fprintf(stderr, "test 2\n");
-    	if(object_exists(allocation_pc)) {
-    		int dev_id = get_object_device_id(allocation_pc);
-		if(dev_id == -1)
-			set_object_device_id(allocation_pc, deviceID);
-    	}
-//#endif
-    }
-#endif
 
     std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
   }
@@ -537,92 +514,53 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 }
 
 cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno) {
-	//fprintf(stderr, "cudaMallocWrap is called\n");
-        //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
-        cudaError_t errorOutput = cudaMallocHost( devPtr, size );
-        if(*devPtr /*&& adm_set_tracing(0)*/) {
-		if(!object_attribution) {
-			object_attribution = true;
-		}
-                //fprintf(stderr, "before adm_range_insert\n");
-                uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
-                std::string vname = var_name;
-                adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
+  cudaError_t errorOutput = cudaMallocHost( devPtr, size );
+  if(*devPtr /*&& adm_set_tracing(0)*/) {
+    if(!object_attribution) {
+      object_attribution = true;
+    }
+    uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
+    std::string vname = var_name;
+    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
 
-//#if 0
-                if(range) {
-                //fprintf(stderr, "adm_range_insert succeeds for malloc\n");
-                        //fprintf(stderr, "A range is created by cudaMallocHostWrap with offset %lx\n", (long unsigned int) range->get_address());
-                        adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, -1, ADM_STATE_ALLOC);
-                        if(obj) {
-                                //fprintf(stderr, "An object is created by cudaMallocHostWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
-				range->set_index_in_object(obj->get_range_count());
-                                obj->inc_range_count();
-                        }
-#if 0
-                        if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
-                                get_stack(*static_cast<adamant::stack_t*>(obj->meta.meta[ADM_META_STACK_TYPE]));
-#endif
-                }
-//#endif
-                //adm_set_tracing(1);
-        }
-	//fprintf(stderr, "cudaMallocHost is called with offset: %lx, size: %ld, in file %s, function %s, line %d\n", (long unsigned int) *devPtr, (long unsigned int) size, fname, fxname, lineno);
-#if 0
-        std::cout << "cudaMalloc is called in location:"
-              << location.file_name() << ":"
-              << location.line() << '\n';
-#endif
+    if(range) {
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, -1, ADM_STATE_ALLOC);
+      if(obj) {
+        range->set_index_in_object(obj->get_range_count());
+        obj->inc_range_count();
+      }
+    }
+  }
 
-        return errorOutput;	
+  return errorOutput;	
 }
 
 cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
-        //fprintf(stderr, "cudaMallocWrap is called\n");
-        //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
-        cudaError_t errorOutput = cudaMalloc( devPtr, size );
-	if(*devPtr /*&& adm_set_tracing(0)*/) {
-		if(!object_attribution) {
-                        object_attribution = true;
-                }
-		//fprintf(stderr, "before adm_range_insert\n");
-		uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
-		std::string vname = var_name;
-		int dev_id = -1;
-		cudaGetDevice(&dev_id);
-    		adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
-		
-//#if 0
-    		if(range) {
-      		//fprintf(stderr, "adm_range_insert succeeds for malloc\n");
-			//fprintf(stderr, "A range is created by cudaMallocWrap with offset %lx\n", (long unsigned int) range->get_address());
-			adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, dev_id, ADM_STATE_ALLOC);	
-			if(obj) {
-				//fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
-				range->set_index_in_object(obj->get_range_count());
-                                obj->inc_range_count();
-			}
-#if 0
-      			if((obj->meta.meta[ADM_META_STACK_TYPE] = stacks->malloc()))
-        			get_stack(*static_cast<adamant::stack_t*>(obj->meta.meta[ADM_META_STACK_TYPE]));
-#endif
-    		}
-//#endif
-    		//adm_set_tracing(1);
-  	}
-        //fprintf(stderr, "cudaMalloc is called with offset: %lx, size: %ld, in file %s, function %s, line %d\n", (long unsigned int) *devPtr, (long unsigned int) size, fname, fxname, lineno);
-#if 0
-        std::cout << "cudaMalloc is called in location:"
-              << location.file_name() << ":"
-              << location.line() << '\n';
-#endif
+  cudaError_t errorOutput = cudaMalloc( devPtr, size );
+  if(*devPtr /*&& adm_set_tracing(0)*/) {
+    if(!object_attribution) {
+      object_attribution = true;
+    }
+    uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
+    std::string vname = var_name;
+    int dev_id = -1;
+    cudaGetDevice(&dev_id);
+    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
 
-        return errorOutput;
+    if(range) {
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, dev_id, ADM_STATE_ALLOC);	
+      if(obj) {
+        range->set_index_in_object(obj->get_range_count());
+        obj->inc_range_count();
+      }
+    }
+  }
+
+  return errorOutput;
 }
 
 void *recv_thread_fun(void *args)
 {
-  //fprintf(stderr, "recv_thread_fun is called\n");
   CUcontext ctx = (CUcontext)args;
 
   pthread_mutex_lock(&mutex1);
@@ -639,29 +577,25 @@ void *recv_thread_fun(void *args)
   {
     /* receive buffer from channel */
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
-    //fprintf(stderr, "num_recv_bytes is %d\n", num_recv_bytes);
     if (num_recv_bytes > 0)
     {
       uint32_t num_processed_bytes = 0;
       while (num_processed_bytes < num_recv_bytes)
       {
         mem_access_t *ma =
-            (mem_access_t *)&recv_buffer[num_processed_bytes];
+          (mem_access_t *)&recv_buffer[num_processed_bytes];
 
         /* when we receive a CTA_id_x it means all the kernels
          * completed, this is the special token we receive from the
          * flush channel kernel that is issues at the end of the
          * context */
-//#if 0
+
         if (ma->cta_id_x == -1)
         {
           done = true;
-	  //fprintf(stderr, "break here after %d bytes\n", num_processed_bytes);
           break;
         }
-//#endif
         std::stringstream ss;
-
 	adm_range_t* range = nullptr; //adm_range_find(ma.addrs[0]);
     	uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
 	std::string varname;
@@ -681,21 +615,26 @@ void *recv_thread_fun(void *args)
         //fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
         {
+
           if (ma->addrs[i] == 0x0)
             continue;
 
           int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
-	  uint32_t index_in_object = 0;
-	  uint32_t index_in_malloc = 0;
-//#if 0
+          uint32_t index_in_object = 0;
+          uint32_t index_in_malloc = 0;
+
           // ignore operations on the same device
           if (mem_device_id == ma->dev_id)
             continue;
-//#endif
+
+          // nvshmem heap_base = 0x10020000000
           // ignore operations on memory locations not allocated by cudaMalloc on the host
+
+          if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000))
+            mem_device_id = find_nvshmem_dev_of_ptr(ma->dev_id, ma->addrs[i]);
+
           if (mem_device_id == -1)
             continue;
-
 	  //ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
 //#if 0
 	  if (allocation_pc == 0 && object_attribution) {
@@ -723,13 +662,6 @@ void *recv_thread_fun(void *args)
 
         std::cout << ss.str() << std::flush;
         num_processed_bytes += sizeof(mem_access_t);
-#if 0
-	if (ma->cta_id_x == -1)
-        {
-          done = true;
-          break;
-        }
-#endif	
       }
     }
   }
@@ -749,7 +681,7 @@ void nvbit_at_ctx_init(CUcontext ctx)
   ctx_state_map[ctx] = ctx_state;
   cudaMallocManaged(&ctx_state->channel_dev, sizeof(ChannelDev));
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
-                               ctx_state->channel_dev, recv_thread_fun, ctx);
+      ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
 }
@@ -781,9 +713,7 @@ void nvbit_at_ctx_term(CUcontext ctx)
 
 void nvbit_at_term()
 {
-	adm_ranges_print();
-	adm_line_table_print();
-	//fprintf(stderr, "before adm_db_fini\n");
-	adm_db_fini();
-	//fprintf(stderr, "after adm_db_fini\n");
+  adm_ranges_print();
+  adm_line_table_print();
+  adm_db_fini();
 }
