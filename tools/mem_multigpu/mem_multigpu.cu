@@ -304,7 +304,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       }
       global_index++;
       //adm_line_location_insert(global_index, filename, dirname, line_num, estimated_status); 
-      fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
+      //fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -611,7 +611,7 @@ void *recv_thread_fun(void *args)
 	uint32_t line_linenum = get_line_line_num(line_index);
 	short line_estimated_status = get_line_estimated_status(line_index);
 
-	ss << "global_index: " << line_index << std::endl;
+	//ss << "global_index: " << line_index << std::endl;
         //fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
         {
