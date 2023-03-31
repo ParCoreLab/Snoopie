@@ -44,10 +44,14 @@
 using namespace adamant;
 #endif
 
+__device__ int last_valid_line_index = -1;
+
 extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, int dev_id,
                                                        uint64_t addr,
                                                        uint64_t grid_launch_id,
-                                                       uint64_t pchannel_dev) {
+                                                       uint64_t pchannel_dev,
+						       /*uint32_t line_num,*/
+						       int global_index) {
     /* if thread is predicated off, return */
     if (!pred) {
         return;
@@ -75,6 +79,9 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
     ma.dev_id = dev_id;
     ma.warp_id = get_warpid();
     ma.opcode_id = opcode_id;
+    ma.global_index = global_index;
+    //if(line_num == 0)
+	
 
     /* first active lane pushes information on the channel */
     if (first_laneid == laneid) {
