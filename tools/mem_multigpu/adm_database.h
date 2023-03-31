@@ -9,6 +9,7 @@
 #include <adm.h>
 #include <adm_config.h>
 #include <adm_common.h>
+#include <iostream>
 
 namespace adamant
 {
@@ -52,6 +53,7 @@ class adm_range_t
     uint64_t size;
     uint64_t address;
     uint64_t allocation_pc;
+    uint32_t index_in_object;
     std::string var_name;
 
   public:
@@ -71,6 +73,10 @@ class adm_range_t
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 
     void set_allocation_pc(const uint64_t a) noexcept { allocation_pc=a; };
+
+    uint32_t get_index_in_object() const noexcept { return index_in_object; };
+
+    void set_index_in_object(const uint32_t a) noexcept { index_in_object=a; };
 
     std::string get_var_name() const noexcept { return var_name; };
 
@@ -93,6 +99,35 @@ adm_range_t* adm_range_insert(const uint64_t address, const uint64_t size, const
 
 adm_range_t* adm_range_find(const uint64_t address) noexcept;
 
+class adm_line_location_t
+{
+    int global_index;
+    std::string file_name;
+    std::string dir_name;
+    uint32_t line_num;
+    short estimated;
+
+  public:
+
+    adm_line_location_t(): global_index(-1), line_num(0), estimated(0) {}
+    int get_global_index() const noexcept { return global_index; };
+    void set_global_index(const int idx) noexcept { global_index=idx; };
+    void inc_global_index() noexcept { global_index++; };
+    std::string get_file_name() const noexcept { return file_name; };
+    void set_file_name(std::string filename) {file_name = filename; };
+    std::string get_dir_name() const noexcept { return dir_name; };
+    void set_dir_name(std::string dirname) {dir_name = dirname; };
+    uint32_t get_line_num() const noexcept { return line_num; };
+    void set_line_num(const uint32_t linenum) noexcept { line_num=linenum; };
+    short get_estimated_status() const noexcept { return estimated; };
+    void set_estimated_status(const short estimated_status) noexcept { estimated=estimated_status; };
+    void print() const noexcept;
+};
+
+adm_line_location_t* adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, const uint32_t line_num, short estimated) noexcept;
+
+adm_line_location_t* adm_line_location_find(const int global_index) noexcept;
+
 class adm_object_t
 {
     uint64_t allocation_pc;
@@ -101,12 +136,14 @@ class adm_object_t
     std::string func_name;
     uint32_t line_num;
     int device_id;
+    uint32_t data_type_size;
+    uint32_t range_count;
 
   public:
 
     adm_meta_t meta;
 
-    adm_object_t(): allocation_pc(0), line_num(0), device_id(-1) {}
+    adm_object_t(): allocation_pc(0), line_num(0), device_id(-1), data_type_size(0), range_count(0) {}
 
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 
@@ -132,6 +169,14 @@ class adm_object_t
 
     void set_device_id(const int input_device_id) noexcept { device_id=input_device_id; };
 
+    uint32_t get_data_type_size() const noexcept { return data_type_size; };
+
+    void set_data_type_size(const int type_size) noexcept { data_type_size=type_size; }; 
+
+    uint32_t get_range_count() const noexcept { return range_count; };
+
+    void inc_range_count() noexcept { range_count++; }; 
+
     bool has_events() const noexcept { return meta.has_events(); }
 
     void process(const adm_event_t& event) noexcept { meta.process(event); }
@@ -139,7 +184,7 @@ class adm_object_t
     void print() const noexcept;
 };	
 
-adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, std::string filename, std::string funcname, uint32_t linenum, int device_id, const state_t state=ADM_STATE_STATIC) noexcept;
+adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, const uint32_t element_size, std::string filename, std::string funcname, uint32_t linenum, int device_id, const state_t state=ADM_STATE_STATIC) noexcept;
 
 adm_object_t* adm_object_find(const uint64_t allocation_pc) noexcept;
 
@@ -156,6 +201,8 @@ static inline void adm_meta_init() noexcept {};
 static inline void adm_meta_fini() noexcept {};
 
 void adm_ranges_print() noexcept;
+
+void adm_line_table_print() noexcept;
 
 }
 

@@ -62,6 +62,9 @@
 
 #define EQUAL_STRS 0
 
+#define FILE_NAME_SIZE 256
+#define PATH_NAME_SIZE 5000
+
 #include "adm.h"
 
 using namespace adamant;
@@ -70,6 +73,7 @@ static adm_splay_tree_t* tree = nullptr;
 static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
+static int global_index = 0;
 
 struct CTXstate
 {
@@ -90,6 +94,18 @@ struct MemoryAllocation
 
 void initialize_object_table(int size);
 
+void initialize_line_table(int size);
+
+bool line_exists(int index);
+
+std::string get_line_file_name(int index);
+
+std::string get_line_dir_name(int index); 
+
+uint32_t get_line_line_num(int index); 
+
+short get_line_estimated_status(int index);
+
 std::string get_object_var_name(uint64_t pc);
 
 std::string get_object_file_name(uint64_t pc);
@@ -101,6 +117,10 @@ uint32_t get_object_line_num(uint64_t pc);
 int get_object_device_id(uint64_t pc);
 
 void set_object_device_id(uint64_t pc, int dev_id);
+
+uint32_t get_object_data_type_size(uint64_t pc);
+
+void set_object_data_type_size(uint64_t pc, const uint32_t type_size);
 
 bool object_exists(uint64_t pc);
 /* lock */
@@ -162,7 +182,7 @@ int64_t find_nvshmem_dev_of_ptr(int mype, uint64_t mem_addr) {
 
     region--;
   }   
-  
+
   return -1;
 }
 
@@ -202,6 +222,7 @@ void nvbit_at_init()
     std::cout << pad << std::endl;
   }
   initialize_object_table(100);
+  initialize_line_table(100);
   adm_db_init();
   /* set mutex as recursive */
   pthread_mutexattr_t attr;
@@ -249,12 +270,36 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           ctx, f, nvbit_get_func_name(ctx, f), nvbit_get_func_addr(f));
     }
 
-
-
+    std::string prev_valid_file_name;
+    std::string prev_valid_dir_name;
+    uint32_t prev_valid_line_num = 0;  
     uint32_t cnt = 0;
     /* iterate on all the static instructions in the function */
     for (auto instr : instrs)
     {
+      uint32_t instr_offset = instr->getOffset();
+      char *file_name = (char*)malloc(sizeof(char)*FILE_NAME_SIZE);
+      file_name[0] = '\0';
+      char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
+      dir_name[0] = '\0';
+      uint32_t line_num = 0;
+      bool ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num);
+      std::string filename = file_name;
+      std::string dirname = dir_name;
+      //free(file_name);
+      //free(dir_name);
+      short estimated_status = 2; // it is estimated
+      if(line_num != 0) {
+        estimated_status = 1; // it is original
+        adm_line_location_insert(global_index, filename, dirname, line_num, estimated_status);
+        prev_valid_file_name = filename;
+        prev_valid_dir_name = dirname;
+        prev_valid_line_num = line_num;
+      } else {
+        adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, prev_valid_line_num, estimated_status);
+      }
+      global_index++; 
+
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -305,6 +350,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           /* add pointer to channel_dev*/
           nvbit_add_call_arg_const_val64(
               instr, (uint64_t)ctx_state->channel_dev);
+          nvbit_add_call_arg_const_val32(instr, global_index);
           mref_idx++;
         }
       }
@@ -462,39 +508,34 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   pthread_mutex_unlock(&mutex1);
 }
 
-cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_name, const char *fname, const char *fxname, int lineno) {
-  fprintf(stderr, "cudaMallocWrap is called\n");
-  //cudaError_t (*lcudaMalloc) ( void**, size_t) = (cudaError_t (*) ( void**, size_t ))dlsym(RTLD_NEXT, "cudaMalloc");
+cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno) {
   cudaError_t errorOutput = cudaMallocHost( devPtr, size );
   if(*devPtr /*&& adm_set_tracing(0)*/) {
     if(!object_attribution) {
       object_attribution = true;
     }
-    fprintf(stderr, "before adm_range_insert\n");
     uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
     std::string vname = var_name;
     adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
+
     if(range) {
-      fprintf(stderr, "A range is created by cudaMallocHostWrap with offset %lx\n", (long unsigned int) range->get_address());
-      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, -1, ADM_STATE_ALLOC);
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, -1, ADM_STATE_ALLOC);
       if(obj) {
-        fprintf(stderr, "An object is created by cudaMallocHostWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
+        range->set_index_in_object(obj->get_range_count());
+        obj->inc_range_count();
       }
     }
   }
-  fprintf(stderr, "cudaMallocHost is called with offset: %lx, size: %ld, in file %s, function %s, line %d\n", (long unsigned int) *devPtr, (long unsigned int) size, fname, fxname, lineno);
 
   return errorOutput;	
 }
 
-cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
-  fprintf(stderr, "cudaMallocWrap is called\n");
+cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
   cudaError_t errorOutput = cudaMalloc( devPtr, size );
   if(*devPtr /*&& adm_set_tracing(0)*/) {
     if(!object_attribution) {
       object_attribution = true;
     }
-    fprintf(stderr, "before adm_range_insert\n");
     uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
     std::string vname = var_name;
     int dev_id = -1;
@@ -502,14 +543,14 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
     adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
 
     if(range) {
-      fprintf(stderr, "A range is created by cudaMallocWrap with offset %lx\n", (long unsigned int) range->get_address());
-      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, fname, fxname, lineno, dev_id, ADM_STATE_ALLOC);	
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, dev_id, ADM_STATE_ALLOC);	
       if(obj) {
-        fprintf(stderr, "An object is created by cudaMallocWrap in %lx\n", (long unsigned int) obj->get_allocation_pc());
+        range->set_index_in_object(obj->get_range_count());
+        obj->inc_range_count();
       }
     }
   }
-  fprintf(stderr, "cudaMalloc is called with offset: %lx, size: %ld, in file %s, function %s, line %d\n", (long unsigned int) *devPtr, (long unsigned int) size, fname, fxname, lineno);
+
   return errorOutput;
 }
 
@@ -557,9 +598,14 @@ void *recv_thread_fun(void *args)
         std::string filename;
         std::string funcname;
         uint32_t linenum;
+        uint32_t data_type_size = 1;
         int dev_id = -1;
+        int line_index = ma->global_index;	
+        std::string line_filename = get_line_file_name(line_index);
+        std::string line_dirname = get_line_dir_name(line_index);
+        uint32_t line_linenum = get_line_line_num(line_index);
+        short line_estimated_status = get_line_estimated_status(line_index);
 
-        //fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
         {
 
@@ -567,6 +613,8 @@ void *recv_thread_fun(void *args)
             continue;
 
           int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
+          uint32_t index_in_object = 0;
+          uint32_t index_in_malloc = 0;
 
           // ignore operations on the same device
           if (mem_device_id == ma->dev_id)
@@ -581,7 +629,6 @@ void *recv_thread_fun(void *args)
           if (mem_device_id == -1)
             continue;
 
-
           if (allocation_pc == 0 && object_attribution) {
             range = adm_range_find(ma->addrs[i]);
             allocation_pc = range->get_allocation_pc();
@@ -591,10 +638,16 @@ void *recv_thread_fun(void *args)
               funcname = get_object_func_name(allocation_pc);
               linenum = get_object_line_num(allocation_pc);
               dev_id = get_object_device_id(allocation_pc);
+              data_type_size = get_object_data_type_size(allocation_pc);
+              index_in_object = range->get_index_in_object();;
             }
           }
 
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"allocation_pc\": \"" << HEX(allocation_pc) << "\", \"variable_name\": \"" << varname << "\", \"file_name\": \"" << filename << "\", \"func_name\": \"" << funcname << "\", \"line_num\": " << linenum << ", \"device id of object\": " << dev_id << ", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << "}" << std::endl;
+          if (allocation_pc > 0 && object_attribution) {
+            index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
+          }
+
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", \"object_variable_name\": \"" << varname << "\", \"malloc_index_in_object\": \"" << index_in_object << "\", \"element_index_in_malloc\": \"" << index_in_malloc << "\", \"object_allocation_file_name\": \"" << filename << "\", \"object_allocation_func_name\": \"" << funcname << "\", \"object_allocation_line_num\": " << linenum << ", \"object_allocation_device_id\": " << dev_id << ", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << ", \"code_line_filename\": " << line_filename << ", \"code_line_dirname\": " << line_dirname << ", \"code_line_linenum\": " << line_linenum << ", \"code_line_estimated_status\": " << line_estimated_status << "}" << std::endl;
         }
 
         std::cout << ss.str() << std::flush;
@@ -651,5 +704,6 @@ void nvbit_at_ctx_term(CUcontext ctx)
 void nvbit_at_term()
 {
   adm_ranges_print();
+  adm_line_table_print();
   adm_db_fini();
 }

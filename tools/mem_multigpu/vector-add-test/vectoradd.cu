@@ -5,7 +5,7 @@
 
 //#include <experimental/source_location>
 //cudaError_t cudaMalloc ( void** devPtr, size_t size, const std::experimental::source_location& location = std::experimental::source_location::current());
-#define cudaMallocWRAP(a, b, var_name) cudaMallocWrap((void **)a, b, (char *) var_name, __FILE__, __func__, __LINE__)
+#define cudaMallocWRAP(a, b, var_name, element_size) cudaMallocWrap((void **)a, b, (char *) var_name, element_size, __FILE__, __func__, __LINE__)
 
 
 #define CUDA_SAFECALL(call)                                                 \
@@ -58,9 +58,9 @@ int main(int argc, char *argv[]) {
     h_c = (double *)malloc(bytes);
 
     // Allocate memory for each vector on GPU
-    cudaMallocWRAP(&d_a, bytes, "d_a");
-    cudaMallocWRAP(&d_b, bytes, "d_b");
-    cudaMallocWRAP(&d_c, bytes, "d_c");
+    cudaMallocWRAP(&d_a, bytes, "d_a", 8);
+    cudaMallocWRAP(&d_b, bytes, "d_b", 8);
+    cudaMallocWRAP(&d_c, bytes, "d_c", 8);
 
     int i;
     // Initialize vectors on host

@@ -19,8 +19,48 @@ __host__ __device__ int modify_cell(int a) {
   return a + 2;
 }
 
+__device__ int a = 0;
+
+__global__ void simple_kernel1(int *gpu_id){
+	a += *gpu_id;
+	printf("a: %d in gpu %d\n", a, *gpu_id);
+}
+
 __global__ void simple_kernel(int *src, int *dst1, int *dst2){
-  const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int b = 10;
+  if (idx % 2 == 0) {
+    dst1[idx] = modify_cell(src[idx]);
+    //dst1[idx] += a;
+    //dst1[idx] += dst2[idx];
+  }
+  else {
+    dst2[idx] = modify_cell(src[idx]);
+    //dst2[idx] += b;
+    //dst2[idx] += dst1[idx];
+  }
+#if 0
+  idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx % 2 == 0) {
+    dst1[idx] += modify_cell(src[idx]);
+  }
+  else {
+    dst2[idx] += modify_cell(src[idx]);
+  }
+#endif
+  //printf("hello\n");
+}
+
+#if 0
+__global__ void simple_kernel1(int *src, int *dst1, int *dst2){
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx % 2 == 0) {
+    dst1[idx] = modify_cell(src[idx]);
+  }
+  else {
+    dst2[idx] = modify_cell(src[idx]);
+  }
+  idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx % 2 == 0) {
     dst1[idx] = modify_cell(src[idx]);
   }
@@ -28,6 +68,7 @@ __global__ void simple_kernel(int *src, int *dst1, int *dst2){
     dst2[idx] = modify_cell(src[idx]);
   }
 }
+#endif
 
 int main() {
   int gpuid[] = {0, 1, 2};
@@ -45,35 +86,68 @@ int main() {
 
   int *g0 = NULL;
   cudaSetDevice(gpuid[0]);
-  gpuErrchk(cudaMallocWRAP(&g0, buf_size, "g0"));
+  gpuErrchk(cudaMallocWRAP(&g0, buf_size, "g0", 4));
 
   int *g1 = NULL;
 
   cudaSetDevice(gpuid[1]);
-  gpuErrchk(cudaMallocWRAP(&g1, buf_size, "g1"));
+  gpuErrchk(cudaMallocWRAP(&g1, buf_size, "g1", 4));
   cudaSetDevice(gpuid[0]);
 
   int *g2 = NULL;
 
   cudaSetDevice(gpuid[2]);
-  gpuErrchk(cudaMallocWRAP(&g2, buf_size, "g2"));
+  gpuErrchk(cudaMallocWRAP(&g2, buf_size, "g2", 4));
   cudaSetDevice(gpuid[0]);
 
   int *h0 = NULL;
-  gpuErrchk(cudaMallocHostWRAP(&h0, buf_size, "h0"));
+  gpuErrchk(cudaMallocHostWRAP(&h0, buf_size, "h0", 4));
 
   int *h1 = NULL;
-  gpuErrchk(cudaMallocHostWRAP(&h1, buf_size, "h1"));
+  gpuErrchk(cudaMallocHostWRAP(&h1, buf_size, "h1", 4));
 
   int *h2 = NULL;
-  gpuErrchk(cudaMallocHostWRAP(&h2, buf_size, "h2"));
+  gpuErrchk(cudaMallocHostWRAP(&h2, buf_size, "h2", 4));
 
   gpuErrchk(cudaMemcpy(g0, h0, buf_size, cudaMemcpyHostToDevice));
 
   cudaSetDevice(gpuid[0]);
   simple_kernel<<<1, size>>>(g0, g1, g2);
+
+  int gpu_id = 0;
+  int gpu_id1 = 1;
+  //gpuErrchk(cudaMallocHostWRAP(&gpu_id, 1, "gpu_id", 4));
+  //gpuErrchk(cudaMallocHostWRAP(&gpu_id1, 1, "gpu_id", 4));
+  //*gpu_id = 0;
+  int *gpu_id_dev = NULL;
+  int *gpu_id_dev1 = NULL;
+  gpuErrchk(cudaMallocWRAP(&gpu_id_dev, 4, "gpu_id_dev", 4)); 
+  gpuErrchk(cudaMemcpy(gpu_id_dev, &gpu_id, 4, cudaMemcpyHostToDevice));
+  simple_kernel1<<<1, 1>>>(gpu_id_dev);
+  cudaSetDevice(gpuid[1]);
+  //*gpu_id1 = 1;
+  gpuErrchk(cudaMallocWRAP(&gpu_id_dev1, 4, "gpu_id_dev1", 4));
+  gpuErrchk(cudaMemcpy(gpu_id_dev1, &gpu_id1, 4, cudaMemcpyHostToDevice));
+  simple_kernel1<<<1, 1>>>(gpu_id_dev1);
+  cudaSetDevice(gpuid[0]);
+  //*gpu_id = gpuid[0];
+  //gpuErrchk(cudaMemcpy(gpu_id_dev, gpu_id, 4, cudaMemcpyHostToDevice));
+  simple_kernel1<<<1, 1>>>(gpu_id_dev);
+  cudaSetDevice(gpuid[1]);
+  //*gpu_id = gpuid[1];
+  //gpuErrchk(cudaMemcpy(gpu_id_dev1, gpu_id, 4, cudaMemcpyHostToDevice));
+  simple_kernel1<<<1, 1>>>(gpu_id_dev1);
+  cudaSetDevice(gpuid[0]);
+  //*gpu_id = gpuid[0];
+  //gpuErrchk(cudaMemcpy(gpu_id_dev, gpu_id, 4, cudaMemcpyHostToDevice));
+  simple_kernel1<<<1, 1>>>(gpu_id_dev);
+  cudaSetDevice(gpuid[1]);
+  //*gpu_id = gpuid[1];
+  //gpuErrchk(cudaMemcpy(gpu_id_dev1, gpu_id, 4, cudaMemcpyHostToDevice));
+  simple_kernel1<<<1, 1>>>(gpu_id_dev1);
   gpuErrchk(cudaMemcpy(h1, g1, buf_size, cudaMemcpyDeviceToHost));
   gpuErrchk(cudaMemcpy(h2, g2, buf_size, cudaMemcpyDeviceToHost));
+  //simple_kernel1<<<1, size>>>(g0, g1, g2);
 
   for (int i = 0; i < size; i++) {
     printf("\rchecking correctness against CPU: %.2f", ((float) i / (float) size) * 100);

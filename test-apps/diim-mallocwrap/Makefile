@@ -2,9 +2,10 @@ all:	device-initiated_implicit_memcpy_compile device-initiated_implicit_memcpy_r
 
 device-initiated_implicit_memcpy_compile:
 	#nvcc -o test test.cu -l./wrapper.a -cudart shared
-	g++ -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o wrapper.o
-	nvcc -shared -o libwrapper.so wrapper.o
-	nvcc -L. -o device-initiated_implicit_memcpy device-initiated_implicit_memcpy.cu -lwrapper
+	g++ -g -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o wrapper.o -lineinfo
+	nvcc -g -shared --generate-line-info -o libwrapper.so wrapper.o -lineinfo
+	nvcc -g -L. --generate-line-info -o device-initiated_implicit_memcpy device-initiated_implicit_memcpy.cu -lwrapper -lineinfo
+	nvcc -ptx device-initiated_implicit_memcpy.cu
 
 device-initiated_implicit_memcpy_run:
 	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so KERNEL_NAME=simple_kernel ./device-initiated_implicit_memcpy
