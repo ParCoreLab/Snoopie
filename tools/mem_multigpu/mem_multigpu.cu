@@ -538,10 +538,10 @@ cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_nam
     }
     uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
     std::string vname = var_name;
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, -1, vname, ADM_STATE_ALLOC);
 
     if(range) {
-      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, -1, ADM_STATE_ALLOC);
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
       if(obj) {
         range->set_index_in_object(obj->get_range_count());
         obj->inc_range_count();
@@ -562,10 +562,10 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
     std::string vname = var_name;
     int dev_id = -1;
     cudaGetDevice(&dev_id);
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
 
     if(range) {
-      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, dev_id, ADM_STATE_ALLOC);	
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);	
       if(obj) {
         range->set_index_in_object(obj->get_range_count());
         obj->inc_range_count();
@@ -659,7 +659,7 @@ void *recv_thread_fun(void *args)
               filename = get_object_file_name(allocation_pc);
               funcname = get_object_func_name(allocation_pc);
               linenum = get_object_line_num(allocation_pc);
-              dev_id = get_object_device_id(allocation_pc);
+              dev_id = range->get_device_id();
               data_type_size = get_object_data_type_size(allocation_pc);
               index_in_object = range->get_index_in_object();;
             }

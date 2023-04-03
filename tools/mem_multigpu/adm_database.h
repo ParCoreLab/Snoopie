@@ -54,13 +54,14 @@ class adm_range_t
     uint64_t address;
     uint64_t allocation_pc;
     uint32_t index_in_object;
+    int device_id;
     std::string var_name;
 
   public:
 
     adm_meta_t meta;
 
-    adm_range_t(): size(0), address(0) {}
+    adm_range_t(): size(0), address(0), allocation_pc(0), index_in_object(999), device_id(0) {}
 
     uint64_t get_address() const noexcept { return address; };
 
@@ -77,6 +78,10 @@ class adm_range_t
     uint32_t get_index_in_object() const noexcept { return index_in_object; };
 
     void set_index_in_object(const uint32_t a) noexcept { index_in_object=a; };
+
+    int get_device_id() const noexcept { return device_id; };
+
+    void set_device_id(const int a) noexcept { device_id=a; };
 
     std::string get_var_name() const noexcept { return var_name; };
 
@@ -95,7 +100,7 @@ class adm_range_t
     void print() const noexcept;
 };
  
-adm_range_t* adm_range_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, std::string var_name, const state_t state=ADM_STATE_STATIC) noexcept;
+adm_range_t* adm_range_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, const int dev_id, std::string var_name, const state_t state=ADM_STATE_STATIC) noexcept;
 
 adm_range_t* adm_range_find(const uint64_t address) noexcept;
 
@@ -138,7 +143,6 @@ class adm_object_t
     std::string file_name;
     std::string func_name;
     uint32_t line_num;
-    int device_id;
     uint32_t data_type_size;
     uint32_t range_count;
 
@@ -146,7 +150,7 @@ class adm_object_t
 
     adm_meta_t meta;
 
-    adm_object_t(): allocation_pc(0), line_num(0), device_id(-1), data_type_size(0), range_count(0) {}
+    adm_object_t(): allocation_pc(0), line_num(0), data_type_size(0), range_count(0) {}
 
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 
@@ -168,10 +172,6 @@ class adm_object_t
 
     void set_line_num(const uint64_t linenum) noexcept { line_num=linenum; };
 
-    int get_device_id() const noexcept { return device_id; };
-
-    void set_device_id(const int input_device_id) noexcept { device_id=input_device_id; };
-
     uint32_t get_data_type_size() const noexcept { return data_type_size; };
 
     void set_data_type_size(const int type_size) noexcept { data_type_size=type_size; }; 
@@ -187,7 +187,7 @@ class adm_object_t
     void print() const noexcept;
 };	
 
-adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, const uint32_t element_size, std::string filename, std::string funcname, uint32_t linenum, int device_id, const state_t state=ADM_STATE_STATIC) noexcept;
+adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, const uint32_t element_size, std::string filename, std::string funcname, uint32_t linenum, const state_t state=ADM_STATE_STATIC) noexcept;
 
 adm_object_t* adm_object_find(const uint64_t allocation_pc) noexcept;
 
