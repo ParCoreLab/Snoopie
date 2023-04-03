@@ -233,11 +233,18 @@ void nvbit_at_init()
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
 std::unordered_set<CUfunction> already_instrumented;
+std::unordered_map<int, std::string> instrumented_functions;
 
 void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 {
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
+
+  // std::cout << "about to instrument" << std::endl;
+  if (already_instrumented.count(func))
+  {
+    return;
+  }
 
   /* Get related functions of the kernel (device function that can be
    * called by the kernel) */
@@ -256,6 +263,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     {
       continue;
     }
+
+    int func_id = instrumented_functions.size();
+    instrumented_functions[func_id] = nvbit_get_func_name(ctx, f);
 
     std::cout << "instrumenting: " << nvbit_get_func_name(ctx, f) << std::endl;
 
@@ -351,6 +361,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           nvbit_add_call_arg_const_val64(
               instr, (uint64_t)ctx_state->channel_dev);
           nvbit_add_call_arg_const_val32(instr, global_index);
+          nvbit_add_call_arg_const_val32(instr, func_id);
           mref_idx++;
         }
       }
@@ -415,6 +426,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       {
         /* instrument */
         instrument_function_if_needed(ctx, f);
+      } else if (kernel_name == "nccl" && func_name.substr(0, std::string("ncclKernel").length()).compare(std::string("ncclKernel")) == 0) {
+        instrument_function_if_needed(ctx, f);
       }
 
       int nregs = 0;
@@ -465,7 +478,11 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
         /* instrument */
         std::cout << "instrumenting: " << func_name << std::endl;
         instrument_function_if_needed(ctx, p->f);
+      } else if (kernel_name == "nccl" && func_name.substr(0, std::string("ncclKernel").length()).compare(std::string("ncclKernel")) == 0) {
+        std::cout << "instrumenting: " << func_name << std::endl;
+        instrument_function_if_needed(ctx, f);
       }
+
 
       /* set grid launch id at launch time */
       nvbit_set_at_launch(ctx, f, &grid_launch_id, sizeof(uint64_t));
@@ -647,7 +664,7 @@ void *recv_thread_fun(void *args)
             index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
           }
 
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", \"object_variable_name\": \"" << varname << "\", \"malloc_index_in_object\": \"" << index_in_object << "\", \"element_index_in_malloc\": \"" << index_in_malloc << "\", \"object_allocation_file_name\": \"" << filename << "\", \"object_allocation_func_name\": \"" << funcname << "\", \"object_allocation_line_num\": " << linenum << ", \"object_allocation_device_id\": " << dev_id << ", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << ", \"code_line_filename\": " << line_filename << ", \"code_line_dirname\": " << line_dirname << ", \"code_line_linenum\": " << line_linenum << ", \"code_line_estimated_status\": " << line_estimated_status << "}" << std::endl;
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", \"object_variable_name\": \"" << varname << "\", \"malloc_index_in_object\": \"" << index_in_object << "\", \"element_index_in_malloc\": \"" << index_in_malloc << "\", \"object_allocation_file_name\": \"" << filename << "\", \"object_allocation_func_name\": \"" << funcname << "\", \"object_allocation_line_num\": " << linenum << ", \"object_allocation_device_id\": " << dev_id << ", \"thread_index\": " << ma->thread_index << ", \"lane_id\": " << ma->lane_id << ", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << ", \"code_line_filename\": " << line_filename << ", \"code_line_dirname\": " << line_dirname << ", \"code_line_linenum\": " << line_linenum << ", \"code_line_estimated_status\": " << line_estimated_status << "}" << std::endl;
         }
 
         std::cout << ss.str() << std::flush;

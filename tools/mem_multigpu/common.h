@@ -36,9 +36,12 @@ typedef struct {
     int cta_id_y;
     int cta_id_z;
     int warp_id;
+    int lane_id;
+    int func_id;
     int opcode_id;
     uint64_t addrs[32];
     //uint32_t line_num;
     int global_index;
+    uint64_t thread_index;
     //uint64_t allocation_pc;
 } mem_access_t;
