@@ -684,6 +684,7 @@ void *recv_thread_fun(void *args)
             << "\"lane_id\": " << ma->lane_id << ", "
             << "\"running_device_id\": " << ma->dev_id << ", "
             << "\"mem_device_id\": " << mem_device_id << ", "
+	    << "\"code_line_index\": \"" << line_index << "\", "
             << "\"code_line_filename\": \"" << line_filename << "\", "
             << "\"code_line_dirname\": \"" << line_dirname << "\", "
             << "\"code_line_linenum\": " << line_linenum << ", "
