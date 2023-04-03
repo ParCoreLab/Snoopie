@@ -628,8 +628,6 @@ void *recv_thread_fun(void *args)
         uint32_t line_linenum = get_line_line_num(line_index);
         short line_estimated_status = get_line_estimated_status(line_index);
 
-        //ss << "global_index: " << line_index << std::endl;
-        //fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
         {
 
@@ -670,7 +668,27 @@ void *recv_thread_fun(void *args)
           if (allocation_pc > 0 && object_attribution) {
             index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
           }
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", \"object_variable_name\": \"" << varname << "\", \"malloc_index_in_object\": \"" << index_in_object << "\", \"element_index_in_malloc\": \"" << index_in_malloc << "\", \"object_allocation_file_name\": \"" << filename << "\", \"object_allocation_func_name\": \"" << funcname << "\", \"object_allocation_line_num\": " << linenum << ", \"object_allocation_device_id\": " << dev_id << ", \"thread_index\": " << ma->thread_index << ", \"lane_id\": " << ma->lane_id << ", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << ", \"code_line_filename\": " << line_filename << ", \"code_line_dirname\": " << line_dirname << ", \"code_line_linenum\": " << line_linenum << ", \"code_line_estimated_status\": " << line_estimated_status << "}" << std::endl;
+
+          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
+            << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
+            << "\"addr\": \"" << HEX(ma->addrs[i]) << "\","
+            << "\"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", "
+            << "\"object_variable_name\": \"" << varname << "\", "
+            << "\"malloc_index_in_object\": " << index_in_object << ", "
+            << "\"element_index_in_malloc\": " << index_in_malloc << ", "
+            << "\"object_allocation_file_name\": \"" << filename << "\", "
+            << "\"object_allocation_func_name\": \"" << funcname << "\", "
+            << "\"object_allocation_line_num\": " << linenum << ", "
+            << "\"object_allocation_device_id\": " << dev_id << ", "
+            << "\"thread_index\": " << ma->thread_index << ", "
+            << "\"lane_id\": " << ma->lane_id << ", "
+            << "\"running_device_id\": " << ma->dev_id << ", "
+            << "\"mem_device_id\": " << mem_device_id << ", "
+            << "\"code_line_filename\": \"" << line_filename << "\", "
+            << "\"code_line_dirname\": \"" << line_dirname << "\", "
+            << "\"code_line_linenum\": " << line_linenum << ", "
+            << "\"code_line_estimated_status\": " << line_estimated_status
+            << "}" << std::endl;
 
         }
 
