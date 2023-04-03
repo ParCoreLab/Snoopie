@@ -102,6 +102,8 @@ std::string get_line_file_name(int index);
 
 std::string get_line_dir_name(int index); 
 
+std::string get_line_sass(int index);
+
 uint32_t get_line_line_num(int index); 
 
 short get_line_estimated_status(int index);
@@ -296,20 +298,23 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       bool ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num);
       std::string filename = file_name;
       std::string dirname = dir_name;
+      std::string sass = instr->getSass();
       //free(file_name);
       //free(dir_name);
       short estimated_status = 2; // it is estimated
       if(line_num != 0) {
+
         estimated_status = 1; // it is original
-        adm_line_location_insert(global_index, filename, dirname, line_num, estimated_status);
+        adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
         prev_valid_file_name = filename;
         prev_valid_dir_name = dirname;
         prev_valid_line_num = line_num;
       } else {
-        adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, prev_valid_line_num, estimated_status);
+        adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, sass, prev_valid_line_num, estimated_status);
       }
-      global_index++; 
-
+      global_index++;
+      //adm_line_location_insert(global_index, filename, dirname, line_num, estimated_status); 
+      //fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -360,7 +365,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           /* add pointer to channel_dev*/
           nvbit_add_call_arg_const_val64(
               instr, (uint64_t)ctx_state->channel_dev);
-          nvbit_add_call_arg_const_val32(instr, global_index);
+          nvbit_add_call_arg_const_val32(instr, global_index-1);
           nvbit_add_call_arg_const_val32(instr, func_id);
           mref_idx++;
         }
@@ -608,7 +613,6 @@ void *recv_thread_fun(void *args)
           break;
         }
         std::stringstream ss;
-
         adm_range_t* range = nullptr; //adm_range_find(ma.addrs[0]);
         uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
         std::string varname;
@@ -620,9 +624,12 @@ void *recv_thread_fun(void *args)
         int line_index = ma->global_index;	
         std::string line_filename = get_line_file_name(line_index);
         std::string line_dirname = get_line_dir_name(line_index);
+        std::string line_sass = get_line_sass(line_index);
         uint32_t line_linenum = get_line_line_num(line_index);
         short line_estimated_status = get_line_estimated_status(line_index);
 
+        //ss << "global_index: " << line_index << std::endl;
+        //fprintf(stderr, "num_processed_bytes is %d\n", num_processed_bytes);
         for (int i = 0; i < 32; i++)
         {
 
@@ -663,8 +670,8 @@ void *recv_thread_fun(void *args)
           if (allocation_pc > 0 && object_attribution) {
             index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
           }
-
           ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", \"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", \"addr\": \"" << HEX(ma->addrs[i]) << "\", \"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", \"object_variable_name\": \"" << varname << "\", \"malloc_index_in_object\": \"" << index_in_object << "\", \"element_index_in_malloc\": \"" << index_in_malloc << "\", \"object_allocation_file_name\": \"" << filename << "\", \"object_allocation_func_name\": \"" << funcname << "\", \"object_allocation_line_num\": " << linenum << ", \"object_allocation_device_id\": " << dev_id << ", \"thread_index\": " << ma->thread_index << ", \"lane_id\": " << ma->lane_id << ", \"running_device_id\": " << ma->dev_id << ", \"mem_device_id\": " << mem_device_id << ", \"code_line_filename\": " << line_filename << ", \"code_line_dirname\": " << line_dirname << ", \"code_line_linenum\": " << line_linenum << ", \"code_line_estimated_status\": " << line_estimated_status << "}" << std::endl;
+
         }
 
         std::cout << ss.str() << std::flush;

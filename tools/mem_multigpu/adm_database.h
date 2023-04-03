@@ -104,6 +104,7 @@ class adm_line_location_t
     int global_index;
     std::string file_name;
     std::string dir_name;
+    std::string sass;
     uint32_t line_num;
     short estimated;
 
@@ -117,6 +118,8 @@ class adm_line_location_t
     void set_file_name(std::string filename) {file_name = filename; };
     std::string get_dir_name() const noexcept { return dir_name; };
     void set_dir_name(std::string dirname) {dir_name = dirname; };
+    std::string get_sass() const noexcept { return sass; };
+    void set_sass(std::string sass_instr) {sass = sass_instr; };
     uint32_t get_line_num() const noexcept { return line_num; };
     void set_line_num(const uint32_t linenum) noexcept { line_num=linenum; };
     short get_estimated_status() const noexcept { return estimated; };
@@ -124,7 +127,7 @@ class adm_line_location_t
     void print() const noexcept;
 };
 
-adm_line_location_t* adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, const uint32_t line_num, short estimated) noexcept;
+adm_line_location_t* adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept;
 
 adm_line_location_t* adm_line_location_find(const int global_index) noexcept;
 
