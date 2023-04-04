@@ -60,6 +60,7 @@
 
 #define CHANNEL_SIZE (1l << 30)
 
+#define JSON 0
 #define EQUAL_STRS 0
 
 #define FILE_NAME_SIZE 256
@@ -231,6 +232,8 @@ void nvbit_at_init()
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
+
+  std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status" << std::endl;
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -269,13 +272,14 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     int func_id = instrumented_functions.size();
     instrumented_functions[func_id] = nvbit_get_func_name(ctx, f);
 
-    std::cout << "instrumenting: " << nvbit_get_func_name(ctx, f) << std::endl;
+    
 
     /* get vector of instructions of function "f" */
     const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
 
     if (verbose)
     {
+      std::cout << "instrumenting: " << nvbit_get_func_name(ctx, f) << std::endl;
       printf(
           "MEMTRACE: CTX %p, Inspecting CUfunction %p name %s at address "
           "0x%lx\n",
@@ -481,10 +485,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       if (kernel_name == "all" || kernel_name == func_name.substr(0, func_name.find("(")))
       {
         /* instrument */
-        std::cout << "instrumenting: " << func_name << std::endl;
         instrument_function_if_needed(ctx, p->f);
       } else if (kernel_name == "nccl" && func_name.substr(0, std::string("ncclKernel").length()).compare(std::string("ncclKernel")) == 0) {
-        std::cout << "instrumenting: " << func_name << std::endl;
         instrument_function_if_needed(ctx, f);
       }
 
@@ -523,7 +525,9 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
 
-    std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
+    if (JSON) {
+      std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
+    }
   }
 
   skip_callback_flag = false;
@@ -669,6 +673,7 @@ void *recv_thread_fun(void *args)
             index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
           }
 
+          if (JSON) {
           ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
             << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
             << "\"addr\": \"" << HEX(ma->addrs[i]) << "\","
@@ -684,12 +689,23 @@ void *recv_thread_fun(void *args)
             << "\"lane_id\": " << ma->lane_id << ", "
             << "\"running_device_id\": " << ma->dev_id << ", "
             << "\"mem_device_id\": " << mem_device_id << ", "
-	    << "\"code_line_index\": \"" << line_index << "\", "
+            << "\"code_line_index\": \"" << line_index << "\", "
             << "\"code_line_filename\": \"" << line_filename << "\", "
             << "\"code_line_dirname\": \"" << line_dirname << "\", "
             << "\"code_line_linenum\": " << line_linenum << ", "
             << "\"code_line_estimated_status\": " << line_estimated_status
             << "}" << std::endl;
+          } else {
+            ss << id_to_opcode_map[ma->opcode_id] << "," 
+               << ma->addrs[i]     << "," 
+               << ma->thread_index << ","
+               << ma->dev_id       << ","
+               << mem_device_id    << ","
+               << line_linenum     << "," 
+               << line_index       << ","
+               << line_estimated_status 
+               << std::endl;
+          }
 
         }
 
@@ -747,6 +763,8 @@ void nvbit_at_ctx_term(CUcontext ctx)
 void nvbit_at_term()
 {
   adm_ranges_print();
-  adm_line_table_print();
+
+  // TODO: Print the below agian at some point
+  // adm_line_table_print();
   adm_db_fini();
 }

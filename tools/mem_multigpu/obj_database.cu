@@ -288,11 +288,12 @@ void adamant::adm_db_update_state(const uint64_t address, const state_t state) n
 ADM_VISIBILITY
 void adamant::adm_ranges_print() noexcept
 {
+
   //bool all = adm_conf_string("+all", "1");
-  std::cout << "List of captured address ranges along with their variable names and code locations:\n";
+  // std::cout << "List of captured address ranges along with their variable names and code locations:\n";
+  std::cout << "var_name, offset, size, device_id, filename, alloc_line_num" << std::endl;
   pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>::iterator n(*range_nodes);
   for(adm_splay_tree_t* obj = n.next(); obj!=nullptr; obj = n.next())
-    //if(obj->range->has_events())
     obj->range->print();
 }
 
@@ -334,12 +335,17 @@ void adm_range_t::print() const noexcept
 {
   //std::cout << "in adm_range_t::print\n";
   uint64_t a = get_address();
-  std::cout << "offset: " << a << ", ";
+  // std::cout << "offset: " << a << ", ";
   uint64_t z = get_size();
-  std::cout << "size: " << z << ", ";
+  // std::cout << "size: " << z << ", ";
   int dev_id = get_device_id();
-  std::cout << "device_id: " << dev_id << ", ";
+  // std::cout << "device_id: " << dev_id << ", ";
   uint64_t p = get_allocation_pc();
+
+  std::cout << a << ",";
+  std::cout << z << ",";
+  std::cout << dev_id << ",";
+
   adm_object_t* obj = object_table->find(p);
   obj->print();
 #if 0
@@ -354,20 +360,26 @@ ADM_VISIBILITY
 void adm_object_t::print() const noexcept
 {
   //std::cout << "in adm_object_t::print\n";
-  uint64_t p = get_allocation_pc();
-  std::cout << "allocation_pc: " << p << ", "; 
+
+  // uint64_t p = get_allocation_pc();
+  // std::cout << "allocation_pc: " << p << ", "; 
+
   std::string varname = get_var_name();
-  std::cout << "var_name: " << varname << ", ";
-  uint32_t range_count = get_range_count();
-  std::cout << "number_of_mallocs: " << range_count << ", ";
+  // std::cout << "var_name: " << varname << ", ";
+  // uint32_t range_count = get_range_count();
+  // std::cout << "number_of_mallocs: " << range_count << ", ";
   std::string filename = get_file_name();
-  std::cout << "file_name: " << filename << ", ";
-  std::string funcname = get_func_name();
-  std::cout << "func_name: " << funcname << ", ";
+  // std::cout << "file_name: " << filename << ", ";
+  // std::string funcname = get_func_name();
+  // std::cout << "func_name: " << funcname << ", ";
   uint32_t linenum = get_line_num();
-  std::cout << "line_num: " << linenum << std::endl;
+  // std::cout << "line_num: " << linenum << std::endl;
   //int dev_id = get_device_id();
   //std::cout << "device_id: " << dev_id << std::endl; 
+
+  std::cout << varname << ",";
+  std::cout << filename << ",";
+  std::cout << linenum << std::endl;;
 }
 
 ADM_VISIBILITY
