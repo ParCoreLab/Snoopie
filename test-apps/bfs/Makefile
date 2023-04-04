@@ -12,4 +12,4 @@ bfs_run:
 	#LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so ./device-initiated_implicit_memcpy
 
 clean:
-	rm -f *.so *.o device-bfs
+	rm -f *.so *.o bfs
