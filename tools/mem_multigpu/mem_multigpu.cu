@@ -582,6 +582,8 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
 
 void *recv_thread_fun(void *args)
 {
+
+
   CUcontext ctx = (CUcontext)args;
 
   pthread_mutex_lock(&mutex1);
@@ -674,39 +676,38 @@ void *recv_thread_fun(void *args)
           }
 
           if (JSON) {
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
-            << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
-            << "\"addr\": \"" << HEX(ma->addrs[i]) << "\","
-            << "\"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", "
-            << "\"object_variable_name\": \"" << varname << "\", "
-            << "\"malloc_index_in_object\": " << index_in_object << ", "
-            << "\"element_index_in_malloc\": " << index_in_malloc << ", "
-            << "\"object_allocation_file_name\": \"" << filename << "\", "
-            << "\"object_allocation_func_name\": \"" << funcname << "\", "
-            << "\"object_allocation_line_num\": " << linenum << ", "
-            << "\"object_allocation_device_id\": " << dev_id << ", "
-            << "\"thread_index\": " << ma->thread_index << ", "
-            << "\"lane_id\": " << ma->lane_id << ", "
-            << "\"running_device_id\": " << ma->dev_id << ", "
-            << "\"mem_device_id\": " << mem_device_id << ", "
-            << "\"code_line_index\": \"" << line_index << "\", "
-            << "\"code_line_filename\": \"" << line_filename << "\", "
-            << "\"code_line_dirname\": \"" << line_dirname << "\", "
-            << "\"code_line_linenum\": " << line_linenum << ", "
-            << "\"code_line_estimated_status\": " << line_estimated_status
-            << "}" << std::endl;
+            ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
+              << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
+              << "\"addr\": \"" << HEX(ma->addrs[i]) << "\","
+              << "\"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", "
+              << "\"object_variable_name\": \"" << varname << "\", "
+              << "\"malloc_index_in_object\": " << index_in_object << ", "
+              << "\"element_index_in_malloc\": " << index_in_malloc << ", "
+              << "\"object_allocation_file_name\": \"" << filename << "\", "
+              << "\"object_allocation_func_name\": \"" << funcname << "\", "
+              << "\"object_allocation_line_num\": " << linenum << ", "
+              << "\"object_allocation_device_id\": " << dev_id << ", "
+              << "\"thread_index\": " << ma->thread_index << ", "
+              << "\"lane_id\": " << ma->lane_id << ", "
+              << "\"running_device_id\": " << ma->dev_id << ", "
+              << "\"mem_device_id\": " << mem_device_id << ", "
+              << "\"code_line_index\": \"" << line_index << "\", "
+              << "\"code_line_filename\": \"" << line_filename << "\", "
+              << "\"code_line_dirname\": \"" << line_dirname << "\", "
+              << "\"code_line_linenum\": " << line_linenum << ", "
+              << "\"code_line_estimated_status\": " << line_estimated_status
+              << "}" << std::endl;
           } else {
             ss << id_to_opcode_map[ma->opcode_id] << "," 
-               << ma->addrs[i]     << "," 
-               << ma->thread_index << ","
-               << ma->dev_id       << ","
-               << mem_device_id    << ","
-               << line_linenum     << "," 
-               << line_index       << ","
+               << HEX(ma->addrs[i]) << "," 
+               << ma->thread_index  << ","
+               << ma->dev_id        << ","
+               << mem_device_id     << ","
+               << line_linenum      << "," 
+               << line_index        << ","
                << line_estimated_status 
                << std::endl;
           }
-
         }
 
         std::cout << ss.str() << std::flush;

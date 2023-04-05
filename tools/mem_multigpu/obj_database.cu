@@ -8,6 +8,10 @@
 #include <adm_memory.h>
 #include <adm_database.h>
 
+#define HEX(x)                                                          \
+  "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
+  << std::dec
+
 using namespace adamant;
 
 static adm_splay_tree_t* range_tree = nullptr;
@@ -342,7 +346,7 @@ void adm_range_t::print() const noexcept
   // std::cout << "device_id: " << dev_id << ", ";
   uint64_t p = get_allocation_pc();
 
-  std::cout << a << ",";
+  std::cout << HEX(a) << ",";
   std::cout << z << ",";
   std::cout << dev_id << ",";
 
