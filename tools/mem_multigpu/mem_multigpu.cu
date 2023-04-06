@@ -233,7 +233,7 @@ void nvbit_at_init()
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
 
-  std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status" << std::endl;
+  
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -253,8 +253,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
   /* Get related functions of the kernel (device function that can be
    * called by the kernel) */
-  std::vector<CUfunction> related_functions =
-    nvbit_get_related_functions(ctx, func);
+  std::vector<CUfunction> related_functions = nvbit_get_related_functions(ctx, func);
 
   /* add kernel itself to the related function vector */
   related_functions.push_back(func);
@@ -384,7 +383,7 @@ __global__ void flush_channel(ChannelDev *ch_dev)
   /* set a CTA id = -1 to indicate communication thread that this is the
    * termination flag */
   mem_access_t ma;
-  ma.cta_id_x = -1;
+  ma.lane_id = -1;
   ch_dev->push(&ma, sizeof(mem_access_t));
   /* flush channel */
   ch_dev->flush();
@@ -613,7 +612,7 @@ void *recv_thread_fun(void *args)
          * flush channel kernel that is issues at the end of the
          * context */
 
-        if (ma->cta_id_x == -1)
+        if (ma->lane_id == -1)
         {
           done = true;
           break;
@@ -734,6 +733,9 @@ void nvbit_at_ctx_init(CUcontext ctx)
       ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
+  if ((int)ctx_state_map.size() - 1 == 0) {
+    std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status" << std::endl;
+  }
 }
 
 void nvbit_at_ctx_term(CUcontext ctx)

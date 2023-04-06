@@ -71,13 +71,13 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
     //adm_range_t* obj = adm_range_find(ma.addrs[0]);
     //ma.allocation_pc = obj->get_allocation_pc();
 
-    int4 cta = get_ctaid();
-    ma.grid_launch_id = grid_launch_id;
-    ma.cta_id_x = cta.x;
-    ma.cta_id_y = cta.y;
-    ma.cta_id_z = cta.z;
+    // int4 cta = get_ctaid();
+    // ma.grid_launch_id = grid_launch_id;
+    // ma.cta_id_x = cta.x;
+    // ma.cta_id_y = cta.y;
+    // ma.cta_id_z = cta.z;
     ma.dev_id = dev_id;
-    ma.warp_id = get_warpid();
+    // ma.warp_id = get_warpid();
     ma.lane_id = get_laneid();
     ma.opcode_id = opcode_id;
     ma.global_index = global_index;

@@ -295,7 +295,7 @@ void adamant::adm_ranges_print() noexcept
 
   //bool all = adm_conf_string("+all", "1");
   // std::cout << "List of captured address ranges along with their variable names and code locations:\n";
-  std::cout << "var_name, offset, size, device_id, filename, alloc_line_num" << std::endl;
+  std::cout << "offset, size, device_id, var_name, filename, alloc_line_num" << std::endl;
   pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>::iterator n(*range_nodes);
   for(adm_splay_tree_t* obj = n.next(); obj!=nullptr; obj = n.next())
     obj->range->print();
