@@ -586,6 +586,7 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
 //#if 0
 void * nvshmem_mallocWrap ( size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
   void * allocated_memory = nvshmem_malloc( size );
+  //fprintf(stderr, "nvshmem_malloc is intercepted\n");
   if(allocated_memory /*&& adm_set_tracing(0)*/) {
     if(!object_attribution) {
       object_attribution = true;
@@ -610,6 +611,7 @@ void * nvshmem_mallocWrap ( size_t size, const char *var_name, const uint32_t el
 
 void * nvshmem_alignWrap ( size_t alignment, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
   void * allocated_memory = nvshmem_align( alignment, size );
+  //fprintf(stderr, "nvshmem_align is intercepted\n");
   if(allocated_memory /*&& adm_set_tracing(0)*/) {
     if(!object_attribution) {
       object_attribution = true;
