@@ -9,15 +9,17 @@ $(error ERROR: nvcc version >= $(NVCC_VER_REQ) required to compile an nvbit tool
 endif
 
 NVBIT_PATH=../../core
-INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include
+#INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include
+INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include -I$(NVSHMEM_HOME)/include
 
-LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib
+#LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib
+LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib -L$(NVSHMEM_HOME)/lib
 NVCC_PATH=-L $(subst bin/nvcc,lib64,$(shell which nvcc | tr -s /))
 
 SOURCES=mem_multigpu.cu inject_funcs.cu obj_database.cu
 
 OBJECTS=$(SOURCES:.cu=.o)
-ARCH?=35
+ARCH?=80
 
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))

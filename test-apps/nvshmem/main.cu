@@ -44,6 +44,7 @@ int main (int argc, char *argv[]) {
     CUDA_CHECK(cudaSetDevice(mype_node));
     CUDA_CHECK(cudaStreamCreate(&stream));
     int *destination = (int *) nvshmem_malloc (SIZE * sizeof(int));
+    int *aligned_var = (int *) nvshmem_align (64, SIZE * sizeof(int));
 
     simple_shift<<<1, 1, 0, stream>>>(destination);
     nvshmemx_barrier_all_on_stream(stream);
@@ -54,6 +55,7 @@ int main (int argc, char *argv[]) {
     printf("%d: received message %d\n", nvshmem_my_pe(), msg);
 
     nvshmem_free(destination);
+    nvshmem_free(aligned_var);
     nvshmem_finalize();
     MPI_Finalize();
     return 0;

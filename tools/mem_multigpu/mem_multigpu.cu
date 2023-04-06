@@ -54,6 +54,10 @@
 #include "common.h"
 #include "util.h"
 
+#include "mpi.h"
+#include "nvshmem.h"
+#include "nvshmemx.h"
+
 #define HEX(x)                                                          \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
   << std::dec
@@ -579,6 +583,56 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
   return errorOutput;
 }
 
+//#if 0
+void * nvshmem_mallocWrap ( size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
+  void * allocated_memory = nvshmem_malloc( size );
+  if(allocated_memory /*&& adm_set_tracing(0)*/) {
+    if(!object_attribution) {
+      object_attribution = true;
+    }
+    uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
+    std::string vname = var_name;
+    int dev_id = -1;
+    cudaGetDevice(&dev_id);
+    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+
+    if(range) {
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
+      if(obj) {
+        range->set_index_in_object(obj->get_range_count());
+        obj->inc_range_count();
+      }
+    }
+  }
+
+  return allocated_memory;
+}
+
+void * nvshmem_alignWrap ( size_t alignment, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
+  void * allocated_memory = nvshmem_align( alignment, size );
+  if(allocated_memory /*&& adm_set_tracing(0)*/) {
+    if(!object_attribution) {
+      object_attribution = true;
+    }
+    uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
+    std::string vname = var_name;
+    int dev_id = -1;
+    cudaGetDevice(&dev_id);
+    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+
+    if(range) {
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
+      if(obj) {
+        range->set_index_in_object(obj->get_range_count());
+        obj->inc_range_count();
+      }
+    }
+  }
+
+  return allocated_memory;
+}
+//#endif
+
 void *recv_thread_fun(void *args)
 {
 
@@ -632,6 +686,7 @@ void *recv_thread_fun(void *args)
         std::string line_sass = get_line_sass(line_index);
         uint32_t line_linenum = get_line_line_num(line_index);
         short line_estimated_status = get_line_estimated_status(line_index);
+	uint64_t offset_address_range = 0;
 
         for (int i = 0; i < 32; i++)
         {
@@ -656,7 +711,7 @@ void *recv_thread_fun(void *args)
           if (mem_device_id == -1)
             continue;
 
-          if (allocation_pc == 0 && object_attribution) {
+          if (object_attribution) {
             range = adm_range_find(ma->addrs[i]);
             allocation_pc = range->get_allocation_pc();
             if(object_exists(allocation_pc)) {
@@ -666,12 +721,10 @@ void *recv_thread_fun(void *args)
               linenum = get_object_line_num(allocation_pc);
               dev_id = range->get_device_id();
               data_type_size = get_object_data_type_size(allocation_pc);
-              index_in_object = range->get_index_in_object();;
+              index_in_object = range->get_index_in_object();
             }
-          }
-
-          if (allocation_pc > 0 && object_attribution) {
-            index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
+	    index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
+	    offset_address_range = range->get_address();
           }
 
           if (JSON) {
@@ -704,7 +757,8 @@ void *recv_thread_fun(void *args)
                << mem_device_id     << ","
                << line_linenum      << "," 
                << line_index        << ","
-               << line_estimated_status 
+               << line_estimated_status << ","
+	       << offset_address_range << ","
                << std::endl;
           }
         }
