@@ -237,7 +237,7 @@ void nvbit_at_init()
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
 
-  
+
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -275,7 +275,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     int func_id = instrumented_functions.size();
     instrumented_functions[func_id] = nvbit_get_func_name(ctx, f);
 
-    
+
 
     /* get vector of instructions of function "f" */
     const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
@@ -686,7 +686,7 @@ void *recv_thread_fun(void *args)
         std::string line_sass = get_line_sass(line_index);
         uint32_t line_linenum = get_line_line_num(line_index);
         short line_estimated_status = get_line_estimated_status(line_index);
-	uint64_t offset_address_range = 0;
+        uint64_t offset_address_range = 0;
 
         for (int i = 0; i < 32; i++)
         {
@@ -723,8 +723,8 @@ void *recv_thread_fun(void *args)
               data_type_size = get_object_data_type_size(allocation_pc);
               index_in_object = range->get_index_in_object();
             }
-	    index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
-	    offset_address_range = range->get_address();
+            index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
+            offset_address_range = range->get_address();
           }
 
           if (JSON) {
@@ -751,15 +751,15 @@ void *recv_thread_fun(void *args)
               << "}" << std::endl;
           } else {
             ss << id_to_opcode_map[ma->opcode_id] << "," 
-               << HEX(ma->addrs[i]) << "," 
-               << ma->thread_index  << ","
-               << ma->dev_id        << ","
-               << mem_device_id     << ","
-               << line_linenum      << "," 
-               << line_index        << ","
-               << line_estimated_status << ","
-	       << offset_address_range << ","
-               << std::endl;
+              << HEX(ma->addrs[i]) << ","
+              << ma->thread_index  << ","
+              << ma->dev_id        << ","
+              << mem_device_id     << ","
+              << line_linenum      << ","
+              << line_index        << ","
+              << line_estimated_status << ","
+              << HEX(offset_address_range)
+              << std::endl;
           }
         }
 
@@ -788,7 +788,7 @@ void nvbit_at_ctx_init(CUcontext ctx)
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
   if ((int)ctx_state_map.size() - 1 == 0) {
-    std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status" << std::endl;
+    std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset" << std::endl;
   }
 }
 
