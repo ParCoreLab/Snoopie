@@ -36,7 +36,7 @@
 #include "utils.h"
 
 #define ULL unsigned long long int
-#define USE_ASYNC_STREAM
+// #define USE_ASYNC_STREAM
 
 class ChannelDev {
   private:
@@ -228,6 +228,7 @@ class ChannelHost {
         }
         int nbytes = buff_nbytes;
 
+        // printf("HOST TO RECEIVE nbytes %d - bytes left %d\n", nbytes, 0);
         if (buff_nbytes > max_buff_size) {
             nbytes = max_buff_size;
         }
@@ -247,8 +248,7 @@ class ChannelHost {
         }
 
         *doorbell = bytes_left;
-        // printf("HOST RECEIVED nbytes %d - bytes left %d\n", nbytes,
-        // bytes_left);
+        // printf("HOST RECEIVED nbytes %d - bytes left %d\n", nbytes, bytes_left);
         return nbytes;
     }
 

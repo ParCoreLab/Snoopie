@@ -60,6 +60,7 @@
 
 #define CHANNEL_SIZE (1l << 30)
 
+#define JSON 0
 #define EQUAL_STRS 0
 
 #define FILE_NAME_SIZE 256
@@ -231,6 +232,8 @@ void nvbit_at_init()
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
+
+  
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -250,8 +253,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
   /* Get related functions of the kernel (device function that can be
    * called by the kernel) */
-  std::vector<CUfunction> related_functions =
-    nvbit_get_related_functions(ctx, func);
+  std::vector<CUfunction> related_functions = nvbit_get_related_functions(ctx, func);
 
   /* add kernel itself to the related function vector */
   related_functions.push_back(func);
@@ -269,13 +271,14 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     int func_id = instrumented_functions.size();
     instrumented_functions[func_id] = nvbit_get_func_name(ctx, f);
 
-    std::cout << "instrumenting: " << nvbit_get_func_name(ctx, f) << std::endl;
+    
 
     /* get vector of instructions of function "f" */
     const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
 
     if (verbose)
     {
+      std::cout << "instrumenting: " << nvbit_get_func_name(ctx, f) << std::endl;
       printf(
           "MEMTRACE: CTX %p, Inspecting CUfunction %p name %s at address "
           "0x%lx\n",
@@ -380,7 +383,7 @@ __global__ void flush_channel(ChannelDev *ch_dev)
   /* set a CTA id = -1 to indicate communication thread that this is the
    * termination flag */
   mem_access_t ma;
-  ma.cta_id_x = -1;
+  ma.lane_id = -1;
   ch_dev->push(&ma, sizeof(mem_access_t));
   /* flush channel */
   ch_dev->flush();
@@ -481,10 +484,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       if (kernel_name == "all" || kernel_name == func_name.substr(0, func_name.find("(")))
       {
         /* instrument */
-        std::cout << "instrumenting: " << func_name << std::endl;
         instrument_function_if_needed(ctx, p->f);
       } else if (kernel_name == "nccl" && func_name.substr(0, std::string("ncclKernel").length()).compare(std::string("ncclKernel")) == 0) {
-        std::cout << "instrumenting: " << func_name << std::endl;
         instrument_function_if_needed(ctx, f);
       }
 
@@ -523,7 +524,9 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
 
-    std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
+    if (JSON) {
+      std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
+    }
   }
 
   skip_callback_flag = false;
@@ -578,6 +581,8 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
 
 void *recv_thread_fun(void *args)
 {
+
+
   CUcontext ctx = (CUcontext)args;
 
   pthread_mutex_lock(&mutex1);
@@ -607,7 +612,7 @@ void *recv_thread_fun(void *args)
          * flush channel kernel that is issues at the end of the
          * context */
 
-        if (ma->cta_id_x == -1)
+        if (ma->lane_id == -1)
         {
           done = true;
           break;
@@ -669,28 +674,39 @@ void *recv_thread_fun(void *args)
             index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
           }
 
-          ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
-            << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
-            << "\"addr\": \"" << HEX(ma->addrs[i]) << "\","
-            << "\"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", "
-            << "\"object_variable_name\": \"" << varname << "\", "
-            << "\"malloc_index_in_object\": " << index_in_object << ", "
-            << "\"element_index_in_malloc\": " << index_in_malloc << ", "
-            << "\"object_allocation_file_name\": \"" << filename << "\", "
-            << "\"object_allocation_func_name\": \"" << funcname << "\", "
-            << "\"object_allocation_line_num\": " << linenum << ", "
-            << "\"object_allocation_device_id\": " << dev_id << ", "
-            << "\"thread_index\": " << ma->thread_index << ", "
-            << "\"lane_id\": " << ma->lane_id << ", "
-            << "\"running_device_id\": " << ma->dev_id << ", "
-            << "\"mem_device_id\": " << mem_device_id << ", "
-	    << "\"code_line_index\": \"" << line_index << "\", "
-            << "\"code_line_filename\": \"" << line_filename << "\", "
-            << "\"code_line_dirname\": \"" << line_dirname << "\", "
-            << "\"code_line_linenum\": " << line_linenum << ", "
-            << "\"code_line_estimated_status\": " << line_estimated_status
-            << "}" << std::endl;
-
+          if (JSON) {
+            ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
+              << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
+              << "\"addr\": \"" << HEX(ma->addrs[i]) << "\","
+              << "\"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", "
+              << "\"object_variable_name\": \"" << varname << "\", "
+              << "\"malloc_index_in_object\": " << index_in_object << ", "
+              << "\"element_index_in_malloc\": " << index_in_malloc << ", "
+              << "\"object_allocation_file_name\": \"" << filename << "\", "
+              << "\"object_allocation_func_name\": \"" << funcname << "\", "
+              << "\"object_allocation_line_num\": " << linenum << ", "
+              << "\"object_allocation_device_id\": " << dev_id << ", "
+              << "\"thread_index\": " << ma->thread_index << ", "
+              << "\"lane_id\": " << ma->lane_id << ", "
+              << "\"running_device_id\": " << ma->dev_id << ", "
+              << "\"mem_device_id\": " << mem_device_id << ", "
+              << "\"code_line_index\": \"" << line_index << "\", "
+              << "\"code_line_filename\": \"" << line_filename << "\", "
+              << "\"code_line_dirname\": \"" << line_dirname << "\", "
+              << "\"code_line_linenum\": " << line_linenum << ", "
+              << "\"code_line_estimated_status\": " << line_estimated_status
+              << "}" << std::endl;
+          } else {
+            ss << id_to_opcode_map[ma->opcode_id] << "," 
+               << HEX(ma->addrs[i]) << "," 
+               << ma->thread_index  << ","
+               << ma->dev_id        << ","
+               << mem_device_id     << ","
+               << line_linenum      << "," 
+               << line_index        << ","
+               << line_estimated_status 
+               << std::endl;
+          }
         }
 
         std::cout << ss.str() << std::flush;
@@ -717,6 +733,9 @@ void nvbit_at_ctx_init(CUcontext ctx)
       ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
+  if ((int)ctx_state_map.size() - 1 == 0) {
+    std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status" << std::endl;
+  }
 }
 
 void nvbit_at_ctx_term(CUcontext ctx)
@@ -747,6 +766,8 @@ void nvbit_at_ctx_term(CUcontext ctx)
 void nvbit_at_term()
 {
   adm_ranges_print();
-  adm_line_table_print();
+
+  // TODO: Print the below agian at some point
+  // adm_line_table_print();
   adm_db_fini();
 }
