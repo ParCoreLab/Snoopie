@@ -5,7 +5,7 @@ import streamlit as st
 from streamlit_agraph import agraph, Node, Edge, Config
 import pickle 
 import extra_streamlit_components as stx
-# from st_click_detector import click_detector
+from st_click_detector import click_detector
 import seaborn as sns
 import pandas as pd
 import colorsys
@@ -14,18 +14,32 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 from streamlit_plotly_events import plotly_events
 import plotly.graph_objects as go
+import json
 
 
 data_by_address = {}
 data_by_device = {}
 data_by_obj = {}
-addr_obj_map = {}
+data_by_line = {}
+# addr_obj_map = {}
 gpu_num = 0
 keys = []
 ops = []
 addrs = []
-ADDR_DIST = 4
+ptx_code = []
 
+GRAPH_SIZE_LIMIT = 100000
+ADDR_DIST = 4
+colorscale=[[0.00000000, "rgb(230, 233, 233)"],
+            [0.05555555, "rgb(209, 227, 172)"],
+            [0.16666666, "rgb(186, 220, 124)"],
+            [0.26666666, "rgb(143, 216, 115)"],
+            [0.37777777, "rgb(83, 216, 134)"],
+            [0.50000000, "rgb(0, 195, 144)"],
+            [0.66666666, "rgb(2, 176, 180)"],
+            [0.77777777, "rgb(57, 121, 176)"],
+            [0.90000000, "rgb(85, 88, 152)"],
+            [1.00000000, "rgb(105, 51, 125)"]]
 
 def scroll_js(top):
     return '''<script>
@@ -33,15 +47,24 @@ def scroll_js(top):
                 body.scrollTo({top: ''' + str(top) + ''', behavior: 'smooth'});
             </script>'''
 
+def style_js():
+    return '''<script>hljs.highlightAll();</script>'''
+
 
 def regular_polygon_coord(center, radius, n):
     return [[center[0] + radius * math.sin((2*math.pi/n) * i),
             center[1] + radius * math.cos((2*math.pi/n) * i)] for i in range(n)]
 
 
+def isInt_try(v):
+    try:     i = int(v)
+    except:  return False
+    return True
+
+
 @st.cache_data
 def read_data(file):
-    global data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs
+    global data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code
     f = open(file, "r")
 
     if f is None:
@@ -59,63 +82,103 @@ def read_data(file):
             pickle_file = pickle.load(f)
             print("Data loaded from " + pickle_filename)
 
+    reading_data = 0
+    opkeys = []
+    objkeys = []
     if (pickle_file is None):    
+        
         for line in f:
-            if (line.startswith("filename=")):
-                splt_info = line.split(',')
-                graph_name = splt_info[0].split('/')[-1]
-                gpu_num = int(splt_info[1][-1])
-            if (line.startswith('{"op": "mem_')):
-                continue
-            if (line.startswith('{"op"')):
-                opdata = {}
-                splt_info = line[1:-2].split(',')
-                if len(keys) == 0:
-                    for splt in splt_info:
-                        keys.append(splt.split(':')[0].strip()[1:-1])
-                for i in range(len(splt_info)):
-                    opd = splt_info[i].split(':')[1].strip()
-                    if '"' in opd:
-                        opd = opd[1:-1]
+            if reading_data:
+                data = {}
+                vals = line.split(',')
+                if len(vals) != len(opkeys):
+                    reading_data = False
+                    if (line.startswith('offset')):
+                        objkeys = line.split(', ')
+                        reading_data = True
+                    break
+                for index in range(len(opkeys)):
+                    if isInt_try(vals[index]):
+                        data[opkeys[index]] = int(vals[index])
                     else:
-                        opd = int(opd)
-                    opdata[keys[i]] = opd
-                all_data.append(opdata)
-            if (line.startswith('offset:')):
-                obj_data = {}
-                hex_off = ''
-                int_off = 0
-                for splt in line.split(','):
-                    print(splt)
-                    kv = splt.strip().split(' ')
-                    key = kv[0][:-1]
-                    if 'name' in key:
-                        value = kv[1].split('[')[0]
-                    elif key == 'offset':
-                        int_off = int(kv[1])
-                        hex_off = str.format('0x{:016x}', int(kv[1]))
-                        value = int(kv[1]) 
-                    else:
-                        value = int(kv[1]) 
-                    obj_data[key] = value
-                data_by_obj[hex_off]=obj_data
-                for i in range(obj_data['size']):
-                    hex_addr = str.format('0x{:016x}', int_off+(i*4))
-                    addr_obj_map[hex_addr] = hex_off
+                        data[opkeys[index]] = vals[index]
+                all_data.append(data)
+            else:
+                if (line.startswith("filename=")):
+                    splt_info = line.split(',')
+                    graph_name = splt_info[0].split('/')[-1]
+                    gpu_num = int(splt_info[1][-1])
+                elif (line.startswith('op_code')):
+                    opkeys = line.split(', ')
+                    reading_data = True
+                # elif (line.startswith('offset')):
+                #     objkeys = line.split(', ')
+                #     reading_data = 2
+                # elif (line.startswith('global_index')):
+                #     splt_line = line.split(', ')
+                #     instr = ''.join(splt_line[-3].split[' '][1:])
+                #     line_num = int(splt_line[-2].split[' '][1])
+                #     if 'estimated' in splt_line[-1]:
+                #         line_num = -line_num
+                #     ptx_code.append(instr, line_num)
 
-        print(data_by_obj)
+        for line in f:
+            if reading_data:
+                data = {}
+                vals = line.split(',')
+                if len(vals) != len(objkeys):
+                    reading_data = False
+                    continue
+                for index in range (len(objkeys)):
+                    if isInt_try(vals[index]):
+                        data[objkeys[index]] = int(vals[index])
+                    else:
+                        data[objkeys[index]] = vals[index]
+                hex_off = data[objkeys[0]]
+                int_off = int(hex_off, 16)
+                data_by_obj[data[objkeys[0]]]=data
+                # for i in range(data['size']):
+                #     hex_addr = str.format('0x{:016x}', int_off+(i*4))
+                #     addr_obj_map[hex_addr] = hex_off
+            else:
+                if (line.startswith('offset')):
+                    objkeys = line.split(', ')
+                    reading_data = True
+                elif (line.startswith('global_index')):
+                    splt_line = line.split('sass_instruction: ')[1].split(';')
+                    instr = splt_line[0] + ';'
+                    rh = splt_line[1][2:]
+                    line_num = int(rh[10:rh.index(',')])
+                    if 'estimated' in splt_line[-1]:
+                        line_num = -line_num
+                    ptx_code.append((instr, line_num))
+
         print("Reading complete")
 
+        int_offsets = {}
+        for key in data_by_obj.keys():
+            intkey = int(key, 16)
+            int_offsets[key] = (intkey, intkey+data_by_obj[key]['size'])
+
+        counter = 0
         for data in all_data:
+            counter+=1
+            if counter%10000 == 0:
+                print(counter)
             address = data["addr"]
-            operation = data["op"]
-            obj_name = data_by_obj[addr_obj_map[address]]['var_name']
+            int_off = int(address, 16)
+            obj_name = ""
+            for key in data_by_obj.keys():
+                if int_off >= int_offsets[key][0] and int_off < int_offsets[key][1]:
+                    obj_name = data_by_obj[key]['var_name']
+                    break
+            operation = data["op_code"]
             if address not in addrs:
                 addrs.append(address)
             if operation not in ops:
                 ops.append(operation)
-            device = "GPU"+str(data["running_device_id"])
-            owner = "GPU"+str(data["mem_device_id"])
+            device = "GPU"+str(data["running_dev_id"])
+            owner = "GPU"+str(data["mem_dev_id"])
             pair = device+"-"+owner
 
             data_by_address[address] = data_by_address.get(address, {})
@@ -123,6 +186,7 @@ def read_data(file):
             temp_data['total'] = temp_data.get('total', 0) + 1
             temp_data[operation] = temp_data.get(operation, 0) + 1
             temp_data[device] = temp_data.get(device, 0) + 1
+            temp_data['code_linenum'] = data['code_linenum']
 
             data_by_device[pair] = data_by_device.get(pair, {})
             temp_data = data_by_device[pair]
@@ -138,21 +202,31 @@ def read_data(file):
             temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
 
             
-        print(graph_name, end=',')
-        print(gpu_num)
+        # print(graph_name, end=',')
+        # print(gpu_num)
         # for key, value in sorted(data_by_device.items(), key=lambda x: x[0]): 
         #     print("{} : {}".format(key, value))
-        print(keys)
-        print(ops)
-        all_data = [data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs]
+        # print(keys)
+        # print(ops)
+        print("ADDRESS")
+        print(data_by_address[list(data_by_address.keys())[0]])
+        print("\n\nDEVICE")
+        print(data_by_device[list(data_by_device.keys())[0]])
+        print("\n\nOBJECT")
+        print(data_by_obj[list(data_by_obj.keys())[0]])
+
+        for elem in list(data_by_obj.keys()):
+            print(data_by_obj[elem]['var_name'])
+
+        all_data = [data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code]
         
         with open(pickle_filename, 'wb') as pf:
             pickle.dump(all_data, pf)
             print("Data saved to " + pickle_filename)
     else:
-        data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs = pickle_file
+        data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code = pickle_file
 
-    return data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs
+    return data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code
 
 
 def scale_lightness(rgb, scale_l):
@@ -179,6 +253,7 @@ def main():
 
     graph_width = 600
     graph_height = 400
+    font_size = int(graph_height/22)
     margin = 20
     positions = regular_polygon_coord([int(graph_width/2), int(graph_height/2)], 
                                       int(min(graph_width, graph_height)/2)-margin, 4)
@@ -218,10 +293,13 @@ def main():
 
     for i in range(gpu_num):
         label = "GPU"+str(i)
-        nodes.append(Node(id=i, color=pal[i%len(pal)], title=str(sizes[i]), label=label, font={"vadjust": -int(sizes[i]/norm_ratio+15)}, 
+        nodes.append(Node(id=i, color=pal[i%len(pal)], title=str(sizes[i]), label=label, 
+                          font={"face": "verdana", "size": font_size, "color": "#000000",
+                                "vadjust": -int(sizes[i]/norm_ratio)-font_size}, 
                           size=int(sizes[i]/norm_ratio), x=positions[i][0], y=positions[i][1]))
         
     widths = []
+    max_val = 0
     for i in range(gpu_num):
         src_label = "GPU"+str(i)
         widths.append([])
@@ -231,6 +309,8 @@ def main():
             if (target_label in data_by_device[src_label]):
                 width = data_by_device[src_label][target_label]
             widths[i].append(width)
+            if width > max_val:
+                max_val = width
     
     norm_ratio = max(max(widths))/max_width
     drawn = [[False] * gpu_num] * gpu_num
@@ -245,8 +325,10 @@ def main():
             drawn[i][j] = True
             if i == j:
                 continue
-            edges.append(Edge(source=i, target=j, hidden=widths[i][j]==0, smooth={"enabled": True, "type": type, "roundness": 0.15}, 
-                              color=pal2[i%len(pal2)], type=type, label=str(widths[i][j]), width=int(widths[i][j]/norm_ratio))) 
+            edges.append(Edge(source=i, target=j, hidden=widths[i][j]==0, color=pal2[i%len(pal2)], type=type, 
+                              smooth={"enabled": True, "type": type, "roundness": 0.15},
+                              font={"face": "verdana", "size": font_size, "color": "#000000"},
+                              label=str(widths[i][j]), width=int(widths[i][j]/norm_ratio))) 
 
     config = Config(width=graph_width,
                     height=graph_height,
@@ -267,18 +349,23 @@ def main():
                             config=config))
     
     cols_rows_name = ['GPU%d' % i for i in range(gpu_num)]
+
+    color_range = [0, max_val]
     
     # modify_cell((H0: 0)) 2  != (H1: 0) 0
     chosen_point = None
     with cols[1]:
         df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype('int')
-        fig = px.imshow(df, color_continuous_scale='viridis',
-                labels=dict(x="Owner", y="Issued by", color="Instruction count"))
+        fig = px.imshow(df, color_continuous_scale=colorscale, 
+                labels=dict(x="Owner", y="Issued by", color="Data transfer<br>count"))
         fig.update_traces(colorbar=dict(lenmode='fraction', len=0.5, thickness=10))
         fig.update_layout(
             font_family="Open Sans, sans-serif",
-            font_color="#fafafa",
-            paper_bgcolor="#0e1117"
+            # font_color="#fafafa",
+            # paper_bgcolor="#0e1117",
+            # paper_bgcolor="#e6e6e6",
+            font_color="#1a1a1a",
+            paper_bgcolor="#ffffff",
         )
         fig.update_yaxes(title_standoff = 10)
 
@@ -297,20 +384,23 @@ def main():
     print(chosen_id_graph)
 
     chosen_id_tab = stx.tab_bar(data=[
-        stx.TabBarItemData(id=str(i), title="GPU"+str(i), description="") for i in range(gpu_num)], default=chosen_id_graph)
+        stx.TabBarItemData(id=str(i), title="GPU"+str(i), description="") for i in range(gpu_num)], default=0)
 
     object_view = []
     for dev in range(gpu_num):
         object_view.append({})
 
     for key in data_by_obj.keys():
-        offset = data_by_obj[key]['offset']
+        offset = int(data_by_obj[key]['offset'], 16)
         obj = [[]]
         object_map = [[]]
         obj_size = int(data_by_obj[key]['size']/ADDR_DIST)
+        step = ADDR_DIST
+        if obj_size > GRAPH_SIZE_LIMIT:
+            step *= int(obj_size/GRAPH_SIZE_LIMIT)
         cols = int(math.sqrt(obj_size))*4
         ycounter = cols
-        for i in range(0, int(data_by_obj[key]['size']), ADDR_DIST):
+        for i in range(0, int(data_by_obj[key]['size']), step):
             # if i >= ycounter:
             #     ycounter += cols
             #     obj.append([])
@@ -331,8 +421,9 @@ def main():
             else:
                 obj[-1].append([hex_addr, ""])
                 object_map[-1].append(0)
-        if (data_by_obj[key]['device'] >= 0):
-            object_view[data_by_obj[key]['device']][data_by_obj[key]['var_name']] = [obj, object_map]
+        if (data_by_obj[key]['device_id'] >= 0):
+            # print(data_by_obj[key]['device_id'])
+            object_view[data_by_obj[key]['device_id']][data_by_obj[key]['var_name']] = [obj, object_map]
    
     for i in range(gpu_num):
         if chosen_id_tab == str(i):
@@ -361,15 +452,19 @@ def main():
                 else:
                     obj_fig['layout']['yaxis' + str(index)].update(dict(tickvals=[0], ticktext=[key + '']))
 
-                obj_fig.update_layout(coloraxis_colorbar=dict(title="Instruction<br>count"))               
+                obj_fig.update_layout(coloraxis_colorbar=dict(title="Data transfer<br>count"))               
                 index += 1
 
-            obj_fig.update_layout(coloraxis=dict(colorscale='viridis'), showlegend=False)
+            obj_fig.update_layout(coloraxis=dict(colorscale=colorscale), showlegend=False)
             obj_fig.update_layout(
                     margin=dict(l=120, r=120, t=20, b=60),
                     font_family="Open Sans, sans-serif",
-                    font_color="#fafafa",
-                    paper_bgcolor="#0e1117",
+                    # font_color="#fafafa",
+                    # paper_bgcolor="#0e1117",
+                    # paper_bgcolor="#e6e6e6"
+                    font_color="#1a1a1a",
+                    paper_bgcolor="#ffffff",
+                    width=graph_width
                 )
             obj_fig['layout']['xaxis' + str(index-1)].update(dict(title="Offset", title_standoff=8))
                 
@@ -380,11 +475,9 @@ def main():
 
             if 'ydim' not in st.session_state:
                 st.session_state['ydim'] = 1
-            if 'xdim' not in st.session_state:
-                st.session_state['xdim'] = 1
 
-            def calc_dim_y(obj_size):
-                st.session_state.ydim = int(obj_size / st.session_state.xdim)
+            def calc_dim_y():
+                st.session_state.ydim = int(len(object_view[i][obj_option][1][0]) / st.session_state.xdim)
             
             obj_2d_cols = st.columns([4, 2, 1])
             obj_option = None
@@ -392,9 +485,12 @@ def main():
             with obj_2d_cols[0]:
                 obj_option = st.selectbox('Choose an object to view in 2D', obj_names)
                 st.write('You selected:', obj_option)
+
+            if 'xdim' not in st.session_state:
+                st.session_state['xdim'] = len(object_view[i][obj_option][1][0])
+
             with obj_2d_cols[1]:
-                chosen_obj_size = len(object_view[i][obj_option][1][0])
-                xdim = st.number_input('X-dimension', value=chosen_obj_size, min_value=1, on_change=calc_dim_y(chosen_obj_size), key='xdim')
+                xdim = st.number_input('X-dimension', min_value=1, on_change=calc_dim_y(), key='xdim')
                 dim_cols = st.columns([1, 1])
                 with dim_cols[0]:
                     st.write('X-dimension is ', xdim)
@@ -414,30 +510,34 @@ def main():
                             reshaped_data.append([])
 
                         reshaped_data[-1].append(item)
-                        print(xdim)
                         ind_x += 1
                         if (ind_x == xdim):
                             ind_x = 0
-                    print(reshaped_data)
 
-                    fig = go.Figure(data=go.Heatmap(z=reshaped_data, coloraxis="coloraxis", name=key,
-                        # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
-                        #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
-                        hovertemplate="<br>".join([
-                            "X-offset: %{x}",
-                            "Y-offset: %{y}",
-                            "Instructions: %{z}"
+                    fig = go.Figure(data=go.Heatmap(z=reshaped_data, coloraxis="coloraxis", name=key, 
+                                    xgap=2, ygap=2, 
+                                    # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
+                                    #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
+                                    hovertemplate="<br>".join(["X-offset: %{x}", "Y-offset: %{y}", "Instructions: %{z}"
                     ])))
-                    fig.update_layout(coloraxis_colorbar=dict(title="Instruction<br>count"))               
+                    fig.update_layout(coloraxis_colorbar=dict(title="Data transfer<br>count"))               
                     index += 1
 
-                    fig.update_layout(coloraxis=dict(colorscale='viridis'), showlegend=False)
+                    fig.update_layout(coloraxis=dict(colorscale=colorscale), showlegend=False)
                     fig.update_layout(
                             margin=dict(l=120, r=120, t=20, b=60),
                             font_family="Open Sans, sans-serif",
-                            font_color="#fafafa",
-                            paper_bgcolor="#0e1117",
-                            yaxis=dict(autorange="reversed")
+                            # font_color="#fafafa",
+                            # paper_bgcolor="#0e1117",
+                            # plot_bgcolor="#0e1117",
+                            font_color="#1a1a1a",
+                            # paper_bgcolor="#e6e6e6",
+                            # plot_bgcolor="#e6e6e6",
+                            paper_bgcolor="#ffffff",
+                            plot_bgcolor="#ffffff",
+                            yaxis=dict(autorange="reversed", zeroline=False),
+                            xaxis=dict(visible=False),
+                            width=graph_width
                         )
                     chosen_cell = plotly_events(fig)
 
@@ -451,7 +551,24 @@ def main():
                 if pair in data_by_device:
                     cols[other_gpus.index(peer_gpu)].markdown(f"##### Data owner: **<span style='color:{pal[peer_gpu]} \
                                                               '> GPU{peer_gpu}</span>**", unsafe_allow_html=True)
-                    cols[other_gpus.index(peer_gpu)].table(dict(sorted(data_by_device[pair].items(), reverse=True)))
+                    table_objs = []
+                    table_instr = []
+                    for item in data_by_device[pair].items():
+                        if 'total' == item[0]:
+                            table_instr.insert(0, item)    
+                            table_objs.insert(0, item) 
+                        elif '.E' in item[0]:
+                            table_instr.append(item)                            
+                        else:
+                            table_objs.append(item)
+                    
+                    df = pd.DataFrame.from_dict(table_objs)
+                    df.columns = ['object', 'count']
+                    cols[other_gpus.index(peer_gpu)].table(df)
+
+                    df = pd.DataFrame.from_dict(table_instr)
+                    df.columns = ['instruction', 'count']
+                    cols[other_gpus.index(peer_gpu)].table(df)
                         # .scrollTop = ''' + str(graph_height + i/100) + ''';
             st.components.v1.html(scroll_js(graph_height + margin + i*0.0001), height=0)
             break
@@ -463,39 +580,47 @@ if __name__ == "__main__":
 
     if (len(sys.argv) < 2):
         print("Provide an input file")
-    data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs = read_data(sys.argv[1])
+    data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code = read_data(sys.argv[1])
     main()
 
+    with st.sidebar:
+        for i in range(len(ptx_code)):
+            st.write(ptx_code[i][0])
+
     st.markdown("""---""")
-    # f = open("workq_ring.cu", "r")
+    f = open("workq_ring_snoopie.cu", "r")
 
-    # if f is None:
-    #     print("Source code file not found")
-    #     exit(0)
+    if f is None:
+        print("Source code file not found")
+        exit(0)
 
-    # content_head = """<body><pre>"""
-    # content_end = """</pre></body>"""
+    content_head = """<head><link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script></head><body><pre>"""
+    content_end = """</pre></body>"""
 
-    # line_index = 0
-    # lines = f.readlines()
-    # total_lines = len(lines)
-    # index_chars = len(str(total_lines))+1
-    # for line in lines:
-    #     line_index+=1
-    #     ls = len(line) - len(line.lstrip())
-    #     line = line.replace('<', '&lt')
-    #     line = line.replace('>', '&gt')
-    #     # st.code(str(line_index)+ '.  ' + line)
-    #     if line_index == 1:
-    #         content_head+="""<a id='line""" + str(line_index) + """'><code class="hljs language-c" 
-    #                             style="margin-bottom:0;padding-bottom:0;overflow-x:hidden">""" \
-    #                             + str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
-    #                             + line + """</code></a>"""
-    #     else:
-    #         content_head+="""<a id='line""" + str(line_index) + """'><code class="hljs language-c" style="margin-top:0;
-    #                             margin-bottom:0;padding-top:0;padding-bottom:0;overflow-x:hidden" >""" \
-    #                             + str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
-    #                             + line + """</code></a>"""
+    line_index = 0
+    lines = f.readlines()
+    total_lines = len(lines)
+    index_chars = len(str(total_lines))+1
+    for line in lines:
+        line_index+=1
+        ls = len(line) - len(line.lstrip())
+        line = line.replace('<', '&lt')
+        line = line.replace('>', '&gt')
+        # st.code(str(line_index)+ '.  ' + line)
+        if line_index == 1:
+            content_head+="""<a id='line""" + str(line_index) + """'><code class="hljs language-c" 
+                                style="margin-bottom:0;padding-bottom:0;overflow-x:hidden">""" \
+                                + str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
+                                + line + """</code></a>"""
+        else:
+            content_head+="""<a id='line""" + str(line_index) + """'><code onclick="hljs.highlightAll()" class="hljs language-c" style="margin-top:0;
+                                margin-bottom:0;padding-top:0;padding-bottom:0;overflow-x:hidden" >""" \
+                                + str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
+                                + line + """</code></a>"""
 
-    # clicked = click_detector(content_head + content_end)
-    # print(clicked)
+    clicked = click_detector(content_head + content_end)
+    st.components.v1.html(style_js(), height=0)
+    print(clicked)
