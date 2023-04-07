@@ -8,6 +8,7 @@ import extra_streamlit_components as stx
 from st_click_detector import click_detector
 import seaborn as sns
 import pandas as pd
+import numpy as np
 import colorsys
 import matplotlib.pyplot as plt
 import plotly.express as px
@@ -27,6 +28,7 @@ keys = []
 ops = []
 addrs = []
 ptx_code = []
+ptx_code_rev = {}
 
 GRAPH_SIZE_LIMIT = 100000
 ADDR_DIST = 4
@@ -41,11 +43,30 @@ colorscale=[[0.00000000, "rgb(230, 233, 233)"],
             [0.90000000, "rgb(85, 88, 152)"],
             [1.00000000, "rgb(105, 51, 125)"]]
 
+
 def scroll_js(top):
     return '''<script>
                 var body = window.parent.document.querySelector(".main");
                 body.scrollTo({top: ''' + str(top) + ''', behavior: 'smooth'});
             </script>'''
+
+
+def scroll_js_to_line(line):
+    return '''<script>
+                console.log("HEY")
+                var body = window.parent.document.querySelector(".main");
+                var line = window.parent.document.getElementById("line''' + str(line) + '''");
+                body.scrollTo({top: 100, behavior: 'smooth'});
+                console.log("''' + str(line) + '''")
+                if (line != null) {
+                    let y = line.offsetTop;
+                    console.log("HEY")
+                    console.log(body)
+                    console.log(y)
+                    body.scrollTo({top: y, behavior: 'smooth'});
+                }
+            </script>'''
+
 
 def style_js():
     return '''<script>hljs.highlightAll();</script>'''
@@ -64,7 +85,7 @@ def isInt_try(v):
 
 @st.cache_data
 def read_data(file):
-    global data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code
+    global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev
     f = open(file, "r")
 
     if f is None:
@@ -73,7 +94,6 @@ def read_data(file):
     
     # prints all files
     graph_name = ""
-    all_data = []
     pickle_file = None
             
     pickle_filename = ''.join(file.split(".")[:-1]) + '.pkl'
@@ -85,12 +105,17 @@ def read_data(file):
     reading_data = 0
     opkeys = []
     objkeys = []
+    counter = 0
+
     if (pickle_file is None):    
         
         for line in f:
+            counter+=1
+            if counter%100000 == 0:
+                print(counter)
             if reading_data:
                 data = {}
-                vals = line.split(',')
+                vals = line.strip().split(',')
                 if len(vals) != len(opkeys):
                     reading_data = False
                     if (line.startswith('offset')):
@@ -102,14 +127,48 @@ def read_data(file):
                         data[opkeys[index]] = int(vals[index])
                     else:
                         data[opkeys[index]] = vals[index]
-                all_data.append(data)
+
+                address = data["addr"]
+                obj_name = data["obj_offset"]
+                operation = data["op_code"]
+                if address not in addrs:
+                    addrs.append(address)
+                if operation not in ops:
+                    ops.append(operation)
+                device = "GPU"+str(data["running_dev_id"])
+                owner = "GPU"+str(data["mem_dev_id"])
+                pair = device+"-"+owner
+
+                data_by_address[address] = data_by_address.get(address, {})
+                temp_data = data_by_address[address]
+                temp_data['total'] = temp_data.get('total', 0) + 1
+                temp_data[operation] = temp_data.get(operation, 0) + 1
+                temp_data[device] = temp_data.get(device, 0) + 1
+                temp_data['code_linenum'] = data['code_linenum']
+                
+                # data_by_line[data['code_linenum']] = data_by_line.get(data['code_linenum'], list())
+                # data_by_line[data['code_linenum']].append(address)
+
+                data_by_device[pair] = data_by_device.get(pair, {})
+                temp_data = data_by_device[pair]
+                temp_data['total'] = temp_data.get('total', 0) + 1
+                temp_data[operation] = temp_data.get(operation, 0) + 1
+                temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
+                
+                data_by_device[device] = data_by_device.get(device, {})
+                temp_data = data_by_device[device]
+                temp_data['total'] = temp_data.get('total', 0) + 1
+                temp_data[operation] = temp_data.get(operation, 0) + 1
+                temp_data[owner] = temp_data.get(owner, 0) + 1
+                temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
             else:
                 if (line.startswith("filename=")):
-                    splt_info = line.split(',')
+                    splt_info = line.strip().split(',')
                     graph_name = splt_info[0].split('/')[-1]
                     gpu_num = int(splt_info[1][-1])
+                # op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset
                 elif (line.startswith('op_code')):
-                    opkeys = line.split(', ')
+                    opkeys = line.strip().split(', ')
                     reading_data = True
                 # elif (line.startswith('offset')):
                 #     objkeys = line.split(', ')
@@ -125,7 +184,7 @@ def read_data(file):
         for line in f:
             if reading_data:
                 data = {}
-                vals = line.split(',')
+                vals = line.strip().split(',')
                 if len(vals) != len(objkeys):
                     reading_data = False
                     continue
@@ -134,13 +193,12 @@ def read_data(file):
                         data[objkeys[index]] = int(vals[index])
                     else:
                         data[objkeys[index]] = vals[index]
-                hex_off = data[objkeys[0]]
-                int_off = int(hex_off, 16)
                 data_by_obj[data[objkeys[0]]]=data
                 # for i in range(data['size']):
                 #     hex_addr = str.format('0x{:016x}', int_off+(i*4))
                 #     addr_obj_map[hex_addr] = hex_off
             else:
+                # offset, size, device_id, var_name, filename, alloc_line_num
                 if (line.startswith('offset')):
                     objkeys = line.split(', ')
                     reading_data = True
@@ -151,82 +209,36 @@ def read_data(file):
                     line_num = int(rh[10:rh.index(',')])
                     if 'estimated' in splt_line[-1]:
                         line_num = -line_num
-                    ptx_code.append((instr, line_num))
+                    ptx_code.append([instr, line_num])
+                    ptx_code_rev[line_num] = ptx_code_rev.get(line_num, list())
+                    ptx_code_rev[line_num].append(instr)
 
         print("Reading complete")
 
-        int_offsets = {}
-        for key in data_by_obj.keys():
-            intkey = int(key, 16)
-            int_offsets[key] = (intkey, intkey+data_by_obj[key]['size'])
-
-        counter = 0
-        for data in all_data:
-            counter+=1
-            if counter%10000 == 0:
-                print(counter)
-            address = data["addr"]
-            int_off = int(address, 16)
-            obj_name = ""
-            for key in data_by_obj.keys():
-                if int_off >= int_offsets[key][0] and int_off < int_offsets[key][1]:
-                    obj_name = data_by_obj[key]['var_name']
-                    break
-            operation = data["op_code"]
-            if address not in addrs:
-                addrs.append(address)
-            if operation not in ops:
-                ops.append(operation)
-            device = "GPU"+str(data["running_dev_id"])
-            owner = "GPU"+str(data["mem_dev_id"])
-            pair = device+"-"+owner
-
-            data_by_address[address] = data_by_address.get(address, {})
-            temp_data = data_by_address[address]
-            temp_data['total'] = temp_data.get('total', 0) + 1
-            temp_data[operation] = temp_data.get(operation, 0) + 1
-            temp_data[device] = temp_data.get(device, 0) + 1
-            temp_data['code_linenum'] = data['code_linenum']
-
-            data_by_device[pair] = data_by_device.get(pair, {})
-            temp_data = data_by_device[pair]
-            temp_data['total'] = temp_data.get('total', 0) + 1
-            temp_data[operation] = temp_data.get(operation, 0) + 1
-            temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
-            
-            data_by_device[device] = data_by_device.get(device, {})
-            temp_data = data_by_device[device]
-            temp_data['total'] = temp_data.get('total', 0) + 1
-            temp_data[operation] = temp_data.get(operation, 0) + 1
-            temp_data[owner] = temp_data.get(owner, 0) + 1
-            temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
-
-            
         # print(graph_name, end=',')
         # print(gpu_num)
         # for key, value in sorted(data_by_device.items(), key=lambda x: x[0]): 
         #     print("{} : {}".format(key, value))
         # print(keys)
         # print(ops)
-        print("ADDRESS")
-        print(data_by_address[list(data_by_address.keys())[0]])
-        print("\n\nDEVICE")
-        print(data_by_device[list(data_by_device.keys())[0]])
-        print("\n\nOBJECT")
-        print(data_by_obj[list(data_by_obj.keys())[0]])
+        # print("ADDRESS")
+        # print(data_by_address[list(data_by_address.keys())[0]])
+        # print("\n\nDEVICE")
+        # print(data_by_device[list(data_by_device.keys())[0]])
+        # print("\n\nOBJECT")
+        # print(data_by_obj[list(data_by_obj.keys())[0]])
+        # for elem in list(data_by_obj.keys()):
+        #     print(data_by_obj[elem]['var_name'])
 
-        for elem in list(data_by_obj.keys()):
-            print(data_by_obj[elem]['var_name'])
-
-        all_data = [data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code]
+        all_data = [data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev]
         
         with open(pickle_filename, 'wb') as pf:
             pickle.dump(all_data, pf)
             print("Data saved to " + pickle_filename)
     else:
-        data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code = pickle_file
+        data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev = pickle_file
 
-    return data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code
+    return data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev
 
 
 def scale_lightness(rgb, scale_l):
@@ -515,7 +527,6 @@ def main():
                             ind_x = 0
 
                     fig = go.Figure(data=go.Heatmap(z=reshaped_data, coloraxis="coloraxis", name=key, 
-                                    xgap=2, ygap=2, 
                                     # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
                                     #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
                                     hovertemplate="<br>".join(["X-offset: %{x}", "Y-offset: %{y}", "Instructions: %{z}"
@@ -560,7 +571,7 @@ def main():
                         elif '.E' in item[0]:
                             table_instr.append(item)                            
                         else:
-                            table_objs.append(item)
+                            table_objs.append([data_by_obj[item[0].strip()]['var_name'], item[1]])
                     
                     df = pd.DataFrame.from_dict(table_objs)
                     df.columns = ['object', 'count']
@@ -580,15 +591,69 @@ if __name__ == "__main__":
 
     if (len(sys.argv) < 2):
         print("Provide an input file")
-    data_by_address, data_by_device, data_by_obj, gpu_num, keys, ops, addrs, ptx_code = read_data(sys.argv[1])
+    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev = read_data(sys.argv[1])
     main()
 
     with st.sidebar:
-        for i in range(len(ptx_code)):
-            st.write(ptx_code[i][0])
+        st.markdown("""## SASS Instructions""")
+        st.markdown("""<small><p style='margin-left:-10px;margin-bottom:-50px;padding-bottom:-50px;'>
+                     <span style="color:Tomato;">SASS line</span> | 
+                     <span style="color:Tomato;">Code line</span>   |   SASS Instruction</p></small>""",
+            unsafe_allow_html=True)
+        st.markdown(
+            f'''
+            <style>
+                .css-1544g2n.e1fqkh3o4 {{
+                    padding-top: 0px;
+                    margin-top: 0px;
+                    margin-right: -50px;
+                }}
+                .css-ysnqb2.egzxvld4 {{
+                    {0}
+                    margin-top: {0}rem;
+                    padding-top: {0}rem;
+                    padding-right: {0}rem;
+                    padding-left: -60px;
+                    margin-left: -60px;
+                    padding-bottom: {0}rem;
+                }}
+            </style>
+            ''',
+            unsafe_allow_html=True)
+        
+        content_head = """<head><link rel="stylesheet"
+        href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+        <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+        <script>hljs.highlightAll();</script></head><body><pre>"""
+        content_end = """</pre></body>"""
+
+        total_lines = len(ptx_code)
+        index_chars = len(str(len(ptx_code)))+1
+        index_chars_src = len(str(ptx_code[-1][1]))
+        line_index = 0
+        for line, linenum in ptx_code:
+            linenum = abs(linenum)
+            line_index+=1
+            ls = len(line) - len(line.lstrip())
+            line = line.replace('<', '&lt')
+            line = line.replace('>', '&gt')
+            # st.code(str(line_index)+ '.  ' + line)
+            content_head+="""<a id='ptxline""" + str(line_index) + """'><code class='hljs language-c'
+                            style='padding-left:-100px;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
+            if line_index == 1:
+                content_head+=";margin-top:-50px'>"
+            else:
+                content_head+=";margin-top:0;padding-top:0'>"
+            content_head += str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
+                            + str(linenum)+ '.' + ''.join([' '*(index_chars_src-len(str(linenum)))]) + ' | ' + line + "</code></a>"
+
+        clicked_ptx = click_detector(content_head + content_end)
+        # print(clicked_ptx)
+        # if 'ptxline' in clicked_ptx:
+        #     st.components.v1.html(scroll_js_to_line(abs(ptx_code[int(clicked_ptx[7:])][1])), height=0)
 
     st.markdown("""---""")
-    f = open("workq_ring_snoopie.cu", "r")
+    f = open("workq_ring.cu", "r")
 
     if f is None:
         print("Source code file not found")
@@ -610,17 +675,17 @@ if __name__ == "__main__":
         line = line.replace('<', '&lt')
         line = line.replace('>', '&gt')
         # st.code(str(line_index)+ '.  ' + line)
+        content_head+="""<a id='line""" + str(line_index) + """'><code class='hljs language-c'
+                        style='margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
+        if line_index in ptx_code_rev.keys():
+            print("THE LINE!")
+            print(line_index)
+            content_head+=";margin-top:50;padding-top:50;background:#6da2d1"
         if line_index == 1:
-            content_head+="""<a id='line""" + str(line_index) + """'><code class="hljs language-c" 
-                                style="margin-bottom:0;padding-bottom:0;overflow-x:hidden">""" \
-                                + str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
-                                + line + """</code></a>"""
+            content_head+="'>"
         else:
-            content_head+="""<a id='line""" + str(line_index) + """'><code onclick="hljs.highlightAll()" class="hljs language-c" style="margin-top:0;
-                                margin-bottom:0;padding-top:0;padding-bottom:0;overflow-x:hidden" >""" \
-                                + str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
-                                + line + """</code></a>"""
+            content_head+=";margin-top:0;padding-top:0'>"
+        content_head+=str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) + line + "</code></a>"
 
-    clicked = click_detector(content_head + content_end)
-    st.components.v1.html(style_js(), height=0)
-    print(clicked)
+    clicked_src = click_detector(content_head + content_end)
+    print(clicked_src)
