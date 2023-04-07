@@ -145,6 +145,7 @@ uint32_t instr_begin_interval = 0;
 uint32_t instr_end_interval = UINT32_MAX;
 std::string kernel_name;
 int verbose = 0;
+int silent = 0;
 
 /* opcode to id map and reverse map  */
 std::map<std::string, int> opcode_to_id_map;
@@ -220,6 +221,7 @@ void nvbit_at_init()
       instr_end_interval, "INSTR_END", UINT32_MAX,
       "End of the instruction interval where to apply instrumentation");
   GET_VAR_INT(verbose, "TOOL_VERBOSE", 0, "Enable verbosity inside the tool");
+  GET_VAR_INT(silent,  "SILENT",       0, "Silence long output of the tool");
 
   GET_VAR_STR(kernel_name, "KERNEL_NAME", "Specify the name of the kernel to track");
 
@@ -751,7 +753,9 @@ void *recv_thread_fun(void *args)
               << "\"code_line_linenum\": " << line_linenum << ", "
               << "\"code_line_estimated_status\": " << line_estimated_status
               << "}" << std::endl;
-          } else {
+
+            std::cout << ss.str() << std::flush;
+          } else if (!silent) {
             ss << id_to_opcode_map[ma->opcode_id] << "," 
               << HEX(ma->addrs[i]) << ","
               << ma->thread_index  << ","
@@ -763,9 +767,11 @@ void *recv_thread_fun(void *args)
               << HEX(offset_address_range)
               << std::endl;
           }
+
+          std::cout << ss.str() << std::flush;
+
         }
 
-        std::cout << ss.str() << std::flush;
         num_processed_bytes += sizeof(mem_access_t);
       }
     }
@@ -789,7 +795,7 @@ void nvbit_at_ctx_init(CUcontext ctx)
       ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
-  if ((int)ctx_state_map.size() - 1 == 0) {
+  if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
     std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset" << std::endl;
   }
 }
@@ -821,7 +827,9 @@ void nvbit_at_ctx_term(CUcontext ctx)
 
 void nvbit_at_term()
 {
-  adm_ranges_print();
+  if (!silent) {
+    adm_ranges_print();
+  }
 
   // TODO: Print the below agian at some point
   // adm_line_table_print();
