@@ -349,8 +349,10 @@ void nvbit_set_nvdisasm(const char* nvdisasm);
  **********************************************************************/
 
 #define PRINT_VAR(env_var, help, var)                                      \
-    std::cout << std::setw(20) << env_var << " = " << var << " - " << help \
-              << std::endl;
+    if (!getenv("NOBANNER") || atoi(getenv("NOBANNER")) == 0) {                                             \
+      std::cout << std::setw(20) << env_var << " = " << var << " - "       \
+                << help << std::endl;                                      \
+    }
 
 #define GET_VAR_INT(var, env_var, def, help) \
     if (getenv(env_var)) {                   \
