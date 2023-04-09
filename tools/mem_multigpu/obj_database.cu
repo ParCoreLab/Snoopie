@@ -295,10 +295,18 @@ void adamant::adm_ranges_print() noexcept
 
   //bool all = adm_conf_string("+all", "1");
   // std::cout << "List of captured address ranges along with their variable names and code locations:\n";
-  std::cout << "offset, size, device_id, var_name, filename, alloc_line_num" << std::endl;
+
+  int first_iter = 1;  
+
   pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>::iterator n(*range_nodes);
-  for(adm_splay_tree_t* obj = n.next(); obj!=nullptr; obj = n.next())
+  for(adm_splay_tree_t* obj = n.next(); obj!=nullptr; obj = n.next()) {
+    if (first_iter) {
+      std::cout << "offset, size, device_id, var_name, filename, alloc_line_num" << std::endl;
+      first_iter = 0;
+    }
+
     obj->range->print();
+  }
 }
 
 ADM_VISIBILITY
