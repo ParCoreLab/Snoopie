@@ -322,8 +322,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
         adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, sass, prev_valid_line_num, estimated_status);
       }
       global_index++;
-      //adm_line_location_insert(global_index, filename, dirname, line_num, estimated_status); 
-      //fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -438,7 +436,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       std::string func_name(nvbit_get_func_name(ctx, f));
       if (kernel_name == "all" || kernel_name == func_name.substr(0, func_name.find("(")))
       {
-        /* instrument */
         instrument_function_if_needed(ctx, f);
       } else if (kernel_name == "nccl" && func_name.substr(0, std::string("ncclKernel").length()).compare(std::string("ncclKernel")) == 0) {
         instrument_function_if_needed(ctx, f);
@@ -460,6 +457,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
       /* enable instrumented code to run */
       nvbit_enable_instrumented(ctx, f, true);
+
       if (verbose)
       {
         printf(
@@ -675,7 +673,6 @@ void *recv_thread_fun(void *args)
           done = true;
           break;
         }
-        std::stringstream ss;
         adm_range_t* range = nullptr; //adm_range_find(ma.addrs[0]);
         uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
         std::string varname;
@@ -699,21 +696,21 @@ void *recv_thread_fun(void *args)
             continue;
 
           int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
-          uint32_t index_in_object = 0;
-          uint32_t index_in_malloc = 0;
+
+          // nvshmem heap_base = 0x10020000000
+          // ignore operations on memory locations not allocated by cudaMalloc on the host
+          if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000))
+            mem_device_id = find_nvshmem_dev_of_ptr(ma->dev_id, ma->addrs[i]);
 
           // ignore operations on the same device
           if (mem_device_id == ma->dev_id)
             continue;
 
-          // nvshmem heap_base = 0x10020000000
-          // ignore operations on memory locations not allocated by cudaMalloc on the host
-
-          if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000))
-            mem_device_id = find_nvshmem_dev_of_ptr(ma->dev_id, ma->addrs[i]);
-
           if (mem_device_id == -1)
             continue;
+
+          uint32_t index_in_object = 0;
+          uint32_t index_in_malloc = 0;
 
           if (object_attribution) {
             range = adm_range_find(ma->addrs[i]);
@@ -731,6 +728,9 @@ void *recv_thread_fun(void *args)
             offset_address_range = range->get_address();
           }
 
+          if (silent) continue;
+
+          std::stringstream ss;
           if (JSON) {
             ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
               << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
@@ -753,9 +753,7 @@ void *recv_thread_fun(void *args)
               << "\"code_line_linenum\": " << line_linenum << ", "
               << "\"code_line_estimated_status\": " << line_estimated_status
               << "}" << std::endl;
-
-            std::cout << ss.str() << std::flush;
-          } else if (!silent) {
+          } else {
             ss << id_to_opcode_map[ma->opcode_id] << "," 
               << HEX(ma->addrs[i]) << ","
               << ma->thread_index  << ","
@@ -767,11 +765,8 @@ void *recv_thread_fun(void *args)
               << HEX(offset_address_range)
               << std::endl;
           }
-
           std::cout << ss.str() << std::flush;
-
         }
-
         num_processed_bytes += sizeof(mem_access_t);
       }
     }
