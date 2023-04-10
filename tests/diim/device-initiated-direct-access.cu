@@ -158,5 +158,7 @@ int main(int argc, char* argv[]) {
   cudaFree(g1);
   cudaFree(g2);
 
+  free(args);
+
   return 0;
 }
