@@ -10,7 +10,7 @@ endif
 
 NVBIT_PATH=../../core
 #INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include
-INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include -I$(NVSHMEM_HOME)/include
+INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include
 
 #LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib
 LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib #-L$(NVSHMEM_HOME)/lib -lnvshmem_host

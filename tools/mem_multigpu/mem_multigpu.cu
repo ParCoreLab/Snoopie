@@ -79,6 +79,7 @@ static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 static int global_index = 0;
+static std::pair<std::vector<int>, std::vector<int>> line_tracking;
 
 struct CTXstate
 {
@@ -211,6 +212,42 @@ int64_t find_dev_of_ptr(uint64_t ptr)
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;
 
+void memop_to_line () {
+   // open a file in read mode.
+   ifstream infile;
+   infile.open("testfile.txt");
+
+   //std::pair<std::vector<int>, std::vector<int>> line_tracking;
+   int curr_line;
+   for (std::string line; std::getline(infile, line); )
+   {
+        std::istringstream input1(line);
+        for (std::string word; std::getline(input1, word, ' '); ) {
+                if(word == "line") {
+                        std::getline(input1, word, ' ');
+                        curr_line = std::stoi(word);
+                }
+                if(word.substr(0,3) == "LDG") {
+                       //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
+                       line_tracking.first.push_back(curr_line);
+                }
+                else if(word.substr(0,3) == "STG") {
+                        //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
+                        line_tracking.second.push_back(curr_line);
+                }
+        }
+   }
+#if 0
+   std::cout << "LDG is detected in the following lines\n";
+   for(auto a : line_tracking.first)
+           std::cout << a << "\n";
+   std::cout << "STG is detected in the following lines\n";
+   for(auto a : line_tracking.second)
+           std::cout << a << "\n";
+#endif
+   infile.close();
+}
+
 void nvbit_at_init()
 {
   setenv("CUDA_MANAGED_FORCE_DEVICE_ALLOC", "1", 1);
@@ -230,8 +267,10 @@ void nvbit_at_init()
   {
     std::cout << pad << std::endl;
   }
+  // read the file with line info here
   initialize_object_table(100);
   initialize_line_table(100);
+  memop_to_line();
   adm_db_init();
   /* set mutex as recursive */
   pthread_mutexattr_t attr;
@@ -295,6 +334,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     std::string prev_valid_dir_name;
     uint32_t prev_valid_line_num = 0;  
     uint32_t cnt = 0;
+    int ldg_count = 0;
+    int stg_count = 0; 
     /* iterate on all the static instructions in the function */
     for (auto instr : instrs)
     {
@@ -308,6 +349,30 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       std::string filename = file_name;
       std::string dirname = dir_name;
       std::string sass = instr->getSass();
+      //std::cout << "sass is detected: " << sass << "\n";
+ 
+// before
+      std::istringstream input1(sass);
+      for (std::string word; std::getline(input1, word, ' '); ) {
+	      if(word.substr(0,3) == "LDG") {
+		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
+		      //line_tracking.first.push_back(curr_line);
+		      if(line_num == 0) {
+			//std::cout << "ldg_count: " << ldg_count << " " << line_tracking.first[ldg_count] << "\n";
+		      	line_num = line_tracking.first[ldg_count];
+		      }
+		      ldg_count++;
+	      } 
+	      else if(word.substr(0,3) == "STG") {
+		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
+		      if(line_num == 0) {
+			//std::cout << "stg_count: " << stg_count << " " << line_tracking.second[stg_count] << "\n";
+                        line_num = line_tracking.second[stg_count];
+		      }
+		      stg_count++;
+	      }
+      }
+// after      
       //free(file_name);
       //free(dir_name);
       short estimated_status = 2; // it is estimated
