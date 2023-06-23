@@ -314,7 +314,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       }
       global_index++;
       //adm_line_location_insert(global_index, filename, dirname, line_num, estimated_status); 
-      //fprintf(stderr, "an instruction is detected in file %s, directory %s, and line %d, with sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getSass(), instr->getIdx());
+      fprintf(stdout, "an instruction is detected in file %s, directory %s, and line %d, with offset: %x, sass: %s and index: %d\n", file_name, dir_name, line_num, instr->getOffset(), instr->getSass(), instr->getIdx());
+      //instr->printDecoded();
+      fprintf(stdout, "\n");
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
