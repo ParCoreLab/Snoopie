@@ -64,7 +64,7 @@
 
 #define CHANNEL_SIZE (1l << 30)
 
-#define JSON 0
+#define JSON 1
 #define EQUAL_STRS 0
 
 #define FILE_NAME_SIZE 256
@@ -832,8 +832,8 @@ void *recv_thread_fun(void *args)
             mem_device_id = find_nvshmem_dev_of_ptr(ma->dev_id, ma->addrs[i]);
 
           // ignore operations on the same device
-          if (mem_device_id == ma->dev_id)
-            continue;
+          //if (mem_device_id == ma->dev_id)
+            //continue;
 
           if (mem_device_id == -1)
             continue;
