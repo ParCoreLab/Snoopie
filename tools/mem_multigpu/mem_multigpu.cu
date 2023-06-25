@@ -74,12 +74,13 @@
 
 using namespace adamant;
 
-static adm_splay_tree_t* tree = nullptr;
+//static adm_splay_tree_t* tree = nullptr;
 static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 static int global_index = 0;
-static std::pair<std::vector<int>, std::vector<int>> line_tracking;
+//static std::pair<std::vector<int>, std::vector<int>> line_tracking;
+std::map<std::string, std::tuple<std::string, std::vector<int>, std::vector<int>>> line_tracking;
 
 struct CTXstate
 {
@@ -212,6 +213,28 @@ int64_t find_dev_of_ptr(uint64_t ptr)
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;
 
+const char* whitespace = " ,\"\t\n\r\f\v";
+
+// trim from end of string (right)
+inline std::string& rtrim(std::string& s, const char* t = whitespace)
+{
+    s.erase(s.find_last_not_of(t) + 1);
+    return s;
+}
+
+// trim from beginning of string (left)
+inline std::string& ltrim(std::string& s, const char* t = whitespace)
+{
+    s.erase(0, s.find_first_not_of(t));
+    return s;
+}
+
+// trim from both ends of string (right then left)
+inline std::string& trim(std::string& s, const char* t = whitespace)
+{
+    return ltrim(rtrim(s, t), t);
+}
+
 void memop_to_line () {
    // open a file in read mode.
    ifstream infile;
@@ -219,24 +242,34 @@ void memop_to_line () {
 
    //std::pair<std::vector<int>, std::vector<int>> line_tracking;
    int curr_line;
+   std::string full_path;
+   std::string kern_name;
    for (std::string line; std::getline(infile, line); )
    {
         std::istringstream input1(line);
+	std::string prev_word;
         for (std::string word; std::getline(input1, word, ' '); ) {
+		if(word.substr(0,6) == ".text.") {
+                        kern_name = word;
+                }
                 if(word == "line") {
+			full_path = trim(prev_word);
                         std::getline(input1, word, ' ');
                         curr_line = std::stoi(word);
+			get<0>(line_tracking[kern_name]) = full_path;
                 }
                 if(word.substr(0,3) == "LDG") {
                        //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
-                       line_tracking.first.push_back(curr_line);
+		       get<1>(line_tracking[kern_name]).push_back(curr_line);
                 }
                 else if(word.substr(0,3) == "STG") {
                         //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
-                        line_tracking.second.push_back(curr_line);
+			get<2>(line_tracking[kern_name]).push_back(curr_line);
                 }
+		prev_word = word;
         }
    }
+   //std::cerr << "in memop_to_line after\n";
 #if 0
    std::cout << "LDG is detected in the following lines\n";
    for(auto a : line_tracking.first)
@@ -246,6 +279,23 @@ void memop_to_line () {
            std::cout << a << "\n";
 #endif
    infile.close();
+}
+
+std::string find_recorded_kernel(const std::string& curr_kernel) 
+{
+	std::string chosen_key;
+	size_t shortest_len = 1000;
+	//for(const auto& [key, value] : line_tracking) {
+	for(auto& x: line_tracking) {
+		std::string key_str = x.first;
+		if (key_str.find(curr_kernel) != std::string::npos) {
+			if(shortest_len > key_str.size()) {
+				chosen_key = key_str;
+				shortest_len = key_str.size();
+			}
+		}
+	}
+	return chosen_key;
 }
 
 void nvbit_at_init()
@@ -330,6 +380,16 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           ctx, f, nvbit_get_func_name(ctx, f), nvbit_get_func_addr(f));
     }
 
+    std::string curr_kernel_name = nvbit_get_func_name(ctx, f);
+    curr_kernel_name.erase(curr_kernel_name.find_first_of('('));
+    std::string encoded_kernel_name = find_recorded_kernel(curr_kernel_name);
+
+    std::istringstream tokenized_path(get<0>(line_tracking[encoded_kernel_name]));
+    std::string file;
+    while (std::getline(tokenized_path, file, '/'));
+    std::string path = get<0>(line_tracking[encoded_kernel_name]);
+    path.erase(path.size()-file.size()-1, file.size()+1);
+
     std::string prev_valid_file_name;
     std::string prev_valid_dir_name;
     uint32_t prev_valid_line_num = 0;  
@@ -357,17 +417,21 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 	      if(word.substr(0,3) == "LDG") {
 		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
 		      //line_tracking.first.push_back(curr_line);
-		      if(line_num == 0) {
+		      if(!ret_line_info) {
 			//std::cout << "ldg_count: " << ldg_count << " " << line_tracking.first[ldg_count] << "\n";
-		      	line_num = line_tracking.first[ldg_count];
+		      	line_num = get<1>(line_tracking[encoded_kernel_name])[ldg_count]; //line_tracking.first[ldg_count];
+			dirname = path;
+			filename = file;
 		      }
 		      ldg_count++;
 	      } 
 	      else if(word.substr(0,3) == "STG") {
 		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
-		      if(line_num == 0) {
+		      if(!ret_line_info) {
 			//std::cout << "stg_count: " << stg_count << " " << line_tracking.second[stg_count] << "\n";
-                        line_num = line_tracking.second[stg_count];
+                        line_num = get<2>(line_tracking[encoded_kernel_name])[stg_count]; //line_tracking.second[stg_count];
+			dirname = path;
+                        filename = file;
 		      }
 		      stg_count++;
 	      }
@@ -379,10 +443,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       if(line_num != 0) {
 
         estimated_status = 1; // it is original
-	if(ret_line_info)
-        	adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
-	else
-		adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, sass, line_num, estimated_status);
+        adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
         prev_valid_file_name = filename;
         prev_valid_dir_name = dirname;
         prev_valid_line_num = line_num;
