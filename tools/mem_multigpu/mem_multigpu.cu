@@ -379,7 +379,10 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       if(line_num != 0) {
 
         estimated_status = 1; // it is original
-        adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
+	if(ret_line_info)
+        	adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
+	else
+		adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, sass, line_num, estimated_status);
         prev_valid_file_name = filename;
         prev_valid_dir_name = dirname;
         prev_valid_line_num = line_num;
