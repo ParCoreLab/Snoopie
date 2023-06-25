@@ -20,6 +20,8 @@ main: libwrapper.so main.o
 	
 
 main.o: main.cu
+	nvcc -cubin -lineinfo main.cu
+	nvdisasm --print-line-info main.cubin > testfile.txt
 	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $<
 
 main.ptx: main.cu
@@ -35,4 +37,4 @@ run_main: main
 	mpirun -x KERNEL_NAME="void nvshmemi_transfer_rma_p<int>" -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" -np 2 ./main
 
 clean:
-	rm -f *.so *.o main main.ptx
+	rm -f *.so *.o main main.ptx *txt *cubin

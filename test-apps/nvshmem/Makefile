@@ -19,6 +19,8 @@ main: main.o
 	
 
 main.o: main.cu
+	$(NVCC) -cubin -lineinfo main.cu
+	nvdisasm --print-line-info main.cubin > testfile.txt
 	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $<
 
 main.ptx: main.cu
@@ -29,4 +31,4 @@ run_main: main
 	$(MPIRUN) -np $(NP) ./main 1 2
 
 clean:
-	rm -f main.o main main.o.ptx main.ptx
+	rm -f main.o main main.o.ptx main.ptx *cubin *txt

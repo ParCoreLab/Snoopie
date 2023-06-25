@@ -12,8 +12,10 @@ endif
 NVCC_FLAGS += -g -G $(GENCODE_FLAGS) -std=c++17
 LD_FLAGS = -L$(CUDA_HOME)/lib64 -lcudart -lnvToolsExt -lnccl
 main: Makefile main.cu 
+	$(NVCC) -cubin -lineinfo main.cu
+	nvdisasm --print-line-info main.cubin > testfile.txt
 	$(NVCC) $(NVCC_FLAGS) main.cu $(LD_FLAGS) -o main
 
 .PHONY.: clean
 clean:
-	rm -f main
+	rm -f main *cubin *txt
