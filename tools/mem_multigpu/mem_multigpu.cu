@@ -241,6 +241,12 @@ void memop_to_line () {
    ifstream infile;
    infile.open("testfile.txt");
 
+   if(!infile){
+        cerr << "Please generate a cubin file using nvcc -cubin "
+		"-lineinfo command and run nvdisasm --print-line-info "
+		"on the generated cubin file with the output directed to testfile.txt" << endl;
+        exit(1);
+    }
    //std::pair<std::vector<int>, std::vector<int>> line_tracking;
    int curr_line;
    std::string full_path;
@@ -322,7 +328,7 @@ void nvbit_at_init()
   // read the file with line info here
   initialize_object_table(100);
   initialize_line_table(100);
-  std::cerr << "code_attribution: " << code_attribution << std::endl;
+  //std::cerr << "code_attribution: " << code_attribution << std::endl;
   if(code_attribution) {
   	memop_to_line();
   }
