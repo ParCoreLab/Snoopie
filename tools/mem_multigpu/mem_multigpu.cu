@@ -148,6 +148,7 @@ uint32_t instr_end_interval = UINT32_MAX;
 std::string kernel_name;
 int verbose = 0;
 int silent = 0;
+int code_attribution = 0;
 
 /* opcode to id map and reverse map  */
 std::map<std::string, int> opcode_to_id_map;
@@ -311,6 +312,7 @@ void nvbit_at_init()
   GET_VAR_INT(silent,  "SILENT",       0, "Silence long output of the tool");
 
   GET_VAR_STR(kernel_name, "KERNEL_NAME", "Specify the name of the kernel to track");
+  GET_VAR_INT(code_attribution, "CODE_ATTRIBUTION", 0, "Enable source code line attribution");
 
   std::string pad(100, '-');
   if (verbose)
@@ -320,7 +322,10 @@ void nvbit_at_init()
   // read the file with line info here
   initialize_object_table(100);
   initialize_line_table(100);
-  memop_to_line();
+  std::cerr << "code_attribution: " << code_attribution << std::endl;
+  if(code_attribution) {
+  	memop_to_line();
+  }
   adm_db_init();
   /* set mutex as recursive */
   pthread_mutexattr_t attr;
@@ -382,13 +387,20 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
     std::string curr_kernel_name = nvbit_get_func_name(ctx, f);
     curr_kernel_name.erase(curr_kernel_name.find_first_of('('));
-    std::string encoded_kernel_name = find_recorded_kernel(curr_kernel_name);
+    std::string encoded_kernel_name;
 
-    std::istringstream tokenized_path(get<0>(line_tracking[encoded_kernel_name]));
     std::string file;
-    while (std::getline(tokenized_path, file, '/'));
-    std::string path = get<0>(line_tracking[encoded_kernel_name]);
-    path.erase(path.size()-file.size()-1, file.size()+1);
+    std::string path;
+
+    if(code_attribution) {
+	curr_kernel_name = nvbit_get_func_name(ctx, f);
+	curr_kernel_name.erase(curr_kernel_name.find_first_of('('));
+	encoded_kernel_name = find_recorded_kernel(curr_kernel_name);
+	std::istringstream tokenized_path(get<0>(line_tracking[encoded_kernel_name]));
+    	while (std::getline(tokenized_path, file, '/'));
+    	path = get<0>(line_tracking[encoded_kernel_name]);
+    	path.erase(path.size()-file.size()-1, file.size()+1);
+    }
 
     std::string prev_valid_file_name;
     std::string prev_valid_dir_name;
@@ -412,8 +424,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       //std::cout << "sass is detected: " << sass << "\n";
  
 // before
-      std::istringstream input1(sass);
-      for (std::string word; std::getline(input1, word, ' '); ) {
+      if(code_attribution) {
+      	std::istringstream input1(sass);
+      	for (std::string word; std::getline(input1, word, ' '); ) {
 	      if(word.substr(0,3) == "LDG") {
 		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
 		      //line_tracking.first.push_back(curr_line);
@@ -435,6 +448,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 		      }
 		      stg_count++;
 	      }
+      	}
       }
 // after      
       //free(file_name);
