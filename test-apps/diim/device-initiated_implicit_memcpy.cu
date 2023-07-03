@@ -74,7 +74,7 @@ int main() {
   gpuErrchk(cudaMemcpy(h2, g2, buf_size, cudaMemcpyDeviceToHost));
 
   for (int i = 0; i < size; i++) {
-    printf("\rchecking correctness against CPU: %.2f", ((float) i / (float) size) * 100);
+    //printf("\rchecking correctness against CPU: %.2f", ((float) i / (float) size) * 100);
 	  if (i % 2 == 0 && h1[i] == modify_cell(h0[i])) {
 		  continue;
     } else if (i % 2 == 1 && h2[i] == modify_cell(h0[i])) {
@@ -85,7 +85,7 @@ int main() {
     return 1;
   }
 
-  printf("\ntransfer finished successfully\n");
+  //printf("\ntransfer finished successfully\n");
 
   
   cudaFree(h0);
