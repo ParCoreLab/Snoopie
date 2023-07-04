@@ -23,7 +23,14 @@ data_by_device = {}
 data_by_obj = {}
 data_by_line = {}
 # addr_obj_map = {}
-gpu_num = 0
+
+#####################################
+#     CHANGE THESE WHEN NEEDED!     #
+gpu_num = 3                         #
+src_code_file = "workq_ring.cu"     #
+#                                   #
+#####################################
+
 keys = []
 ops = []
 addrs = []
@@ -116,6 +123,7 @@ def read_data(file):
             if reading_data:
                 data = {}
                 vals = line.strip().split(',')
+                print(vals)
                 if len(vals) != len(opkeys):
                     reading_data = False
                     if (line.startswith('offset')):
@@ -138,6 +146,12 @@ def read_data(file):
                 device = "GPU"+str(data["running_dev_id"])
                 owner = "GPU"+str(data["mem_dev_id"])
                 pair = device+"-"+owner
+
+                print(operation)
+                print(device)
+                print(owner)
+                print(address)
+                print(obj_name)
 
                 data_by_address[address] = data_by_address.get(address, {})
                 temp_data = data_by_address[address]
@@ -163,6 +177,7 @@ def read_data(file):
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
             else:
                 if (line.startswith("filename=")):
+                    print("This is a graph file!")
                     splt_info = line.strip().split(',')
                     graph_name = splt_info[0].split('/')[-1]
                     gpu_num = int(splt_info[1][-1])
@@ -292,9 +307,13 @@ def main():
         
 
     cols = math.ceil(math.sqrt(gpu_num))
+    print("ATTENTION")
+    print(cols)
+    print(gpu_num)
     rows = int(gpu_num/cols)
-    delta_pos = [int((graph_width-2*margin)/(cols-1)), int((graph_height-2*margin)/(rows-1))]
+    delta_pos = [int((graph_width-2*margin)/max(1, cols-1)), int((graph_height-2*margin)/max(1, rows-1))]
 
+    print(data_by_device)
     for i in range(gpu_num):
         label = "GPU"+str(i)
 
@@ -438,7 +457,7 @@ def main():
             object_view[data_by_obj[key]['device_id']][data_by_obj[key]['var_name']] = [obj, object_map]
    
     for i in range(gpu_num):
-        if chosen_id_tab == str(i):
+        if len(object_view[i]) > 0 and chosen_id_tab == str(i):
             st.markdown(f"### Objects owned by **<span style='color:{pal[i]}'>GPU{i}</span>**", unsafe_allow_html=True)
             
             obj_fig = make_subplots(rows=len(object_view[i]), 
@@ -527,6 +546,7 @@ def main():
                             ind_x = 0
 
                     fig = go.Figure(data=go.Heatmap(z=reshaped_data, coloraxis="coloraxis", name=key, 
+                                    xgap=2, ygap=2, 
                                     # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
                                     #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
                                     hovertemplate="<br>".join(["X-offset: %{x}", "Y-offset: %{y}", "Instructions: %{z}"
@@ -594,98 +614,102 @@ if __name__ == "__main__":
     data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev = read_data(sys.argv[1])
     main()
 
-    # with st.sidebar:
-    #     st.markdown("""## SASS Instructions""")
-    #     st.markdown("""<small><p style='margin-left:-10px;margin-bottom:-50px;padding-bottom:-50px;'>
-    #                  <span style="color:Tomato;">SASS line</span> | 
-    #                  <span style="color:Tomato;">Code line</span>   |   SASS Instruction</p></small>""",
-    #         unsafe_allow_html=True)
-    #     st.markdown(
-    #         f'''
-    #         <style>
-    #             .css-1544g2n.e1fqkh3o4 {{
-    #                 padding-top: 0px;
-    #                 margin-top: 0px;
-    #                 margin-right: -50px;
-    #             }}
-    #             .css-ysnqb2.egzxvld4 {{
-    #                 {0}
-    #                 margin-top: {0}rem;
-    #                 padding-top: {0}rem;
-    #                 padding-right: {0}rem;
-    #                 padding-left: -60px;
-    #                 margin-left: -60px;
-    #                 padding-bottom: {0}rem;
-    #             }}
-    #         </style>
-    #         ''',
-    #         unsafe_allow_html=True)
+    with st.sidebar:
+        st.markdown("""## SASS Instructions""")
+        st.markdown("""<small><p style='margin-left:-10px;margin-bottom:-50px;padding-bottom:-50px;'>
+                     <span style="color:Tomato;">SASS line</span> | 
+                     <span style="color:Tomato;">Code line</span>   |   SASS Instruction</p></small>""",
+            unsafe_allow_html=True)
+        st.markdown(
+            f'''
+            <style>
+                .css-1544g2n.e1fqkh3o4 {{
+                    padding-top: 0px;
+                    margin-top: 0px;
+                    margin-right: -50px;
+                }}
+                .css-ysnqb2.egzxvld4 {{
+                    {0}
+                    margin-top: {0}rem;
+                    padding-top: {0}rem;
+                    padding-right: {0}rem;
+                    padding-left: -60px;
+                    margin-left: -60px;
+                    padding-bottom: {0}rem;
+                }}
+            </style>
+            ''',
+            unsafe_allow_html=True)
         
-    #     content_head = """<head><link rel="stylesheet"
-    #     href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
-    #     <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    #     <script>hljs.highlightAll();</script></head><body><pre>"""
-    #     content_end = """</pre></body>"""
+        content_head = """<head><link rel="stylesheet"
+        href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+        <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+        <script>hljs.highlightAll();</script></head><body><pre>"""
+        content_end = """</pre></body>"""
 
-    #     total_lines = len(ptx_code)
-    #     index_chars = len(str(len(ptx_code)))+1
-    #     index_chars_src = len(str(ptx_code[-1][1]))
-    #     line_index = 0
-    #     for line, linenum in ptx_code:
-    #         linenum = abs(linenum)
-    #         line_index+=1
-    #         ls = len(line) - len(line.lstrip())
-    #         line = line.replace('<', '&lt')
-    #         line = line.replace('>', '&gt')
-    #         # st.code(str(line_index)+ '.  ' + line)
-    #         content_head+="""<a id='ptxline""" + str(line_index) + """'><code class='hljs language-c'
-    #                         style='padding-left:-100px;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
-    #         if line_index == 1:
-    #             content_head+=";margin-top:-50px'>"
-    #         else:
-    #             content_head+=";margin-top:0;padding-top:0'>"
-    #         content_head += str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
-    #                         + str(linenum)+ '.' + ''.join([' '*(index_chars_src-len(str(linenum)))]) + ' | ' + line + "</code></a>"
+        total_lines = len(ptx_code)
+        index_chars = len(str(len(ptx_code)))+1
+        if total_lines > 0:
+            index_chars_src = len(str(ptx_code[-1][1]))
+            line_index = 0
+            for line, linenum in ptx_code:
+                linenum = abs(linenum)
+                line_index+=1
+                ls = len(line) - len(line.lstrip())
+                line = line.replace('<', '&lt')
+                line = line.replace('>', '&gt')
+                # st.code(str(line_index)+ '.  ' + line)
+                content_head+="""<a id='ptxline""" + str(line_index) + """'><code class='hljs language-c'
+                                style='padding-left:-100px;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
+                if line_index == 1:
+                    content_head+=";margin-top:-50px'>"
+                else:
+                    content_head+=";margin-top:0;padding-top:0'>"
+                content_head += str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
+                                + str(linenum)+ '.' + ''.join([' '*(index_chars_src-len(str(linenum)))]) + ' | ' + line + "</code></a>"
 
-    #     clicked_ptx = click_detector(content_head + content_end)
-    #     # print(clicked_ptx)
-    #     # if 'ptxline' in clicked_ptx:
-    #     #     st.components.v1.html(scroll_js_to_line(abs(ptx_code[int(clicked_ptx[7:])][1])), height=0)
+            clicked_ptx = click_detector(content_head + content_end)
+        # print(clicked_ptx)
+        # if 'ptxline' in clicked_ptx:
+        #     st.components.v1.html(scroll_js_to_line(abs(ptx_code[int(clicked_ptx[7:])][1])), height=0)
 
-    # st.markdown("""---""")
-    # f = open("workq_ring.cu", "r")
+    st.markdown("""---""")
 
-    # if f is None:
-    #     print("Source code file not found")
-    #     exit(0)
+    f = None
+    if os.path.exists(src_code_file):
+        f = open(src_code_file, "r")
 
-    # content_head = """<head><link rel="stylesheet"
-    #   href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
-    # <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    # <script>hljs.highlightAll();</script></head><body><pre>"""
-    # content_end = """</pre></body>"""
+    if f is None:
+        print("Source code file not found")
+        exit(0)
 
-    # line_index = 0
-    # lines = f.readlines()
-    # total_lines = len(lines)
-    # index_chars = len(str(total_lines))+1
-    # for line in lines:
-    #     line_index+=1
-    #     ls = len(line) - len(line.lstrip())
-    #     line = line.replace('<', '&lt')
-    #     line = line.replace('>', '&gt')
-    #     # st.code(str(line_index)+ '.  ' + line)
-    #     content_head+="""<a id='line""" + str(line_index) + """'><code class='hljs language-c'
-    #                     style='margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
-    #     if line_index in ptx_code_rev.keys():
-    #         print("THE LINE!")
-    #         print(line_index)
-    #         content_head+=";margin-top:50;padding-top:50;background:#6da2d1"
-    #     if line_index == 1:
-    #         content_head+="'>"
-    #     else:
-    #         content_head+=";margin-top:0;padding-top:0'>"
-    #     content_head+=str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) + line + "</code></a>"
+    content_head = """<head><link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script></head><body><pre>"""
+    content_end = """</pre></body>"""
 
-    # clicked_src = click_detector(content_head + content_end)
-    # print(clicked_src)
+    line_index = 0
+    lines = f.readlines()
+    total_lines = len(lines)
+    index_chars = len(str(total_lines))+1
+    for line in lines:
+        line_index+=1
+        ls = len(line) - len(line.lstrip())
+        line = line.replace('<', '&lt')
+        line = line.replace('>', '&gt')
+        # st.code(str(line_index)+ '.  ' + line)
+        content_head+="""<a id='line""" + str(line_index) + """'><code class='hljs language-c'
+                        style='margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
+        if line_index in ptx_code_rev.keys():
+            print("THE LINE!")
+            print(line_index)
+            content_head+=";margin-top:50;padding-top:50;background:#6da2d1"
+        if line_index == 1:
+            content_head+="'>"
+        else:
+            content_head+=";margin-top:0;padding-top:0'>"
+        content_head+=str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) + line + "</code></a>"
+
+    clicked_src = click_detector(content_head + content_end)
+    print(clicked_src)
