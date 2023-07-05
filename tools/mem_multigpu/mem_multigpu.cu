@@ -259,12 +259,14 @@ void memop_to_line () {
         for (std::string word; std::getline(input1, word, ' '); ) {
 		if(word.substr(0,6) == ".text.") {
                         kern_name = word;
+			//std::cerr << "identified kern_name: " << kern_name << "\n";
                 }
                 if(word == "line") {
 			full_path = trim(prev_word);
                         std::getline(input1, word, ' ');
                         curr_line = std::stoi(word);
 			get<0>(line_tracking[kern_name]) = full_path;
+			//std::cerr << "a line is found in path: " << full_path << "\n";
                 }
                 if(word.substr(0,3) == "LDG" || word.substr(0,3) == "LD.") {
                        //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
@@ -277,6 +279,7 @@ void memop_to_line () {
 		prev_word = word;
         }
    }
+   //std::cerr << "in memop_to_line after\n";
 #if 0
    std::cout << "LDG is detected in the following lines\n";
    for(auto a : line_tracking.first)
@@ -295,6 +298,7 @@ std::string find_recorded_kernel(const std::string& curr_kernel)
 	//for(const auto& [key, value] : line_tracking) {
 	for(auto& x: line_tracking) {
 		std::string key_str = x.first;
+		//std::cerr << "key_str: " << key_str << ", curr_kernel: " << curr_kernel << "\n";
 		if (key_str.find(curr_kernel) != std::string::npos) {
 			if(shortest_len > key_str.size()) {
 				chosen_key = key_str;
@@ -302,6 +306,7 @@ std::string find_recorded_kernel(const std::string& curr_kernel)
 			}
 		}
 	}
+	//std::cerr << "chosen_key: " << chosen_key << "\n"; 
 	return chosen_key;
 }
 
@@ -399,13 +404,31 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     std::string path;
 
     if(code_attribution) {
+	//std::cerr << "test 1\n";
 	curr_kernel_name = nvbit_get_func_name(ctx, f);
-	curr_kernel_name.erase(curr_kernel_name.find_first_of('('));
-	encoded_kernel_name = find_recorded_kernel(curr_kernel_name);
+	//std::cerr << "curr_kernel_name: " << curr_kernel_name << "\n";
+	std::size_t parenthes_pos = curr_kernel_name.find_first_of('<');
+	if(parenthes_pos != std::string::npos)
+		curr_kernel_name.erase(parenthes_pos);
+	else {
+		//std::cerr << "curr_kernel_name 2: " << curr_kernel_name << "\n";
+		parenthes_pos = curr_kernel_name.find_first_of('(');
+		if(parenthes_pos != std::string::npos)
+			curr_kernel_name.erase(parenthes_pos);
+	}
+	//std::cerr << "curr_kernel_name 3: " << curr_kernel_name << "\n";
+	std::istringstream tokenized_kern_name(curr_kernel_name);
+	std::string name;
+	while (std::getline(tokenized_kern_name, name, ' '));
+	//std::cerr << "test 1.1\n";
+	encoded_kernel_name = find_recorded_kernel(name);
+	//std::cerr << "test 1.2 encoded_kernel_name: " << encoded_kernel_name << "\n";
 	std::istringstream tokenized_path(get<0>(line_tracking[encoded_kernel_name]));
     	while (std::getline(tokenized_path, file, '/'));
     	path = get<0>(line_tracking[encoded_kernel_name]);
+	//std::cerr << "path: " << path << " file: " << file << "\n";
     	path.erase(path.size()-file.size()-1, file.size()+1);
+	//std::cerr << "test 2\n";
     }
 
     std::string prev_valid_file_name;

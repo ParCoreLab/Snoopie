@@ -10,7 +10,7 @@ bfs_compile:
 	nvdisasm --print-line-info bfs_basic.cubin > testfile.txt
 
 bfs_run:
-	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so KERNEL_NAME="kernel_workq" CODE_ATTRIBUTION=1 ./bfs -f /home/iturimbetov18/cuda_research/Tina_AskCog/Tina_AskCog.mtx -n 4 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
+	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so KERNEL_NAME="kernel_workq" CODE_ATTRIBUTION=1 ./bfs -f Tina_AskCog/Tina_AskCog.mtx -n 4 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
 	#LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so ./device-initiated_implicit_memcpy
 
 clean:
