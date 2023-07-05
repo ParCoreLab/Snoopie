@@ -318,7 +318,9 @@ def main():
         label = "GPU"+str(i)
 
         size = 0.0
-        sizes.append(data_by_device[label]['total'])
+        if (label in data_by_device):
+            size = data_by_device[label]['total']
+        sizes.append(size)
     
     norm_ratio = max(sizes)/max_size
 
@@ -337,7 +339,7 @@ def main():
         for j in range(gpu_num):
             target_label = "GPU"+str(j)
             width = 0.0
-            if (target_label in data_by_device[src_label]):
+            if (src_label in data_by_device and target_label in data_by_device[src_label]):
                 width = data_by_device[src_label][target_label]
             widths[i].append(width)
             if width > max_val:
