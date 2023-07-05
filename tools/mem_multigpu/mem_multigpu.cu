@@ -251,6 +251,7 @@ void memop_to_line () {
    int curr_line;
    std::string full_path;
    std::string kern_name;
+   //std::cerr << "in memop_to_line before\n";
    for (std::string line; std::getline(infile, line); )
    {
         std::istringstream input1(line);
@@ -265,18 +266,17 @@ void memop_to_line () {
                         curr_line = std::stoi(word);
 			get<0>(line_tracking[kern_name]) = full_path;
                 }
-                if(word.substr(0,3) == "LDG") {
+                if(word.substr(0,3) == "LDG" || word.substr(0,3) == "LD.") {
                        //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
 		       get<1>(line_tracking[kern_name]).push_back(curr_line);
                 }
-                else if(word.substr(0,3) == "STG") {
+                else if(word.substr(0,3) == "STG" || word.substr(0,3) == "ST.") {
                         //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
 			get<2>(line_tracking[kern_name]).push_back(curr_line);
                 }
 		prev_word = word;
         }
    }
-   //std::cerr << "in memop_to_line after\n";
 #if 0
    std::cout << "LDG is detected in the following lines\n";
    for(auto a : line_tracking.first)
@@ -433,7 +433,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       if(code_attribution) {
       	std::istringstream input1(sass);
       	for (std::string word; std::getline(input1, word, ' '); ) {
-	      if(word.substr(0,3) == "LDG") {
+	      if(word.substr(0,3) == "LDG" || word.substr(0,3) == "LD.") {
 		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
 		      //line_tracking.first.push_back(curr_line);
 		      if(!ret_line_info) {
@@ -444,7 +444,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 		      }
 		      ldg_count++;
 	      } 
-	      else if(word.substr(0,3) == "STG") {
+	      else if(word.substr(0,3) == "STG" || word.substr(0,3) == "ST.") {
 		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
 		      if(!ret_line_info) {
 			//std::cout << "stg_count: " << stg_count << " " << line_tracking.second[stg_count] << "\n";
