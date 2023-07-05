@@ -64,7 +64,7 @@
 
 #define CHANNEL_SIZE (1l << 30)
 
-#define JSON 1
+#define JSON 0
 #define EQUAL_STRS 0
 
 #define FILE_NAME_SIZE 256

@@ -9,7 +9,7 @@ device-initiated_implicit_memcpy_compile:
 	nvdisasm --print-line-info device-initiated_implicit_memcpy.cubin > testfile.txt
 
 device-initiated_implicit_memcpy_run:
-	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so KERNEL_NAME=all ./device-initiated_implicit_memcpy
+	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so KERNEL_NAME=all CODE_ATTRIBUTION=1 ./device-initiated_implicit_memcpy
 	#LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so ./device-initiated_implicit_memcpy
 
 clean:

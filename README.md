@@ -21,6 +21,9 @@ $ cd tools/mem_multigpu/ && ARCH=80 make # builds mem_multigpu.so
 ```
 $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" ./multigpu-app
 ```
+> To enable source code line attribution, pass CODE_ATTRIBUTION=1 environment variable as follow.
+
+$ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 ./multigpu-app
 
 > Note: You can use "all" for the `KERNEL_NAME` variable to track all kernels
 
