@@ -38,6 +38,7 @@ Required streamlit python libraries: streamlit, streamlit_agraph, extra_streamli
 Other required libraries: seaborn, pandas, plotly
 ```
 pip install seaborn pandas plotly streamlit streamlit_agraph extra_streamlit_components streamlit_plotly_events
+cd visualizer; pip install st-click-detector-0.1.3/
 ```
 
 ### Usage
