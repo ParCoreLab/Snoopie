@@ -258,6 +258,7 @@ void memop_to_line () {
 	std::string prev_word;
         for (std::string word; std::getline(input1, word, ' '); ) {
 		if(word.substr(0,6) == ".text.") {
+			rtrim(word, ":");
                         kern_name = word;
 			//std::cerr << "identified kern_name: " << kern_name << "\n";
                 }
@@ -299,12 +300,31 @@ std::string find_recorded_kernel(const std::string& curr_kernel)
 	for(auto& x: line_tracking) {
 		std::string key_str = x.first;
 		//std::cerr << "key_str: " << key_str << ", curr_kernel: " << curr_kernel << "\n";
-		if (key_str.find(curr_kernel) != std::string::npos) {
-			if(shortest_len > key_str.size()) {
-				chosen_key = key_str;
-				shortest_len = key_str.size();
-			}
+		std::istringstream tokenized_kern_name(curr_kernel);
+		std::string name;
+		size_t old_pos = 0;
+		size_t pos = 0;
+		int token_count = 0;
+		int match_count = 0;
+		while (std::getline(tokenized_kern_name, name, ':')) {
+			if(name.length() == 0)
+				continue;
+			//std::cerr << "name: " << name << "\n";
+			pos = key_str.find(name);
+			if (pos != std::string::npos) {
+                        	//std::cerr << "found key_str: " << key_str << ", curr_kernel: " << curr_kernel << "\n";
+				if (pos >= old_pos) {
+					match_count++;
+					old_pos = pos;
+				}
+                	}
+			token_count++;
 		}
+		
+		if(token_count != 0 && token_count == match_count && shortest_len > key_str.size()) {
+			chosen_key = key_str;
+			shortest_len = key_str.size();
+		}	
 	}
 	//std::cerr << "chosen_key: " << chosen_key << "\n"; 
 	return chosen_key;
@@ -397,7 +417,11 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     }
 
     std::string curr_kernel_name = nvbit_get_func_name(ctx, f);
-    curr_kernel_name.erase(curr_kernel_name.find_first_of('('));
+
+    std::size_t parenthes_pos = curr_kernel_name.find_first_of('(');
+    //std::cerr << "before encoded_kernel_name\n";
+    if(parenthes_pos != std::string::npos)
+    	curr_kernel_name.erase(parenthes_pos);
     std::string encoded_kernel_name;
 
     std::string file;
@@ -407,9 +431,11 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 	//std::cerr << "test 1\n";
 	curr_kernel_name = nvbit_get_func_name(ctx, f);
 	//std::cerr << "curr_kernel_name: " << curr_kernel_name << "\n";
-	std::size_t parenthes_pos = curr_kernel_name.find_first_of('<');
-	if(parenthes_pos != std::string::npos)
+	parenthes_pos = curr_kernel_name.find_first_of('<');
+	if(parenthes_pos != std::string::npos) {
 		curr_kernel_name.erase(parenthes_pos);
+	//std::cerr << "curr_kernel_name: " << curr_kernel_name << " 2\n";
+	}
 	else {
 		//std::cerr << "curr_kernel_name 2: " << curr_kernel_name << "\n";
 		parenthes_pos = curr_kernel_name.find_first_of('(');
@@ -420,7 +446,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 	std::istringstream tokenized_kern_name(curr_kernel_name);
 	std::string name;
 	while (std::getline(tokenized_kern_name, name, ' '));
-	//std::cerr << "test 1.1\n";
+	//name.erase(0, name.find_last_of(':'));
+	//trim(name, ":");
+	//std::cerr << "test 1.1 " << name << "\n";
 	encoded_kernel_name = find_recorded_kernel(name);
 	//std::cerr << "test 1.2 encoded_kernel_name: " << encoded_kernel_name << "\n";
 	std::istringstream tokenized_path(get<0>(line_tracking[encoded_kernel_name]));

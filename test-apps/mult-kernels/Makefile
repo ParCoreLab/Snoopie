@@ -7,7 +7,7 @@ device-initiated_implicit_memcpy_compile:
 	nvdisasm --print-line-info device-initiated_implicit_memcpy.cubin > testfile.txt
 
 device-initiated_implicit_memcpy_run:
-	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so KERNEL_NAME=all ./simple-diim
+	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH CODE_ATTRIBUTION=1 LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so KERNEL_NAME=all ./simple-diim
 
 clean:
 	rm -f simple-diim simple-diim.ptx *cubin *txt *ptx

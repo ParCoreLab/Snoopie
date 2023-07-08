@@ -19,9 +19,12 @@ main: main.o
 	
 
 main.o: main.cu
-	$(NVCC) -cubin -lineinfo main.cu
-	nvdisasm --print-line-info main.cubin > testfile.txt
-	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $<
+	#$(NVCC) -I$(NVSHMEM_HOME)/include -cubin -lineinfo main.cu
+	#nvdisasm --print-line-info main.cubin > testfile.txt
+	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $< -lineinfo
+	cuobjdump $@ -xelf all
+	nvdisasm --print-line-info main.sm_80.cubin > testfile.txt
+	#nvdisasm --print-line-info $@ > testfile.txt
 
 main.ptx: main.cu
 	$(NVCC) --ptx $(NVCC_NV_FLAGS) -o $@ $< $(NVCC_NV_LDFLAGS)
