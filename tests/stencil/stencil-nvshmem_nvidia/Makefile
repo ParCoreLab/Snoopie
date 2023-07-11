@@ -3,6 +3,8 @@ NVCC ?= nvcc
 MPIRUN ?= mpirun
 MPICCX = mpic++
 CXX ?= g++
+NITER ?= 512
+SIZE ?= 1024
 
 GENCODE_SM80    := -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80
 GENCODE_FLAGS	:= $(GENCODE_SM80)
@@ -31,10 +33,11 @@ wrapper.o: wrapper.cpp
 	$(CXX) -g -c -Wall -Werror -fPIC $<  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o $@ -lineinfo
 
 run: jacobi
-	$(MPIRUN) -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -np $(NP) ./jacobi
+	#$(MPIRUN) -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -np $(NP) ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
+	$(MPIRUN) -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -np $(NP) ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 
 run_main: jacobi
-	$(MPIRUN) -x KERNEL_NAME="void jacobi_kernel<32, 32>" -x CODE_ATTRIBUTION=1 -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" -np $(NP) ./jacobi
+	$(MPIRUN) -x KERNEL_NAME="void jacobi_kernel<32, 32>" -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" -x CODE_ATTRIBUTION=1 -np $(NP) ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 
 clean:
 	rm -f *.so *.o jacobi *txt *cubin

@@ -451,12 +451,15 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 	//std::cerr << "test 1.1 " << name << "\n";
 	encoded_kernel_name = find_recorded_kernel(name);
 	//std::cerr << "test 1.2 encoded_kernel_name: " << encoded_kernel_name << "\n";
-	std::istringstream tokenized_path(get<0>(line_tracking[encoded_kernel_name]));
-    	while (std::getline(tokenized_path, file, '/'));
-    	path = get<0>(line_tracking[encoded_kernel_name]);
-	//std::cerr << "path: " << path << " file: " << file << "\n";
-    	path.erase(path.size()-file.size()-1, file.size()+1);
-	//std::cerr << "test 2\n";
+	path = get<0>(line_tracking[encoded_kernel_name]);
+	if(path.size() > 0) {
+		std::istringstream tokenized_path(path);
+    		while (std::getline(tokenized_path, file, '/'));
+    		//path = get<0>(line_tracking[encoded_kernel_name]);
+		//std::cerr << "path: " << path << " file: " << file << "\n";
+    		path.erase(path.size()-file.size()-1, file.size()+1);
+		//std::cerr << "test 2\n";
+	}
     }
 
     std::string prev_valid_file_name;
@@ -481,7 +484,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       //std::cout << "sass is detected: " << sass << "\n";
  
 // before
-      if(code_attribution) {
+      if(code_attribution && path.size() > 0) {
       	std::istringstream input1(sass);
       	for (std::string word; std::getline(input1, word, ' '); ) {
 	      if(word.substr(0,3) == "LDG" || word.substr(0,3) == "LD.") {
