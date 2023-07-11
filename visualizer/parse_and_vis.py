@@ -32,8 +32,8 @@ src_code_file = "workq_ring.cu"     #
 #####################################
 
 keys = []
-ops = []
-addrs = []
+ops = set()
+addrs = set()
 ptx_code = []
 ptx_code_rev = {}
 
@@ -95,6 +95,9 @@ def read_data(file):
     global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev
     f = open(file, "r")
 
+    ops_set = set()
+    addrs_set = set()
+
     if f is None:
         print("File not found")
         exit(0)
@@ -123,7 +126,7 @@ def read_data(file):
             if reading_data:
                 data = {}
                 vals = line.strip().split(',')
-                print(vals)
+                # print(vals)
                 if len(vals) != len(opkeys):
                     reading_data = False
                     if (line.startswith('offset')):
@@ -139,19 +142,22 @@ def read_data(file):
                 address = data["addr"]
                 obj_name = data["obj_offset"]
                 operation = data["op_code"]
-                if address not in addrs:
-                    addrs.append(address)
-                if operation not in ops:
-                    ops.append(operation)
+
+
+
+                addrs.add(address)
+
+                ops.add(operation)
+
                 device = "GPU"+str(data["running_dev_id"])
                 owner = "GPU"+str(data["mem_dev_id"])
                 pair = device+"-"+owner
 
-                print(operation)
-                print(device)
-                print(owner)
-                print(address)
-                print(obj_name)
+                # print(operation)
+                # print(device)
+                # print(owner)
+                # print(address)
+                # print(obj_name)
 
                 data_by_address[address] = data_by_address.get(address, {})
                 temp_data = data_by_address[address]
