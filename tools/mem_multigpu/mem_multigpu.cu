@@ -1027,6 +1027,7 @@ void nvbit_at_term()
 {
   if (!silent) {
     adm_ranges_print();
+    adm_line_table_print();
   }
 
   // TODO: Print the below agian at some point

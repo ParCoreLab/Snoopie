@@ -313,7 +313,7 @@ ADM_VISIBILITY
 void adamant::adm_line_table_print() noexcept
 {
   //bool all = adm_conf_string("+all", "1");
-  std::cout << "List of captured source code lines:\n";
+  std::cout << "code_line_index, dir_path, file, code_linenum, code_line_estimated_status\n";
   int size = line_table->get_size();
   for(int i = 0; i < size; i++) {
   	adm_line_location_t* line = line_table->find(i);
@@ -397,12 +397,6 @@ void adm_object_t::print() const noexcept
 ADM_VISIBILITY
 void adm_line_location_t::print() const noexcept
 {
-	std::cout << "global_index: " << global_index << ", file_name: " 
-		<< file_name << ", dir_name: " << dir_name 
-		<< ", sass_instruction: " << sass << ", line_num: " << line_num;
-	if(estimated == 1)
-		std::cout << ", original location\n";
-	else if(estimated == 2)
-		std::cout << ", estimated location\n";
-	else std::cout << std::endl;	
+	std::cout << global_index << "," << dir_name << "," << file_name
+		<< "," << line_num << "," << estimated << "\n";	
 }
