@@ -734,6 +734,59 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     if (JSON) {
       std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
     }
+  } else if (is_exit && cbid == API_CUDA_cuMemcpyDtoD_v2) {
+
+
+    // Check if copy operation was successful from the result field
+
+    cuMemcpyDtoD_v2_params *p = (cuMemcpyDtoD_v2_params *)params;
+    CUdevice srcDeviceID;
+    CUdevice dstDeviceID;
+    
+    
+    cuPointerGetAttribute(&srcDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->srcDevice);
+    cuPointerGetAttribute(&dstDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->dstDevice);
+
+    
+    adm_range_t* range = nullptr; //adm_range_find(ma.addrs[0]);
+    uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
+    uint64_t offset_address_range = 0;
+
+    // uint32_t index_in_object = 0;
+    // uint32_t index_in_malloc = 0;
+
+    // std::string varname;
+    // std::string filename;
+    // std::string funcname;
+    // uint32_t linenum;
+
+    if (object_attribution) {
+        range = adm_range_find(p->dstDevice);
+        // allocation_pc = range->get_allocation_pc();
+        if(object_exists(allocation_pc)) {
+          // varname = get_object_var_name(allocation_pc);
+          // filename = get_object_file_name(allocation_pc);
+          // funcname = get_object_func_name(allocation_pc);
+          // linenum = get_object_line_num(allocation_pc);
+          // index_in_object = range->get_index_in_object();
+        }
+        offset_address_range = range->get_address();
+    }
+
+    // Log this operation
+
+    std::cout << find_cbid_name(cbid) << "," 
+      << HEX(p->dstDevice) << ","
+      << -1  << ","
+      << srcDeviceID       << ","
+      << dstDeviceID       << ","
+      << -1 << ","
+      << -1 << ","
+      << -1 << ","
+      << HEX(offset_address_range) << ","
+      << p->ByteCount
+      << std::endl;
+
   }
 
   skip_callback_flag = false;
@@ -891,6 +944,8 @@ void *recv_thread_fun(void *args)
         uint32_t line_linenum = get_line_line_num(line_index);
         short line_estimated_status = get_line_estimated_status(line_index);
         uint64_t offset_address_range = 0;
+        //   uint32_t index_in_object = 0;
+        //   uint32_t index_in_malloc = 0;
 
         for (int i = 0; i < 32; i++)
         {
@@ -916,6 +971,7 @@ void *recv_thread_fun(void *args)
           uint32_t index_in_malloc = 0;
 
           if (object_attribution) {
+//        adm_range_t* range = nullptr; //adm_range_find(ma.addrs[0]);
             range = adm_range_find(ma->addrs[i]);
             allocation_pc = range->get_allocation_pc();
             if(object_exists(allocation_pc)) {
@@ -965,7 +1021,8 @@ void *recv_thread_fun(void *args)
               << line_linenum      << ","
               << line_index        << ","
               << line_estimated_status << ","
-              << HEX(offset_address_range)
+              << HEX(offset_address_range) << ","
+              << 4 
               << std::endl;
           }
           std::cout << ss.str() << std::flush;
@@ -994,7 +1051,7 @@ void nvbit_at_ctx_init(CUcontext ctx)
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
   if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
-    std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset" << std::endl;
+    std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
   }
 }
 
@@ -1025,7 +1082,7 @@ void nvbit_at_ctx_term(CUcontext ctx)
 
 void nvbit_at_term()
 {
-  if (!silent) {
+  if (!silent && object_attribution) {
     adm_ranges_print();
     adm_line_table_print();
   }

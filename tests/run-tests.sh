@@ -99,5 +99,41 @@ function run_nvshmem() {
   )
 }
 
+function run_hipa() {
+  echo "Running host initiated peer memcpy tests:"
+  echo -n "  "
+  (
+   set -e
+
+   cd hipa/ 
+   (
+     make clean
+     make 
+   ) > /dev/null
+
+   exp_size=64
+
+
+   echo "hello"
+   # cut the csv header and count the number of operations
+   recv_size=$(SIZE=$exp_size make run | sed '1d' | cut -f 10 -d ',')
+   echo "hello"
+
+   # get the sender id
+   sender_id=$(SIZE=$exp_size make run | sed '1d' | cut -f 4 -d ',' | grep -c '0')
+
+   # get the receiver id
+   recv_id=$(SIZE=$exp_size make run | sed '1d' | cut -f 5 -d ',' | grep -c '1')
+
+   if (( exp_size * 4 != recv_size )); then
+     echo "HIPA failed. Expected ${exp_size} direct access operations. Recieved ${recv_size}."
+     exit 1
+   fi
+
+   echo "HIPA is successful (size: $recv_size)"
+  )
+}
+
 run_diim
 run_nvshmem
+run_hipa

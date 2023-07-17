@@ -321,7 +321,6 @@ void adamant::adm_line_table_print() noexcept
 		break;
 	line->print();
   }
-  fprintf(stderr, "ok until here\n"); 
 }
 
 //#if 0
