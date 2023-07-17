@@ -289,7 +289,7 @@ def main():
     font_size = int(graph_height/22)
     margin = 20
     positions = regular_polygon_coord([int(graph_width/2), int(graph_height/2)], 
-                                      int(min(graph_width, graph_height)/2)-margin, 4)
+                                      int(min(graph_width, graph_height)/2)-margin, gpu_num)
 
     # reduce whitespace on top
     st.markdown("""
