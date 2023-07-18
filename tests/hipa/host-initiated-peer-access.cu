@@ -24,6 +24,7 @@ struct hipa_args {
   int size = 32;
   int verbose = 0;
   int check = 0;
+  int async = 0;
 };
 
 typedef struct hipa_args hipa_args;
@@ -32,7 +33,7 @@ typedef struct hipa_args hipa_args;
 void getargs(hipa_args *args, int argc, char* argv[]) {
   int c;
 
-  while ((c = getopt(argc, argv, "n:v:c")) != -1) {
+  while ((c = getopt(argc, argv, "n:avc")) != -1) {
     switch (c) {
       case 'n':
         args->size = atoi(optarg);
@@ -42,6 +43,9 @@ void getargs(hipa_args *args, int argc, char* argv[]) {
         break;
       case 'v':
         args->verbose = 1;
+        break;
+      case 'a':
+        args->async = 1;
         break;
       case 'c':
         args->check = 1;
@@ -65,6 +69,7 @@ hipa_args *default_args() {
   args->size = 32;
   args->verbose = 0;
   args->check = 0;
+  args->async = 0;
   
   return args;
 }
@@ -100,12 +105,14 @@ int main(int argc, char* argv[]) {
   int *h1 = NULL;
   gpuErrchk(cudaMallocHost(&h1, buf_size));
 
-
   set_gpu_vals<<<std::ceil(args->size / 1024.0), max(args->size > 1024 ? 1024 :args->size % 1025, 1)>>>(args->size, g0, 10);
   gpuErrchk(cudaDeviceSynchronize());
 
-  gpuErrchk(cudaMemcpy(g1, g0, buf_size, cudaMemcpyDeviceToDevice));
-
+  if (args->async) {
+    gpuErrchk(cudaMemcpyAsync(g1, g0, buf_size, cudaMemcpyDeviceToDevice));
+  } else {
+    gpuErrchk(cudaMemcpy(g1, g0, buf_size, cudaMemcpyDeviceToDevice));
+  }
 
   if (args->check) {
     gpuErrchk(cudaMemcpy(h0, g0, buf_size, cudaMemcpyDeviceToHost));

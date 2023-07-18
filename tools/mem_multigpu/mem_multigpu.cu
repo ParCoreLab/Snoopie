@@ -734,12 +734,11 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     if (JSON) {
       std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
     }
-  } else if (is_exit && cbid == API_CUDA_cuMemcpyDtoD_v2) {
+  } 
+  else if (is_exit && cbid == API_CUDA_cuMemcpyDtoDAsync_v2) 
+  {
+    cuMemcpyDtoDAsync_v2_params *p = (cuMemcpyDtoDAsync_v2_params *) params;
 
-
-    // Check if copy operation was successful from the result field
-
-    cuMemcpyDtoD_v2_params *p = (cuMemcpyDtoD_v2_params *)params;
     CUdevice srcDeviceID;
     CUdevice dstDeviceID;
     
@@ -748,28 +747,11 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     cuPointerGetAttribute(&dstDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->dstDevice);
 
     
-    adm_range_t* range = nullptr; //adm_range_find(ma.addrs[0]);
-    uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
+    adm_range_t* range = nullptr; 
     uint64_t offset_address_range = 0;
-
-    // uint32_t index_in_object = 0;
-    // uint32_t index_in_malloc = 0;
-
-    // std::string varname;
-    // std::string filename;
-    // std::string funcname;
-    // uint32_t linenum;
 
     if (object_attribution) {
         range = adm_range_find(p->dstDevice);
-        // allocation_pc = range->get_allocation_pc();
-        if(object_exists(allocation_pc)) {
-          // varname = get_object_var_name(allocation_pc);
-          // filename = get_object_file_name(allocation_pc);
-          // funcname = get_object_func_name(allocation_pc);
-          // linenum = get_object_line_num(allocation_pc);
-          // index_in_object = range->get_index_in_object();
-        }
         offset_address_range = range->get_address();
     }
 
@@ -787,6 +769,42 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       << p->ByteCount
       << std::endl;
 
+  } else if (is_exit && cbid == API_CUDA_cuMemcpyDtoD_v2) {
+
+
+    // Check if copy operation was successful from the result field
+
+    cuMemcpyDtoD_v2_params *p = (cuMemcpyDtoD_v2_params *)params;
+    CUdevice srcDeviceID;
+    CUdevice dstDeviceID;
+    
+    
+    cuPointerGetAttribute(&srcDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->srcDevice);
+    cuPointerGetAttribute(&dstDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->dstDevice);
+
+    
+    adm_range_t* range = nullptr;
+    uint64_t offset_address_range = 0;
+
+
+    if (object_attribution) {
+        range = adm_range_find(p->dstDevice);
+        offset_address_range = range->get_address();
+    }
+
+    // Log this operation
+
+    std::cout << find_cbid_name(cbid) << "," 
+      << HEX(p->dstDevice) << ","
+      << -1  << ","
+      << srcDeviceID       << ","
+      << dstDeviceID       << ","
+      << -1 << ","
+      << -1 << ","
+      << -1 << ","
+      << HEX(offset_address_range) << ","
+      << p->ByteCount
+      << std::endl;
   }
 
   skip_callback_flag = false;
