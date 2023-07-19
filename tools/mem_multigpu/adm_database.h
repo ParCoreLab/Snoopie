@@ -129,7 +129,7 @@ class adm_line_location_t
     void set_line_num(const uint32_t linenum) noexcept { line_num=linenum; };
     short get_estimated_status() const noexcept { return estimated; };
     void set_estimated_status(const short estimated_status) noexcept { estimated=estimated_status; };
-    void print() const noexcept;
+    void print(std::ofstream& codeline_outfile) const noexcept;
 };
 
 adm_line_location_t* adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept;
