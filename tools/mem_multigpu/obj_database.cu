@@ -7,6 +7,7 @@
 #include <adm_splay.h>
 #include <adm_memory.h>
 #include <adm_database.h>
+#include <unistd.h>
 
 #define HEX(x)                                                          \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
@@ -297,16 +298,22 @@ void adamant::adm_ranges_print() noexcept
   // std::cout << "List of captured address ranges along with their variable names and code locations:\n";
 
   int first_iter = 1;  
+  ofstream object_outfile;
 
+  string object_str("data_object_log_");
+  string txt_str(".txt");
+  string object_log_str = object_str + to_string(getpid()) + txt_str;
+  object_outfile.open(object_log_str);
   pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>::iterator n(*range_nodes);
   for(adm_splay_tree_t* obj = n.next(); obj!=nullptr; obj = n.next()) {
     if (first_iter) {
-      std::cout << "offset, size, device_id, var_name, filename, alloc_line_num" << std::endl;
+      object_outfile << "offset, size, device_id, var_name, filename, alloc_line_num" << std::endl;
       first_iter = 0;
     }
 
-    obj->range->print();
+    obj->range->print(object_outfile);
   }
+  object_outfile.close();
 }
 
 ADM_VISIBILITY
@@ -342,7 +349,7 @@ void adamant::adm_db_fini()
 //#endif
 
 ADM_VISIBILITY
-void adm_range_t::print() const noexcept
+void adm_range_t::print(std::ofstream& object_outfile) const noexcept
 {
   //std::cout << "in adm_range_t::print\n";
   uint64_t a = get_address();
@@ -353,12 +360,12 @@ void adm_range_t::print() const noexcept
   // std::cout << "device_id: " << dev_id << ", ";
   uint64_t p = get_allocation_pc();
 
-  std::cout << HEX(a) << ",";
-  std::cout << z << ",";
-  std::cout << dev_id << ",";
+  object_outfile << HEX(a) << ",";
+  object_outfile << z << ",";
+  object_outfile << dev_id << ",";
 
   adm_object_t* obj = object_table->find(p);
-  obj->print();
+  obj->print(object_outfile);
 #if 0
   uint64_t p = get_allocation_pc();
   std::cout << "allocation_pc: " << p << std::endl; 
@@ -368,7 +375,7 @@ void adm_range_t::print() const noexcept
 }
 
 ADM_VISIBILITY
-void adm_object_t::print() const noexcept
+void adm_object_t::print(std::ofstream& object_outfile) const noexcept
 {
   //std::cout << "in adm_object_t::print\n";
 
@@ -388,9 +395,9 @@ void adm_object_t::print() const noexcept
   //int dev_id = get_device_id();
   //std::cout << "device_id: " << dev_id << std::endl; 
 
-  std::cout << varname << ",";
-  std::cout << filename << ",";
-  std::cout << linenum << std::endl;;
+  object_outfile << varname << ",";
+  object_outfile << filename << ",";
+  object_outfile << linenum << std::endl;;
 }
 
 ADM_VISIBILITY

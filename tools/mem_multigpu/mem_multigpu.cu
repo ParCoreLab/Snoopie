@@ -73,8 +73,6 @@
 #include "adm.h"
 
 ofstream memop_outfile;
-ofstream object_outfile;
-ofstream codeline_outfile;
 
 using namespace adamant;
 
@@ -363,11 +361,18 @@ void nvbit_at_init()
   }
   adm_db_init();
   /* set mutex as recursive */
+  string memop_str("memop_log_");
+  string txt_str(".txt");
+  string memop_log_str = memop_str + to_string(getpid()) + txt_str;
+  memop_outfile.open(memop_log_str);
+  if (!silent /*&& ((int)ctx_state_map.size() - 1 == 0)*/) {
+    memop_outfile << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
+  }
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
-
+  //std::cerr << "nvbit_at_init is called\n";
 
 }
 
@@ -1055,13 +1060,15 @@ void nvbit_at_ctx_init(CUcontext ctx)
       ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
-  if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
-    std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
-  }
+#if 0
   string memop_str("memop_log_");
   string txt_str(".txt");
   string memop_log_str = memop_str + to_string(getpid()) + txt_str;
   memop_outfile.open(memop_log_str);
+  if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
+    memop_outfile << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
+  }
+#endif
 }
 
 void nvbit_at_ctx_term(CUcontext ctx)
@@ -1091,15 +1098,14 @@ void nvbit_at_ctx_term(CUcontext ctx)
 
 void nvbit_at_term()
 {
-  std::cout << "before adm_ranges_print\n";
+  //std::cout << "before adm_ranges_print\n";
+  //std::cout << "after adm_line_table_print\n";
   if (!silent) {
     if(object_attribution)
-    	adm_ranges_print();
+        adm_ranges_print();
     adm_line_table_print();
   }
-  std::cout << "after adm_line_table_print\n";
-
-  memop_outfile.close();
+  memop_outfile.close(); 
   // TODO: Print the below agian at some point
   // adm_line_table_print();
   adm_db_fini();

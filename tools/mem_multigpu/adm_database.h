@@ -97,7 +97,7 @@ class adm_range_t
 
     void process(const adm_event_t& event) noexcept { meta.process(event); }
 
-    void print() const noexcept;
+    void print(std::ofstream& object_outfile) const noexcept;
 };
  
 adm_range_t* adm_range_insert(const uint64_t address, const uint64_t size, const uint64_t allocation_pc, const int dev_id, std::string var_name, const state_t state=ADM_STATE_STATIC) noexcept;
@@ -184,7 +184,7 @@ class adm_object_t
 
     void process(const adm_event_t& event) noexcept { meta.process(event); }
 
-    void print() const noexcept;
+    void print(std::ofstream& object_outfile) const noexcept;
 };	
 
 adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, const uint32_t element_size, std::string filename, std::string funcname, uint32_t linenum, const state_t state=ADM_STATE_STATIC) noexcept;
