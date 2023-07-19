@@ -72,6 +72,10 @@
 
 #include "adm.h"
 
+ofstream memop_outfile;
+ofstream object_outfile;
+ofstream codeline_outfile;
+
 using namespace adamant;
 
 //static adm_splay_tree_t* tree = nullptr;
@@ -1025,7 +1029,8 @@ void *recv_thread_fun(void *args)
               << 4 
               << std::endl;
           }
-          std::cout << ss.str() << std::flush;
+          memop_outfile << ss.str() << std::flush;
+	  //std::cout << ss.str() << std::flush;
         }
         num_processed_bytes += sizeof(mem_access_t);
       }
@@ -1053,6 +1058,10 @@ void nvbit_at_ctx_init(CUcontext ctx)
   if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
     std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
   }
+  string memop_str("memop_log_");
+  string txt_str(".txt");
+  string memop_log_str = memop_str + to_string(getpid()) + txt_str;
+  memop_outfile.open(memop_log_str);
 }
 
 void nvbit_at_ctx_term(CUcontext ctx)
@@ -1090,6 +1099,7 @@ void nvbit_at_term()
   }
   std::cout << "after adm_line_table_print\n";
 
+  memop_outfile.close();
   // TODO: Print the below agian at some point
   // adm_line_table_print();
   adm_db_fini();
