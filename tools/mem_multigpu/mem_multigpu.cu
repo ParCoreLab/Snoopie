@@ -1082,10 +1082,13 @@ void nvbit_at_ctx_term(CUcontext ctx)
 
 void nvbit_at_term()
 {
-  if (!silent && object_attribution) {
-    adm_ranges_print();
+  std::cout << "before adm_ranges_print\n";
+  if (!silent) {
+    if(object_attribution)
+    	adm_ranges_print();
     adm_line_table_print();
   }
+  std::cout << "after adm_line_table_print\n";
 
   // TODO: Print the below agian at some point
   // adm_line_table_print();
