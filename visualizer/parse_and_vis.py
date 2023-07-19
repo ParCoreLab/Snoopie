@@ -27,7 +27,7 @@ data_by_line = {}
 #####################################
 #     CHANGE THESE WHEN NEEDED!     #
 gpu_num = 4                         #
-src_code_file = "workq_ring.cu"     #
+src_code_file = "four-gpus.cu"     #
 #                                   #
 #####################################
 
@@ -773,11 +773,21 @@ if __name__ == "__main__":
         #                 style='width:90%;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
         comm_percentage = 0.0
         if data_by_line.get(line_index, None) is not None:
-            comm_percentage = float(data_by_line[line_index]['total'])/float(total_comm)*100*2
-        div_inject = "<div class='percentage' style='background-color:" + pal[int(comm_percentage)%len(pal)] + ";opacity:0.4;width:" + str(comm_percentage) + "%'></div>"
-        content_head+="""<div id='line""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a 
-                        id='line""" + str(line_index) + """'><code class='hljs language-c' style='position:relative;width:100%;
-                        background-color:rgb(0,0,0,0);margin-bottom:0;padding-bottom:0;overflow-x:hidden;"""
+            comm_percentage = float(data_by_line[line_index]['total'])/float(total_comm)*100
+        str_percentage = f"{comm_percentage:2.2f}%"
+        if (comm_percentage < 10.0):
+            str_percentage = " " + str_percentage
+        if (comm_percentage == 0):
+            str_percentage = " " * 6    
+        div_inject = "<span style='display:inline-block;' >"+ str_percentage +"</span>"
+        content_head+="""<div id='d""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a
+                          id='line""" + str(line_index) + """' style='display:inline-block;'><code class='hljs language-c'
+                          style='position:relative;width:100%; background-color:rgb(0,0,0,0);margin-bottom:0;
+                          padding-bottom:0;overflow-x:hidden;"""
+        #div_inject = "<div class='percentage' style='background-color:" + pal[int(comm_percentage)%len(pal)] + ";opacity:0.4;width:" + str(comm_percentage) + "%'></div>"
+        #content_head+="""<div id='line""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a 
+        #                id='line""" + str(line_index) + """'><code class='hljs language-c' style='position:relative;width:100%;
+        #                background-color:rgb(0,0,0,0);margin-bottom:0;padding-bottom:0;overflow-x:hidden;"""
         # if line_index in ptx_code_rev.keys():
         #     print("THE LINE!")
         #     print(line_index)
