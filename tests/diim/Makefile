@@ -10,4 +10,5 @@ clean:
 	rm -f diim diim.ptx
 
 run:
+	@rm -f *.zst
 	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" ./diim -n $(SIZE)
