@@ -26,8 +26,8 @@ data_by_line = {}
 
 #####################################
 #     CHANGE THESE WHEN NEEDED!     #
-gpu_num = 3                         #
-src_code_file = "workq_ring.cu"     #
+gpu_num = 4                         #
+src_code_file = "four-gpus.cu"     #
 #                                   #
 #####################################
 
@@ -49,6 +49,8 @@ colorscale=[[0.00000000, "rgb(230, 233, 233)"],
             [0.77777777, "rgb(57, 121, 176)"],
             [0.90000000, "rgb(85, 88, 152)"],
             [1.00000000, "rgb(105, 51, 125)"]]
+            
+pal_base = ['#98062d', '#b67d74', '#a6b975', '#315c45', '#395e77', '#91bcdd', '#a662a8'] 
 
 
 def scroll_js(top):
@@ -142,8 +144,7 @@ def read_data(file):
                 address = data["addr"]
                 obj_name = data["obj_offset"]
                 operation = data["op_code"]
-
-
+                linenum = data["code_linenum"]
 
                 addrs.add(address)
 
@@ -164,16 +165,20 @@ def read_data(file):
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data[operation] = temp_data.get(operation, 0) + 1
                 temp_data[device] = temp_data.get(device, 0) + 1
-                temp_data['code_linenum'] = data['code_linenum']
-                
-                # data_by_line[data['code_linenum']] = data_by_line.get(data['code_linenum'], list())
-                # data_by_line[data['code_linenum']].append(address)
+                temp_data['line_' + str(linenum)] = temp_data.get('line_' + str(linenum), 0) + 1
+                temp_lines = temp_data.get('lines', set())
+                temp_lines.add('line_' + str(linenum))
+                temp_data['lines'] = temp_lines
 
                 data_by_device[pair] = data_by_device.get(pair, {})
                 temp_data = data_by_device[pair]
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data[operation] = temp_data.get(operation, 0) + 1
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
+                temp_data['line_' + str(linenum)] = temp_data.get('line_' + str(linenum), 0) + 1
+                temp_lines = temp_data.get('lines', set())
+                temp_lines.add('line_' + str(linenum))
+                temp_data['lines'] = temp_lines
                 
                 data_by_device[device] = data_by_device.get(device, {})
                 temp_data = data_by_device[device]
@@ -181,6 +186,16 @@ def read_data(file):
                 temp_data[operation] = temp_data.get(operation, 0) + 1
                 temp_data[owner] = temp_data.get(owner, 0) + 1
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
+
+                data_by_line[linenum] = data_by_line.get(linenum, {})
+                temp_data = data_by_line[linenum]
+                temp_data['total'] = temp_data.get('total', 0) + 1
+                temp_data[pair] = temp_data.get(pair, 0) + 1
+                temp_data[operation] = temp_data.get(operation, 0) + 1
+                temp_data[address] = temp_data.get(address, 0) + 1
+                temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
+                temp_objects = temp_data.get('objects', set())
+                temp_objects.add(obj_name)
             else:
                 if (line.startswith("filename=")):
                     print("This is a graph file!")
@@ -313,13 +328,13 @@ def main():
         
 
     cols = math.ceil(math.sqrt(gpu_num))
-    print("ATTENTION")
-    print(cols)
-    print(gpu_num)
+    # print("ATTENTION")
+    # print(cols)
+    # print(gpu_num)
     rows = int(gpu_num/cols)
     delta_pos = [int((graph_width-2*margin)/max(1, cols-1)), int((graph_height-2*margin)/max(1, rows-1))]
 
-    print(data_by_device)
+    # print(data_by_device)
     for i in range(gpu_num):
         label = "GPU"+str(i)
 
@@ -408,19 +423,20 @@ def main():
         )
         fig.update_yaxes(title_standoff = 10)
 
+        fig.layout.width = graph_width*(4.0/7.0)
         fig.layout.height = graph_height
         chosen_point = plotly_events(fig)
-        print(chosen_point)
+        # print(chosen_point)
         if len(chosen_point) > 0:
             chosen_point = chosen_point[0]['pointNumber']
         else:
             chosen_point = None
-        print(chosen_point)
+        # print(chosen_point)
 
-    print(chosen_id_graph)
+    # print(chosen_id_graph)
     if chosen_point != None:
         chosen_id_graph = chosen_point[0]
-    print(chosen_id_graph)
+    # print(chosen_id_graph)
 
     chosen_id_tab = stx.tab_bar(data=[
         stx.TabBarItemData(id=str(i), title="GPU"+str(i), description="") for i in range(gpu_num)], default=0)
@@ -439,6 +455,7 @@ def main():
             step *= int(obj_size/GRAPH_SIZE_LIMIT)
         cols = int(math.sqrt(obj_size))*4
         ycounter = cols
+        # set up the data to be displayed in the objectview on hover
         for i in range(0, int(data_by_obj[key]['size']), step):
             # if i >= ycounter:
             #     ycounter += cols
@@ -454,6 +471,8 @@ def main():
                 for op in ops:
                     if op in dict_details:
                         html_details += " "*8 + str(op) + ": " + str(dict_details[op]) + "<br>"
+                for line in dict_details['lines']:
+                    html_details += " "*8 + str(line) + ": " + str(dict_details[line]) + "<br>"
 
                 obj[-1].append([hex_addr, html_details])
                 object_map[-1].append(dict_details['total'])
@@ -461,7 +480,6 @@ def main():
                 obj[-1].append([hex_addr, ""])
                 object_map[-1].append(0)
         if (data_by_obj[key]['device_id'] >= 0):
-            # print(data_by_obj[key]['device_id'])
             object_view[data_by_obj[key]['device_id']][data_by_obj[key]['var_name']] = [obj, object_map]
    
     for i in range(gpu_num):
@@ -503,7 +521,7 @@ def main():
                     # paper_bgcolor="#e6e6e6"
                     font_color="#1a1a1a",
                     paper_bgcolor="#ffffff",
-                    width=graph_width
+                    width=graph_width*(3/2)
                 )
             obj_fig['layout']['xaxis' + str(index-1)].update(dict(title="Offset", title_standoff=8))
                 
@@ -543,21 +561,29 @@ def main():
                 if obj_option is not None:
                     obj_data = object_view[i][obj_option]
                     reshaped_data = []
+                    reshaped_details = []
                     ind_x = 0
+                    ind_y = 0
+                    # reshape both the data and the additional information to be shown on hover
                     for item in obj_data[1][0]:
                         if (ind_x == 0):
                             reshaped_data.append([])
+                            reshaped_details.append(obj_data[0][0][ind_y*xdim:(ind_y*xdim)+xdim])
 
                         reshaped_data[-1].append(item)
                         ind_x += 1
                         if (ind_x == xdim):
                             ind_x = 0
+                            ind_y += 1
 
                     fig = go.Figure(data=go.Heatmap(z=reshaped_data, coloraxis="coloraxis", name=key, 
+                                    customdata=reshaped_details,
                                     xgap=2, ygap=2, 
                                     # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
                                     #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
-                                    hovertemplate="<br>".join(["X-offset: %{x}", "Y-offset: %{y}", "Instructions: %{z}"
+                                    hovertemplate="<br>".join(["X-offset: %{x}", "Y-offset: %{y}", "Instructions: %{z}",
+                                        "Address: %{customdata[0]}",
+                                        "Details: %{customdata[1]}"
                     ])))
                     fig.update_layout(coloraxis_colorbar=dict(title="Data transfer<br>count"))               
                     index += 1
@@ -592,22 +618,33 @@ def main():
                                                               '> GPU{peer_gpu}</span>**", unsafe_allow_html=True)
                     table_objs = []
                     table_instr = []
+                    table_lines = []
                     for item in data_by_device[pair].items():
                         if 'total' == item[0]:
                             table_instr.insert(0, item)    
                             table_objs.insert(0, item) 
+                            table_lines.insert(0, item) 
                         elif '.E' in item[0]:
                             table_instr.append(item)                            
+                        elif item[0].startswith('line'):
+                            continue
                         else:
                             table_objs.append([data_by_obj[item[0].strip()]['var_name'], item[1]])
                     
+                    for line in data_by_device[pair]['lines']:
+                        table_lines.append([line[5:], data_by_device[pair][line]])
+                    
                     df = pd.DataFrame.from_dict(table_objs)
                     df.columns = ['object', 'count']
-                    cols[other_gpus.index(peer_gpu)].table(df)
+                    cols[other_gpus.index(peer_gpu)].table(df.sort_values(by=['count'], ascending=False))
 
                     df = pd.DataFrame.from_dict(table_instr)
                     df.columns = ['instruction', 'count']
-                    cols[other_gpus.index(peer_gpu)].table(df)
+                    cols[other_gpus.index(peer_gpu)].table(df.sort_values(by=['count'], ascending=False))
+
+                    df = pd.DataFrame.from_dict(table_lines)
+                    df.columns = ['code line', 'count']
+                    cols[other_gpus.index(peer_gpu)].table(df.sort_values(by=['count'], ascending=False))
                         # .scrollTop = ''' + str(graph_height + i/100) + ''';
             st.components.v1.html(scroll_js(graph_height + margin + i*0.0001), height=0)
             break
@@ -622,64 +659,63 @@ if __name__ == "__main__":
     data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev = read_data(sys.argv[1])
     main()
 
-    with st.sidebar:
-        st.markdown("""## SASS Instructions""")
-        st.markdown("""<small><p style='margin-left:-10px;margin-bottom:-50px;padding-bottom:-50px;'>
-                     <span style="color:Tomato;">SASS line</span> | 
-                     <span style="color:Tomato;">Code line</span>   |   SASS Instruction</p></small>""",
-            unsafe_allow_html=True)
-        st.markdown(
-            f'''
-            <style>
-                .css-1544g2n.e1fqkh3o4 {{
-                    padding-top: 0px;
-                    margin-top: 0px;
-                    margin-right: -50px;
-                }}
-                .css-ysnqb2.egzxvld4 {{
-                    {0}
-                    margin-top: {0}rem;
-                    padding-top: {0}rem;
-                    padding-right: {0}rem;
-                    padding-left: -60px;
-                    margin-left: -60px;
-                    padding-bottom: {0}rem;
-                }}
-            </style>
-            ''',
-            unsafe_allow_html=True)
+    # with st.sidebar:
+    #     st.markdown("""## SASS Instructions""")
+    #     st.markdown("""<small><p style='margin-left:-10px;margin-bottom:-50px;padding-bottom:-50px;'>
+    #                  <span style="color:Tomato;">SASS line</span> | 
+    #                  <span style="color:Tomato;">Code line</span>   |   SASS Instruction</p></small>""",
+    #         unsafe_allow_html=True)
+    #     st.markdown(
+    #         f'''
+    #         <style>
+    #             .css-1544g2n.e1fqkh3o4 {{
+    #                 padding-top: 0px;
+    #                 margin-top: 0px;
+    #                 margin-right: -50px;
+    #             }}
+    #             .css-ysnqb2.egzxvld4 {{
+    #                 {0}
+    #                 margin-top: {0}rem;
+    #                 padding-top: {0}rem;
+    #                 padding-right: {0}rem;
+    #                 padding-left: -60px;
+    #                 margin-left: -60px;
+    #                 padding-bottom: {0}rem;
+    #             }}
+    #         </style>
+    #         ''',
+    #         unsafe_allow_html=True)
         
-        content_head = """<head><link rel="stylesheet"
-        href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
-        <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-        <script>hljs.highlightAll();</script></head><body><pre>"""
-        content_end = """</pre></body>"""
+    #     content_head = """<head><link rel="stylesheet"
+    #     href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    #     <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    #     <script>hljs.highlightAll();</script></head><body><pre>"""
+    #     content_end = """</pre></body>"""
 
-        total_lines = len(ptx_code)
-        index_chars = len(str(len(ptx_code)))+1
-        if total_lines > 0:
-            index_chars_src = len(str(ptx_code[-1][1]))
-            line_index = 0
-            for line, linenum in ptx_code:
-                linenum = abs(linenum)
-                line_index+=1
-                ls = len(line) - len(line.lstrip())
-                line = line.replace('<', '&lt')
-                line = line.replace('>', '&gt')
-                # st.code(str(line_index)+ '.  ' + line)
-                content_head+="""<a id='ptxline""" + str(line_index) + """'><code class='hljs language-c'
-                                style='padding-left:-100px;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
-                if line_index == 1:
-                    content_head+=";margin-top:-50px'>"
-                else:
-                    content_head+=";margin-top:0;padding-top:0'>"
-                content_head += str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
-                                + str(linenum)+ '.' + ''.join([' '*(index_chars_src-len(str(linenum)))]) + ' | ' + line + "</code></a>"
-
-            clicked_ptx = click_detector(content_head + content_end)
-        # print(clicked_ptx)
-        # if 'ptxline' in clicked_ptx:
-        #     st.components.v1.html(scroll_js_to_line(abs(ptx_code[int(clicked_ptx[7:])][1])), height=0)
+    #     total_lines = len(ptx_code)
+    #     index_chars = len(str(len(ptx_code)))+1
+    #     if total_lines > 0:
+    #         index_chars_src = len(str(ptx_code[-1][1]))
+    #         line_index = 0
+    #         for line, linenum in ptx_code:
+    #             line_index+=1
+    #             linenum = abs(linenum)
+    #             ls = len(line) - len(line.lstrip())
+    #             line = line.replace('<', '&lt')
+    #             line = line.replace('>', '&gt')
+    #             # st.code(str(line_index)+ '.  ' + line)
+    #             content_head+="""<a id='ptxline""" + str(line_index) + """'><code class='hljs language-c'
+    #                             style='padding-left:-100px;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
+    #             if line_index == 1:
+    #                 content_head+=";margin-top:-50px'>"
+    #             else:
+    #                 content_head+=";margin-top:0;padding-top:0'>"
+    #             content_head += str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
+    #                             + str(linenum)+ '.' + ''.join([' '*(index_chars_src-len(str(linenum)))]) + ' | ' + line + "</code></a>"
+    #         clicked_ptx = click_detector(content_head + content_end)
+    #     # print(clicked_ptx)
+    #     # if 'ptxline' in clicked_ptx:
+    #     #     st.components.v1.html(scroll_js_to_line(abs(ptx_code[int(clicked_ptx[7:])][1])), height=0)
 
     st.markdown("""---""")
 
@@ -691,33 +727,171 @@ if __name__ == "__main__":
         print("Source code file not found")
         exit(0)
 
-    content_head = """<head><link rel="stylesheet"
-      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
-    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    <script>hljs.highlightAll();</script></head><body><pre>"""
+
+    content_head = """<head>
+        <style>
+            .percentage {
+                position:absolute;
+                top:0;
+                left:0;
+                z-index:-1;
+                height:15px;
+            }
+        </style>
+        <link rel="stylesheet"
+            href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+        <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+        <script>hljs.highlightAll();</script>
+        </head><body><pre>"""
     content_end = """</pre></body>"""
 
-    line_index = 0
+    max_line_comm = 0
+    total_comm = 0
+
+    for line_index in data_by_line.keys():
+        total_comm += data_by_line[line_index]['total']
+        if (data_by_line[line_index]['total'] > max_line_comm):
+            max_line_comm = data_by_line[line_index]['total']
+
+    # https://colorkit.co/palette/413344-614c65-806485-936397-a662a8-664972-463c57-6e8da9-
+    # 91bcdd-567d99-395e77-305662-264d4d-315c45-8a9a65-b6b975-b65d54-b60033-98062d-800022/
+    pal_base = sns.blend_palette(pal_base[:-3], n_colors=32)
+    pal = sns.color_palette([scale_lightness(color, 1.2) for color in pal_base]).as_hex()
+    pal.reverse()
+
     lines = f.readlines()
     total_lines = len(lines)
     index_chars = len(str(total_lines))+1
+    line_index = 0
     for line in lines:
         line_index+=1
         ls = len(line) - len(line.lstrip())
         line = line.replace('<', '&lt')
         line = line.replace('>', '&gt')
         # st.code(str(line_index)+ '.  ' + line)
-        content_head+="""<a id='line""" + str(line_index) + """'><code class='hljs language-c'
-                        style='margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
-        if line_index in ptx_code_rev.keys():
-            print("THE LINE!")
-            print(line_index)
-            content_head+=";margin-top:50;padding-top:50;background:#6da2d1"
+        # content_head+="""<div style='display:flex;flex-direction:row;><code class='hljs language-c'
+        #                 style='width:90%;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
+        comm_percentage = 0.0
+        if data_by_line.get(line_index, None) is not None:
+            comm_percentage = float(data_by_line[line_index]['total'])/float(total_comm)*100
+        str_percentage = f"{comm_percentage:2.2f}%"
+        if (comm_percentage < 10.0):
+            str_percentage = " " + str_percentage
+        if (comm_percentage == 0):
+            str_percentage = " " * 6    
+        div_inject = "<span style='display:inline-block;' >"+ str_percentage +"</span>"
+        content_head+="""<div id='d""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a
+                          id='line""" + str(line_index) + """' style='display:inline-block;'><code class='hljs language-c'
+                          style='position:relative;width:100%; background-color:rgb(0,0,0,0);margin-bottom:0;
+                          padding-bottom:0;overflow-x:hidden;"""
+        #div_inject = "<div class='percentage' style='background-color:" + pal[int(comm_percentage)%len(pal)] + ";opacity:0.4;width:" + str(comm_percentage) + "%'></div>"
+        #content_head+="""<div id='line""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a 
+        #                id='line""" + str(line_index) + """'><code class='hljs language-c' style='position:relative;width:100%;
+        #                background-color:rgb(0,0,0,0);margin-bottom:0;padding-bottom:0;overflow-x:hidden;"""
+        # if line_index in ptx_code_rev.keys():
+        #     print("THE LINE!")
+        #     print(line_index)
+        #     content_head+=";margin-top:50;padding-top:50;background:#6da2d1"
         if line_index == 1:
             content_head+="'>"
         else:
             content_head+=";margin-top:0;padding-top:0'>"
-        content_head+=str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) + line + "</code></a>"
+        content_head+=str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) + line + "</a></code>"
+        # content_head+="<progress style='position:absolute;top:0;left:0;z-index:-1;' value='" + str(comm_percentage) + "' max='100'> 32% </progress></div>"
+
 
     clicked_src = click_detector(content_head + content_end)
-    print(clicked_src)
+    st.markdown(
+        """
+        <style>
+        .css-1o14730, .css-2qelbv {
+            background-color: #f5f5f5;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    if clicked_src:
+        linenum = int(clicked_src[4:])
+        if (linenum in data_by_line):
+            with st.sidebar:
+                linedata = data_by_line[linenum]
+                st.markdown(
+                    f'''
+                    <style>
+                        .css-1544g2n {{
+                            padding-top: 0px;
+                            margin-top: 0px;
+                            margin-right: {-6}rem;
+                        }}
+                        .css-ysnqb2 {{
+                            margin-top: {0}rem;
+                            padding-top: {0}rem;
+                            padding-right: {-2}rem;
+                            margin-left: -60px;
+                            padding-bottom: {0}rem;
+                        }}
+                    </style>
+                    ''',
+                    unsafe_allow_html=True)
+                st.markdown("# Line " + str(linenum))
+                st.markdown(
+                    """
+                    <style>
+                    :root {
+                        background-color: #f5f5f5;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.markdown("""<head><script>hljs.highlightAll();</script></head><body>
+                                <code class='hljs language-c'>""" + lines[linenum-1] + """</code></body>""",
+                    unsafe_allow_html=True,)
+                st.markdown("## Total transfers: " + str(linedata['total']))
+
+                # obj_str = "### Object(s) involved: \\"
+                # for obj in linedata.get('objects', set()):
+                #     obj_str += str(obj) + ": " + str(linedata[obj]) + "" 
+
+                # st.markdown(obj_str)
+                
+                cols_rows_name = ['GPU%d' % i for i in range(gpu_num)]
+
+                widths = []
+
+                for i in range(gpu_num):
+                    src_label = "GPU"+str(i)
+                    widths.append([])
+                    for j in range(gpu_num):
+                        target_label = "GPU"+str(j)
+                        pair_label = src_label+"-"+target_label
+                        width = 0.0
+                        if (pair_label in linedata):
+                            width = linedata[pair_label]
+                        widths[i].append(width)
+
+                df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype('int')
+                fig = px.imshow(df, color_continuous_scale=colorscale, 
+                        labels=dict(x="Owner", y="Issued by", color="Data transfer<br>count"))
+                fig.update_traces(colorbar=dict(lenmode='fraction', len=0.5, thickness=10))
+                fig.update_layout(
+                    font_family="Open Sans, sans-serif",
+                    # font_color="#fafafa",
+                    # paper_bgcolor="#0e1117",
+                    # paper_bgcolor="#e6e6e6",
+                    font_color="#1a1a1a",
+                    paper_bgcolor="#f5f5f5",
+                )
+                fig.update_yaxes(title_standoff = 10)
+
+                fig.layout.width = 300
+                fig.layout.height = 300
+                chosen_point = plotly_events(fig)
+                # print(chosen_point)
+                if len(chosen_point) > 0:
+                    chosen_point = chosen_point[0]['pointNumber']
+                else:
+                    chosen_point = None
+    # print(clicked_src)

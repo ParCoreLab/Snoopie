@@ -72,6 +72,8 @@
 
 #include "adm.h"
 
+// ofstream memop_outfile;
+
 using namespace adamant;
 
 //static adm_splay_tree_t* tree = nullptr;
@@ -80,7 +82,7 @@ pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 static int global_index = 0;
 
-Logger logger("snoopie-out.zst");
+Logger logger("snoopie-log-" + std::to_string(getpid()) + ".zst");
 
 //static std::pair<std::vector<int>, std::vector<int>> line_tracking;
 std::map<std::string, std::tuple<std::string, std::vector<int>, std::vector<int>>> line_tracking;
@@ -363,11 +365,18 @@ void nvbit_at_init()
   }
   adm_db_init();
   /* set mutex as recursive */
+  string memop_str("memop_log_");
+  string txt_str(".txt");
+  // string memop_log_str = memop_str + to_string(getpid()) + txt_str;
+  // memop_outfile.open(memop_log_str);
+  // if (!silent /*&& ((int)ctx_state_map.size() - 1 == 0)*/) {
+    // memop_outfile << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
+  // }
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
-
+  //std::cerr << "nvbit_at_init is called\n";
 
 }
 
@@ -933,16 +942,7 @@ void *recv_thread_fun(void *args)
   pthread_mutex_unlock(&mutex1);
   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
 
-  ZSTD_CStream *cs = ZSTD_createCStream();
 
-  // TODO: Try changing compression level to 3
-  size_t const initResult = ZSTD_initCStream(cs, 1);
-
-  size_t const buffInSize = ZSTD_CStreamInSize();
-  void *const buffIn = malloc(buffInSize);
-  size_t const buffOutSize = ZSTD_CStreamOutSize();
-  void *const buffOut = malloc(buffOutSize);
-  FILE *const fout = fopen("snoopie-log.zst", "wb");
 
   if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
     std::stringstream ss;
@@ -990,8 +990,6 @@ void *recv_thread_fun(void *args)
         uint32_t line_linenum = get_line_line_num(line_index);
         short line_estimated_status = get_line_estimated_status(line_index);
         uint64_t offset_address_range = 0;
-        //   uint32_t index_in_object = 0;
-        //   uint32_t index_in_malloc = 0;
 
         for (int i = 0; i < 32; i++)
         {
@@ -1017,7 +1015,6 @@ void *recv_thread_fun(void *args)
           uint32_t index_in_malloc = 0;
 
           if (object_attribution) {
-//        adm_range_t* range = nullptr; //adm_range_find(ma.addrs[0]);
             range = adm_range_find(ma->addrs[i]);
             allocation_pc = range->get_allocation_pc();
             if(object_exists(allocation_pc)) {
@@ -1071,27 +1068,14 @@ void *recv_thread_fun(void *args)
               << 4 
               << std::endl;
           }
-          // std::cout << ss.str() << std::flush;
-          // write_to_stream(cs, ss, buffIn, buffOut, buffInSize, buffOutSize, fout);
           logger.log(ss.str());
+          // memop_outfile << ss.str() << std::flush;
         }
         num_processed_bytes += sizeof(mem_access_t);
       }
     }
   }
 
-  ZSTD_outBuffer output = {buffOut, buffOutSize, 0};
-  size_t const remainingToFlush = ZSTD_endStream(cs, &output); /* close frame */
-  if (remainingToFlush) {
-    fprintf(stderr, "not fully flushed");
-    exit(13);
-  }
-
-  fwrite(buffOut, 1, output.pos, fout);
-
-  free(recv_buffer);
-  free(buffOut);
-  free(buffIn);
   return NULL;
 }
 
@@ -1139,11 +1123,14 @@ void nvbit_at_ctx_term(CUcontext ctx)
 
 void nvbit_at_term()
 {
-  if (!silent && object_attribution) {
-    adm_ranges_print();
+  //std::cout << "before adm_ranges_print\n";
+  //std::cout << "after adm_line_table_print\n";
+  if (!silent) {
+    if(object_attribution)
+        adm_ranges_print();
     adm_line_table_print();
   }
-
+  // memop_outfile.close(); 
   // TODO: Print the below agian at some point
   // adm_line_table_print();
   adm_db_fini();
