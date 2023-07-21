@@ -25,7 +25,101 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <iostream>
 #include <stdint.h>
+#include <string>
+#include <zstd.h>
+#include <sstream>
+#include <cstdio>
+#include <mutex>
+
+int fread_ss(void *buffIn, size_t toRead, std::stringstream &ss);
+void write_to_stream(ZSTD_CStream *cs, std::string msg, void *buffIn,
+    void *buffOut, size_t buffInSize, size_t buffOutSize,
+    FILE *fout);
+
+class Logger {
+  private:
+  FILE *fout;
+  size_t buffInSize;
+  size_t buffOutSize;
+  void *buffIn;
+  void *buffOut;
+  std::mutex log_mutex;
+  ZSTD_CStream *cs;
+  public:
+
+  Logger(std::string filename) {
+    cs = ZSTD_createCStream();
+
+    // TODO: Try changing compression level to 3
+    ZSTD_initCStream(cs, 1);
+
+    buffInSize = ZSTD_CStreamInSize();
+    buffIn = malloc(buffInSize);
+    buffOutSize = ZSTD_CStreamOutSize();
+    buffOut = malloc(buffOutSize);
+    fout = fopen(filename.c_str(), "wb");
+  }
+
+  ~Logger() {
+    ZSTD_outBuffer output = {buffOut, buffOutSize, 0};
+    size_t const remainingToFlush = ZSTD_endStream(cs, &output); /* close frame */
+    if (remainingToFlush) {
+      fprintf(stderr, "not fully flushed");
+      exit(13);
+    }
+
+    fwrite(buffOut, 1, output.pos, fout);
+    fclose(fout);
+
+    free(buffOut);
+    free(buffIn);
+  }
+
+  void log(std::string msg) {
+    log_mutex.lock();
+    write_to_stream(cs, msg, buffIn, buffOut, buffInSize, buffOutSize, fout);
+    log_mutex.unlock();
+  }
+};
+
+
+int fread_ss(void *buffIn, size_t toRead, std::stringstream &ss) {
+  ss.read((char *)buffIn, toRead);
+  return ss.gcount();
+}
+
+void write_to_stream(ZSTD_CStream *cs, std::string msg, void *buffIn,
+    void *buffOut, size_t buffInSize, size_t buffOutSize,
+    FILE *fout) {
+
+  std::stringstream ss(msg);
+  size_t read, toRead = buffInSize;
+
+  while (!ss.eof()) {
+    read = fread_ss(buffIn, toRead, ss);
+    if (read == 0)
+      continue;
+
+    ZSTD_inBuffer input = {buffIn, read, 0};
+    while (input.pos < input.size) {
+      ZSTD_outBuffer output = {buffOut, buffOutSize, 0};
+      toRead = ZSTD_compressStream(cs, &output, &input);
+      if (ZSTD_isError(toRead)) {
+        fprintf(stderr, "ZSTD_compressStream() error : %s \n",
+            ZSTD_getErrorName(toRead));
+        exit(12);
+      }
+
+      if (toRead > buffInSize)
+        toRead = buffInSize;
+
+      fwrite(buffOut, 1, output.pos, fout);
+    }
+  }
+}
+
 
 const char* find_cbid_name(nvbit_api_cuda_t cbid) {
   switch (cbid) {

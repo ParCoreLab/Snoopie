@@ -79,6 +79,9 @@ static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 static int global_index = 0;
+
+Logger logger("snoopie-out.zst");
+
 //static std::pair<std::vector<int>, std::vector<int>> line_tracking;
 std::map<std::string, std::tuple<std::string, std::vector<int>, std::vector<int>>> line_tracking;
 
@@ -329,6 +332,7 @@ std::string find_recorded_kernel(const std::string& curr_kernel)
 	//std::cerr << "chosen_key: " << chosen_key << "\n"; 
 	return chosen_key;
 }
+
 
 void nvbit_at_init()
 {
@@ -757,7 +761,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     // Log this operation
 
-    std::cout << find_cbid_name(cbid) << "," 
+    std::stringstream ss;
+    ss << find_cbid_name(cbid) << "," 
       << HEX(p->dstDevice) << ","
       << -1  << ","
       << srcDeviceID       << ","
@@ -768,6 +773,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       << HEX(offset_address_range) << ","
       << p->ByteCount
       << std::endl;
+    logger.log(ss.str());
 
   } else if (is_exit && cbid == API_CUDA_cuMemcpyDtoD_v2) {
 
@@ -794,7 +800,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     // Log this operation
 
-    std::cout << find_cbid_name(cbid) << "," 
+    std::stringstream ss;
+    ss << find_cbid_name(cbid) << "," 
       << HEX(p->dstDevice) << ","
       << -1  << ","
       << srcDeviceID       << ","
@@ -805,6 +812,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       << HEX(offset_address_range) << ","
       << p->ByteCount
       << std::endl;
+
+    logger.log(ss.str());
   }
 
   skip_callback_flag = false;
@@ -923,6 +932,25 @@ void *recv_thread_fun(void *args)
   ChannelHost *ch_host = &ctx_state->channel_host;
   pthread_mutex_unlock(&mutex1);
   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
+
+  ZSTD_CStream *cs = ZSTD_createCStream();
+
+  // TODO: Try changing compression level to 3
+  size_t const initResult = ZSTD_initCStream(cs, 1);
+
+  size_t const buffInSize = ZSTD_CStreamInSize();
+  void *const buffIn = malloc(buffInSize);
+  size_t const buffOutSize = ZSTD_CStreamOutSize();
+  void *const buffOut = malloc(buffOutSize);
+  FILE *const fout = fopen("snoopie-log.zst", "wb");
+
+  if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
+    std::stringstream ss;
+    ss << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
+    logger.log(ss.str());
+  }
+
+
 
   bool done = false;
   while (!done)
@@ -1043,13 +1071,27 @@ void *recv_thread_fun(void *args)
               << 4 
               << std::endl;
           }
-          std::cout << ss.str() << std::flush;
+          // std::cout << ss.str() << std::flush;
+          // write_to_stream(cs, ss, buffIn, buffOut, buffInSize, buffOutSize, fout);
+          logger.log(ss.str());
         }
         num_processed_bytes += sizeof(mem_access_t);
       }
     }
   }
+
+  ZSTD_outBuffer output = {buffOut, buffOutSize, 0};
+  size_t const remainingToFlush = ZSTD_endStream(cs, &output); /* close frame */
+  if (remainingToFlush) {
+    fprintf(stderr, "not fully flushed");
+    exit(13);
+  }
+
+  fwrite(buffOut, 1, output.pos, fout);
+
   free(recv_buffer);
+  free(buffOut);
+  free(buffIn);
   return NULL;
 }
 
@@ -1068,9 +1110,6 @@ void nvbit_at_ctx_init(CUcontext ctx)
       ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
-  if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
-    std::cout << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
-  }
 }
 
 void nvbit_at_ctx_term(CUcontext ctx)
