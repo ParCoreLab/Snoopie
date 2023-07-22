@@ -16,6 +16,8 @@ from plotly.subplots import make_subplots
 from streamlit_plotly_events import plotly_events
 import plotly.graph_objects as go
 import json
+import zstandard as zstd
+import io
 
 
 data_by_address = {}
@@ -95,19 +97,29 @@ def isInt_try(v):
 @st.cache_data
 def read_data(file):
     global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev
+
+
     f = open(file, "r")
 
-    ops_set = set()
-    addrs_set = set()
+    if file.endswith(".zst"):
+        f = open(file, "rb")
+        dctx = zstd.ZstdDecompressor()
+        reader = dctx.stream_reader(f)
+        f = io.TextIOWrapper(reader, encoding='utf-8')
+
 
     if f is None:
         print("File not found")
         exit(0)
-    
+
+    ops_set = set()
+    addrs_set = set()
+
+
     # prints all files
     graph_name = ""
     pickle_file = None
-            
+
     pickle_filename = ''.join(file.split(".")[:-1]) + '.pkl'
     if os.path.isfile(pickle_filename):
         with open(pickle_filename, 'rb') as f:
@@ -145,6 +157,8 @@ def read_data(file):
                 obj_name = data["obj_offset"]
                 operation = data["op_code"]
                 linenum = data["code_linenum"]
+                # TODO: Use this when computing the overall bytes transfered
+                # mem_range = data["mem_range"]
 
                 addrs.add(address)
 

@@ -40,7 +40,7 @@ Language: python 3.7+
 Required streamlit python libraries: streamlit, streamlit_agraph, extra_streamlit_components, streamlit_plotly_events
 Other required libraries: seaborn, pandas, plotly
 ```
-pip install seaborn pandas plotly streamlit streamlit_agraph extra_streamlit_components streamlit_plotly_events
+pip install seaborn pandas plotly streamlit streamlit_agraph extra_streamlit_components streamlit_plotly_events zstandard
 cd visualizer; pip install st-click-detector-0.1.3/
 ```
 
@@ -48,4 +48,3 @@ cd visualizer; pip install st-click-detector-0.1.3/
 ```
 streamlit run visualizer/parse_and_vis.py <my_data_file.txt>
 ```
-
