@@ -231,6 +231,7 @@ int main(int argc, char* argv[]) {
     int num_devices;
     CUDA_RT_CALL(cudaGetDeviceCount(&num_devices));
 
+    //std::cerr << "num_devices: " << num_devices << "\n";
     int local_rank = -1;
     int local_size = 1;
     {
@@ -238,7 +239,7 @@ int main(int argc, char* argv[]) {
         MPI_CALL(MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL,
                                      &local_comm));
 
-        MPI_CALL(MPI_Comm_rank(local_comm, &local_rank));
+        MPI_CALL(MPI_Comm_rank(/*local_comm*/MPI_COMM_WORLD, &local_rank));
         MPI_CALL(MPI_Comm_size(local_comm, &local_size));
 
         MPI_CALL(MPI_Comm_free(&local_comm));
@@ -410,7 +411,7 @@ int main(int argc, char* argv[]) {
         int curr = (iter + 1) % 2;
 
         CUDA_RT_CALL(cudaStreamWaitEvent(compute_stream, reset_l2_norm_done[curr], 0));
-	//printf("a kernel is launched in mype: %d\n", mype);
+	//printf("a kernel is launched in mype: %d to device %d\n", mype, local_rank);
         jacobi_kernel<dim_block_x, dim_block_y>
             <<<dim_grid, {dim_block_x, dim_block_y, 1}, 0, compute_stream>>>(
                 a_new, a, l2_norm_bufs[curr].d, iy_start, iy_end, nx, top_pe, iy_end_top, bottom_pe,

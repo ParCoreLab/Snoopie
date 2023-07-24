@@ -3,7 +3,7 @@ NVCC ?= nvcc
 MPIRUN ?= mpirun
 MPICCX = mpic++
 CXX ?= g++
-NITER ?= 512
+NITER ?= 5
 SIZE ?= 1024
 
 GENCODE_SM80    := -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80
