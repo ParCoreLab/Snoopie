@@ -1016,18 +1016,20 @@ void *recv_thread_fun(void *args)
 
           if (object_attribution) {
             range = adm_range_find(ma->addrs[i]);
-            allocation_pc = range->get_allocation_pc();
-            if(object_exists(allocation_pc)) {
-              varname = get_object_var_name(allocation_pc);
-              filename = get_object_file_name(allocation_pc);
-              funcname = get_object_func_name(allocation_pc);
-              linenum = get_object_line_num(allocation_pc);
-              dev_id = range->get_device_id();
-              data_type_size = get_object_data_type_size(allocation_pc);
-              index_in_object = range->get_index_in_object();
-            }
-            index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
-            offset_address_range = range->get_address();
+	    if(range != nullptr) {
+            	allocation_pc = range->get_allocation_pc();
+            	if(object_exists(allocation_pc)) {
+              		varname = get_object_var_name(allocation_pc);
+              		filename = get_object_file_name(allocation_pc);
+              		funcname = get_object_func_name(allocation_pc);
+              		linenum = get_object_line_num(allocation_pc);
+              		dev_id = range->get_device_id();
+              		data_type_size = get_object_data_type_size(allocation_pc);
+              		index_in_object = range->get_index_in_object();
+            	}
+            	index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
+            	offset_address_range = range->get_address();
+	    }
           }
 
           if (silent) continue;
