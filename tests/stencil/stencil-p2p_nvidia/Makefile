@@ -21,7 +21,7 @@ jacobi: Makefile jacobi.cu
 
 .PHONY.: clean
 clean:
-	rm -f jacobi jacobi.qdrep jacobi.cubin libwrapper.so testfile.txt wrapper.o
+	rm -f jacobi jacobi.qdrep jacobi.cubin libwrapper.so testfile.txt wrapper.o *zst *txt
 
 sanitize: jacobi
 	compute-sanitizer ./jacobi -niter 10
@@ -31,7 +31,7 @@ run: jacobi
 	@ # LD_PRELOAD="../../tools/cudaops/cudaops.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 
 profile: jacobi
-	NOBANNER=1 KERNEL_NAME="void jacobi_kernel<32, 32>" CODE_ATTRIBUTION=1 LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
+	NOBANNER=1 KERNEL_NAME="void jacobi_kernel<32, 32>" CODE_ATTRIBUTION=1 SAMPLE_SIZE=10 LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	# NOBANNER=1 SILENT=1 LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:. SILENT=0 KERNEL_NAME="void jacobi_kernel<32, 32>" LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	# NOBANNER=1 SILENT=0 LD_PRELOAD="../../tools/mem_trace/mem_trace.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	@# nsys profile --trace=cuda,nvtx -o jacobi ./jacobi -niter 10

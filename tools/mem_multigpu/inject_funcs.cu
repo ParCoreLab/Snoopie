@@ -27,6 +27,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
+//#include <curand.h>
+//#include <curand_kernel.h>
 
 #include "utils/utils.h"
 
@@ -51,7 +53,8 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
                                                        uint64_t grid_launch_id,
                                                        uint64_t pchannel_dev,
                                                        int global_index,
-                                                       int func_id) {
+                                                       int func_id,
+						       int sample_size) {
     /* if thread is predicated off, return */
     if (!pred) {
         return;
@@ -87,8 +90,16 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
     ma.thread_index = blockId * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.z * (blockDim.x * blockDim.y)) + (threadIdx.y * blockDim.x) + threadIdx.x;
 
     /* first active lane pushes information on the channel */
+//#if 0
     if (first_laneid == laneid) {
         ChannelDev* channel_dev = (ChannelDev*)pchannel_dev;
-        channel_dev->push(&ma, sizeof(mem_access_t));
+	//curandState state;
+	long rand_num = clock64() % 100000;
+        //curand_init(clock64(), ma.thread_index, 0, &state);
+
+        //float randf = curand_uniform(&state);
+	if (rand_num < 100000/sample_size)
+        	channel_dev->push(&ma, sizeof(mem_access_t));
     }
+//#endif
 }

@@ -154,6 +154,7 @@ std::string kernel_name;
 int verbose = 0;
 int silent = 0;
 int code_attribution = 0;
+int sample_size;
 
 /* opcode to id map and reverse map  */
 std::map<std::string, int> opcode_to_id_map;
@@ -350,6 +351,7 @@ void nvbit_at_init()
 
   GET_VAR_STR(kernel_name, "KERNEL_NAME", "Specify the name of the kernel to track");
   GET_VAR_INT(code_attribution, "CODE_ATTRIBUTION", 0, "Enable source code line attribution");
+  GET_VAR_INT(sample_size, "SAMPLE_SIZE", 0, "Setting the sample size, if 100, it means 1/100 of population is sampled");
 
   std::string pad(100, '-');
   if (verbose)
@@ -568,6 +570,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
         if (op->type == InstrType::OperandType::MREF)
         {
+//#if 0
           /* insert call to the instrumentation function with its
            * arguments */
           nvbit_insert_call(instr, "instrument_mem", IPOINT_BEFORE);
@@ -590,7 +593,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
               instr, (uint64_t)ctx_state->channel_dev);
           nvbit_add_call_arg_const_val32(instr, global_index-1);
           nvbit_add_call_arg_const_val32(instr, func_id);
+	  nvbit_add_call_arg_const_val32(instr, sample_size);
           mref_idx++;
+//#endif
         }
       }
       cnt++;
