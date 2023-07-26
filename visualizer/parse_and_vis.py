@@ -158,7 +158,18 @@ def read_data(file):
                 operation = data["op_code"]
                 linenum = data["code_linenum"]
                 # TODO: Use this when computing the overall bytes transfered
-                # mem_range = data["mem_range"]
+                mem_range = data["mem_range"]
+
+                if "U8" in operation:
+                    mem_range = 4
+                if "U16" in operation:
+                    mem_range = 8
+                elif "32" in operation:
+                    mem_range = 4
+                elif "64" in operation:
+                    mem_range = 8
+                elif "128" in operation:
+                    mem_range = 16
 
                 addrs.add(address)
 
@@ -193,12 +204,13 @@ def read_data(file):
                 temp_lines = temp_data.get('lines', set())
                 temp_lines.add('line_' + str(linenum))
                 temp_data['lines'] = temp_lines
-                
+
                 data_by_device[device] = data_by_device.get(device, {})
                 temp_data = data_by_device[device]
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data[operation] = temp_data.get(operation, 0) + 1
                 temp_data[owner] = temp_data.get(owner, 0) + 1
+                temp_data[owner + "bytes"] = temp_data.get(owner + "bytes", 0) + mem_range
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
 
                 data_by_line[linenum] = data_by_line.get(linenum, {})
@@ -375,11 +387,11 @@ def main():
             target_label = "GPU"+str(j)
             width = 0.0
             if (src_label in data_by_device and target_label in data_by_device[src_label]):
-                width = data_by_device[src_label][target_label]
+                width = data_by_device[src_label][target_label + "bytes"]
             widths[i].append(width)
             if width > max_val:
                 max_val = width
-    
+
     norm_ratio = max(max(widths))/max_width
     drawn = [[False] * gpu_num] * gpu_num
 
