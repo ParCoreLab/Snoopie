@@ -351,7 +351,7 @@ void nvbit_at_init()
 
   GET_VAR_STR(kernel_name, "KERNEL_NAME", "Specify the name of the kernel to track");
   GET_VAR_INT(code_attribution, "CODE_ATTRIBUTION", 0, "Enable source code line attribution");
-  GET_VAR_INT(sample_size, "SAMPLE_SIZE", 0, "Setting the sample size, if 100, it means 1/100 of population is sampled");
+  GET_VAR_INT(sample_size, "SAMPLE_SIZE", 1, "Setting the sample size, if 100, it means 1/100 of population is sampled");
 
   std::string pad(100, '-');
   if (verbose)
