@@ -25,6 +25,12 @@ $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" ./mul
 
 $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 ./multigpu-app
 
+> To enable sampling-based profiling, pass SAMPLE_SIZE=<sample_size> environment variable as follow. 
+
+$ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" SAMPLE_SIZE=<sample_size> ./multigpu-app
+
+> Note: <sample_size> determines the sample size. If <sample_size> is 100, it means 1/100 of population is sampled.
+
 > Note: You can use "all" for the `KERNEL_NAME` variable to track all kernels
 
 
