@@ -387,7 +387,7 @@ def main():
             target_label = "GPU"+str(j)
             width = 0.0
             if (src_label in data_by_device and target_label in data_by_device[src_label]):
-                width = data_by_device[src_label][target_label + "bytes"]
+                width = data_by_device[src_label][target_label]
             widths[i].append(width)
             if width > max_val:
                 max_val = width
