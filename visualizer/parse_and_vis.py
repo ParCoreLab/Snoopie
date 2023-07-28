@@ -5,17 +5,17 @@ import streamlit as st
 from streamlit_agraph import agraph, Node, Edge, Config
 import pickle 
 import extra_streamlit_components as stx
+import streamlit.components.v1 as components
 from st_click_detector import click_detector
 import seaborn as sns
 import pandas as pd
 import numpy as np
 import colorsys
-import matplotlib.pyplot as plt
 import plotly.express as px
 from plotly.subplots import make_subplots
 from streamlit_plotly_events import plotly_events
 import plotly.graph_objects as go
-import json
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import zstandard as zstd
 import io
 
@@ -24,20 +24,25 @@ data_by_address = {}
 data_by_device = {}
 data_by_obj = {}
 data_by_line = {}
+src_lines = []
+chosen_line = None
 # addr_obj_map = {}
 
 #####################################
 #     CHANGE THESE WHEN NEEDED!     #
 gpu_num = 4                         #
-src_code_file = "four-gpus.cu"     #
+src_code_file = "workq_ring.cu"     #
 #                                   #
 #####################################
 
 keys = []
 ops = set()
-addrs = set()
 ptx_code = []
 ptx_code_rev = {}
+
+MIN_TABLE_HEIGHT = 60
+ROW_HEIGHT = 30
+MAX_TABLE_HEIGHT = 600
 
 GRAPH_SIZE_LIMIT = 100000
 ADDR_DIST = 4
@@ -96,9 +101,7 @@ def isInt_try(v):
 
 @st.cache_data
 def read_data(file):
-    global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev
-
-
+    global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev
     f = open(file, "r")
 
     if file.endswith(".zst"):
@@ -107,19 +110,16 @@ def read_data(file):
         reader = dctx.stream_reader(f)
         f = io.TextIOWrapper(reader, encoding='utf-8')
 
-
     if f is None:
         print("File not found")
         exit(0)
 
-    ops_set = set()
-    addrs_set = set()
-
-
+    addrs = set()
+    
     # prints all files
     graph_name = ""
     pickle_file = None
-
+            
     pickle_filename = ''.join(file.split(".")[:-1]) + '.pkl'
     if os.path.isfile(pickle_filename):
         with open(pickle_filename, 'rb') as f:
@@ -157,8 +157,7 @@ def read_data(file):
                 obj_name = data["obj_offset"]
                 operation = data["op_code"]
                 linenum = data["code_linenum"]
-                # TODO: Use this when computing the overall bytes transfered
-                mem_range = data["mem_range"]
+                mem_range = data.get("mem_range", 4)
 
                 if "U8" in operation:
                     mem_range = 4
@@ -198,19 +197,21 @@ def read_data(file):
                 data_by_device[pair] = data_by_device.get(pair, {})
                 temp_data = data_by_device[pair]
                 temp_data['total'] = temp_data.get('total', 0) + 1
+                temp_data['totalbytes'] = temp_data.get('totalbytes', 0) + mem_range
                 temp_data[operation] = temp_data.get(operation, 0) + 1
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
                 temp_data['line_' + str(linenum)] = temp_data.get('line_' + str(linenum), 0) + 1
                 temp_lines = temp_data.get('lines', set())
                 temp_lines.add('line_' + str(linenum))
                 temp_data['lines'] = temp_lines
-
+                
                 data_by_device[device] = data_by_device.get(device, {})
                 temp_data = data_by_device[device]
+                temp_data['totalbytes'] = temp_data.get('totalbytes', 0) + mem_range
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data[operation] = temp_data.get(operation, 0) + 1
                 temp_data[owner] = temp_data.get(owner, 0) + 1
-                temp_data[owner + "bytes"] = temp_data.get(owner + "bytes", 0) + mem_range
+                temp_data[owner+'bytes'] = temp_data.get(owner+'bytes', 0) + mem_range
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
 
                 data_by_line[linenum] = data_by_line.get(linenum, {})
@@ -292,15 +293,15 @@ def read_data(file):
         # for elem in list(data_by_obj.keys()):
         #     print(data_by_obj[elem]['var_name'])
 
-        all_data = [data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev]
+        all_data = [data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev]
         
         with open(pickle_filename, 'wb') as pf:
             pickle.dump(all_data, pf)
             print("Data saved to " + pickle_filename)
     else:
-        data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev = pickle_file
+        data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev = pickle_file
 
-    return data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev
+    return data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev
 
 
 def scale_lightness(rgb, scale_l):
@@ -311,7 +312,15 @@ def scale_lightness(rgb, scale_l):
 
 
 def main():
-    global data_by_address, data_by_device, gpu_num, keys, ops, addrs
+    global data_by_address, data_by_device, gpu_num, keys, ops, chosen_line
+
+    st.radio(
+        "Communication units",
+        ["Data transfers", "Bytes"],
+        key="units",
+        horizontal=True
+    )
+
     # date = st.radio("Pick a metric", keys)
     nodes = []
     edges = []
@@ -328,7 +337,7 @@ def main():
     graph_width = 600
     graph_height = 400
     font_size = int(graph_height/22)
-    margin = 20
+    margin = 30
     positions = regular_polygon_coord([int(graph_width/2), int(graph_height/2)], 
                                       int(min(graph_width, graph_height)/2)-margin, gpu_num)
 
@@ -360,13 +369,19 @@ def main():
     rows = int(gpu_num/cols)
     delta_pos = [int((graph_width-2*margin)/max(1, cols-1)), int((graph_height-2*margin)/max(1, rows-1))]
 
+    label_bytes = ""
+
+    if (st.session_state.units == "Bytes"):
+        label_bytes = "bytes"
+
+
     # print(data_by_device)
     for i in range(gpu_num):
         label = "GPU"+str(i)
 
         size = 0.0
         if (label in data_by_device):
-            size = data_by_device[label]['total']
+            size = data_by_device[label]['total' + label_bytes]
         sizes.append(size)
     
     norm_ratio = max(sizes)/max_size
@@ -384,14 +399,14 @@ def main():
         src_label = "GPU"+str(i)
         widths.append([])
         for j in range(gpu_num):
-            target_label = "GPU"+str(j)
+            target_label = "GPU"+str(j)+label_bytes
             width = 0.0
             if (src_label in data_by_device and target_label in data_by_device[src_label]):
                 width = data_by_device[src_label][target_label]
             widths[i].append(width)
             if width > max_val:
                 max_val = width
-
+    
     norm_ratio = max(max(widths))/max_width
     drawn = [[False] * gpu_num] * gpu_num
 
@@ -470,6 +485,8 @@ def main():
     object_view = []
     for dev in range(gpu_num):
         object_view.append({})
+
+    selected_rows = None
 
     for key in data_by_obj.keys():
         offset = int(data_by_obj[key]['offset'], 16)
@@ -552,7 +569,7 @@ def main():
             obj_fig['layout']['xaxis' + str(index-1)].update(dict(title="Offset", title_standoff=8))
                 
             chosen_addr = plotly_events(obj_fig)
-            print(chosen_addr)
+            # print(chosen_addr)
 
             st.markdown("""---""")
 
@@ -652,7 +669,7 @@ def main():
                             table_lines.insert(0, item) 
                         elif '.E' in item[0]:
                             table_instr.append(item)                            
-                        elif item[0].startswith('line'):
+                        elif item[0].startswith('line') or item[0].startswith('totalbytes'):
                             continue
                         else:
                             table_objs.append([data_by_obj[item[0].strip()]['var_name'], item[1]])
@@ -662,98 +679,134 @@ def main():
                     
                     df = pd.DataFrame.from_dict(table_objs)
                     df.columns = ['object', 'count']
-                    cols[other_gpus.index(peer_gpu)].table(df.sort_values(by=['count'], ascending=False))
+                    table_height = min(MIN_TABLE_HEIGHT + len(df) * ROW_HEIGHT, MAX_TABLE_HEIGHT)
+                    with cols[other_gpus.index(peer_gpu)]:
+                        AgGrid(df, height=table_height, fit_columns_on_grid_load=True)
 
                     df = pd.DataFrame.from_dict(table_instr)
                     df.columns = ['instruction', 'count']
-                    cols[other_gpus.index(peer_gpu)].table(df.sort_values(by=['count'], ascending=False))
+                    table_height = min(MIN_TABLE_HEIGHT + len(df) * ROW_HEIGHT, MAX_TABLE_HEIGHT)
+                    with cols[other_gpus.index(peer_gpu)]:
+                        AgGrid(df, height=table_height, fit_columns_on_grid_load=True)
 
                     df = pd.DataFrame.from_dict(table_lines)
                     df.columns = ['code line', 'count']
-                    cols[other_gpus.index(peer_gpu)].table(df.sort_values(by=['count'], ascending=False))
+                    table_height = min(MIN_TABLE_HEIGHT + len(df) * ROW_HEIGHT, MAX_TABLE_HEIGHT)
+                    with cols[other_gpus.index(peer_gpu)]:
+                        gb = GridOptionsBuilder.from_dataframe(df)
+                        gb.configure_selection('single', use_checkbox=False, pre_selected_rows=None)
+                        gridOptions = gb.build()
+                        grid_response = AgGrid(df, gridOptions, height=table_height, fit_columns_on_grid_load=True,
+                                               update_mode = GridUpdateMode.SELECTION_CHANGED)
+                        print(grid_response)
+                        selected_rows = grid_response['selected_rows']
+                        if (len(selected_rows) > 0):
+                            if (selected_rows[0]['code line'] != 'total'):
+                                chosen_line = int(selected_rows[0]['code line'])
+                                tkey = 'table_select' + str(peer_gpu)
+                                if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
+                                    show_sidebar()
+                                    st.session_state[tkey] = chosen_line
+                        # show_sidebar(int(selected_rows['code line']))
                         # .scrollTop = ''' + str(graph_height + i/100) + ''';
-            st.components.v1.html(scroll_js(graph_height + margin + i*0.0001), height=0)
+            components.html(scroll_js(graph_height + margin + i*0.0001), height=0)
             break
 
 
-if __name__ == "__main__":
-    
-    st.set_page_config(layout="wide")
+def show_sidebar():
+    global chosen_line
+    print("CHOSEN LINE " + str(chosen_line))
+    linenum = chosen_line
+    print(linenum)
+    if (linenum in data_by_line):
+        with st.sidebar:
+            linedata = data_by_line[linenum]
+            st.markdown(
+                f'''
+                <style>
+                    .css-1544g2n {{
+                        padding-top: 0px;
+                        margin-top: 0px;
+                        margin-right: {-6}rem;
+                    }}
+                    .css-ysnqb2 {{
+                        margin-top: {0}rem;
+                        padding-top: {0}rem;
+                        padding-right: {-2}rem;
+                        margin-left: -60px;
+                        padding-bottom: {0}rem;
+                    }}
+                </style>
+                ''',
+                unsafe_allow_html=True)
+            st.markdown("# Line " + str(linenum))
+            st.markdown(
+                """
+                <style>
+                :root {
+                    background-color: #f5f5f5;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown("""<head><script>hljs.highlightAll();</script></head><body>
+                            <code class='hljs language-c'>""" + src_lines[linenum-1] + """</code></body>""",
+                unsafe_allow_html=True,)
+            st.markdown("## Total transfers: " + str(linedata['total']))
 
-    if (len(sys.argv) < 2):
-        print("Provide an input file")
-    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, addrs, ptx_code, ptx_code_rev = read_data(sys.argv[1])
-    main()
+            # obj_str = "### Object(s) involved: \\"
+            # for obj in linedata.get('objects', set()):
+            #     obj_str += str(obj) + ": " + str(linedata[obj]) + "" 
 
-    # with st.sidebar:
-    #     st.markdown("""## SASS Instructions""")
-    #     st.markdown("""<small><p style='margin-left:-10px;margin-bottom:-50px;padding-bottom:-50px;'>
-    #                  <span style="color:Tomato;">SASS line</span> | 
-    #                  <span style="color:Tomato;">Code line</span>   |   SASS Instruction</p></small>""",
-    #         unsafe_allow_html=True)
-    #     st.markdown(
-    #         f'''
-    #         <style>
-    #             .css-1544g2n.e1fqkh3o4 {{
-    #                 padding-top: 0px;
-    #                 margin-top: 0px;
-    #                 margin-right: -50px;
-    #             }}
-    #             .css-ysnqb2.egzxvld4 {{
-    #                 {0}
-    #                 margin-top: {0}rem;
-    #                 padding-top: {0}rem;
-    #                 padding-right: {0}rem;
-    #                 padding-left: -60px;
-    #                 margin-left: -60px;
-    #                 padding-bottom: {0}rem;
-    #             }}
-    #         </style>
-    #         ''',
-    #         unsafe_allow_html=True)
-        
-    #     content_head = """<head><link rel="stylesheet"
-    #     href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
-    #     <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    #     <script>hljs.highlightAll();</script></head><body><pre>"""
-    #     content_end = """</pre></body>"""
+            # st.markdown(obj_str)
+            
+            cols_rows_name = ['GPU%d' % i for i in range(gpu_num)]
 
-    #     total_lines = len(ptx_code)
-    #     index_chars = len(str(len(ptx_code)))+1
-    #     if total_lines > 0:
-    #         index_chars_src = len(str(ptx_code[-1][1]))
-    #         line_index = 0
-    #         for line, linenum in ptx_code:
-    #             line_index+=1
-    #             linenum = abs(linenum)
-    #             ls = len(line) - len(line.lstrip())
-    #             line = line.replace('<', '&lt')
-    #             line = line.replace('>', '&gt')
-    #             # st.code(str(line_index)+ '.  ' + line)
-    #             content_head+="""<a id='ptxline""" + str(line_index) + """'><code class='hljs language-c'
-    #                             style='padding-left:-100px;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
-    #             if line_index == 1:
-    #                 content_head+=";margin-top:-50px'>"
-    #             else:
-    #                 content_head+=";margin-top:0;padding-top:0'>"
-    #             content_head += str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) \
-    #                             + str(linenum)+ '.' + ''.join([' '*(index_chars_src-len(str(linenum)))]) + ' | ' + line + "</code></a>"
-    #         clicked_ptx = click_detector(content_head + content_end)
-    #     # print(clicked_ptx)
-    #     # if 'ptxline' in clicked_ptx:
-    #     #     st.components.v1.html(scroll_js_to_line(abs(ptx_code[int(clicked_ptx[7:])][1])), height=0)
+            widths = []
 
-    st.markdown("""---""")
+            for i in range(gpu_num):
+                src_label = "GPU"+str(i)
+                widths.append([])
+                for j in range(gpu_num):
+                    target_label = "GPU"+str(j)
+                    pair_label = src_label+"-"+target_label
+                    width = 0.0
+                    if (pair_label in linedata):
+                        width = linedata[pair_label]
+                    widths[i].append(width)
 
-    f = None
-    if os.path.exists(src_code_file):
-        f = open(src_code_file, "r")
+            df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype('int')
+            fig = px.imshow(df, color_continuous_scale=colorscale, 
+                    labels=dict(x="Owner", y="Issued by", color="Data transfer<br>count"))
+            fig.update_traces(colorbar=dict(lenmode='fraction', len=0.5, thickness=10))
+            fig.update_layout(
+                font_family="Open Sans, sans-serif",
+                # font_color="#fafafa",
+                # paper_bgcolor="#0e1117",
+                # paper_bgcolor="#e6e6e6",
+                font_color="#1a1a1a",
+                paper_bgcolor="#f5f5f5",
+            )
+            fig.update_yaxes(title_standoff = 10)
 
-    if f is None:
-        print("Source code file not found")
-        exit(0)
+            fig.layout.width = 300
+            fig.layout.height = 300
+            chosen_point = plotly_events(fig)
+            # print(chosen_point)
+            if len(chosen_point) > 0:
+                chosen_point = chosen_point[0]['pointNumber']
+            else:
+                chosen_point = None
+            st.session_state.sidebar_state = 'expanded'
+
+def read_code(f):
+    global src_lines
+    src_lines = f.readlines()
 
 
+def show_code():
+    global src_lines, chosen_line
     content_head = """<head>
         <style>
             .percentage {
@@ -781,15 +834,14 @@ if __name__ == "__main__":
 
     # https://colorkit.co/palette/413344-614c65-806485-936397-a662a8-664972-463c57-6e8da9-
     # 91bcdd-567d99-395e77-305662-264d4d-315c45-8a9a65-b6b975-b65d54-b60033-98062d-800022/
-    pal_base = sns.blend_palette(pal_base[:-3], n_colors=32)
-    pal = sns.color_palette([scale_lightness(color, 1.2) for color in pal_base]).as_hex()
+    pal_base_lines = sns.blend_palette(pal_base[:-3], n_colors=32)
+    pal = sns.color_palette([scale_lightness(color, 1.2) for color in pal_base_lines]).as_hex()
     pal.reverse()
 
-    lines = f.readlines()
-    total_lines = len(lines)
+    total_lines = len(src_lines)
     index_chars = len(str(total_lines))+1
     line_index = 0
-    for line in lines:
+    for line in src_lines:
         line_index+=1
         ls = len(line) - len(line.lstrip())
         line = line.replace('<', '&lt')
@@ -800,20 +852,17 @@ if __name__ == "__main__":
         comm_percentage = 0.0
         if data_by_line.get(line_index, None) is not None:
             comm_percentage = float(data_by_line[line_index]['total'])/float(total_comm)*100
+        div_inject = "<div class='percentage' style='background-color:" + pal[int(comm_percentage)%len(pal)] + ";opacity:0.4;width:" + str(comm_percentage) + "%'></div>"
+        
         str_percentage = f"{comm_percentage:2.2f}%"
         if (comm_percentage < 10.0):
             str_percentage = " " + str_percentage
         if (comm_percentage == 0):
-            str_percentage = " " * 6    
+            str_percentage = " " * 6
         div_inject = "<span style='display:inline-block;' >"+ str_percentage +"</span>"
-        content_head+="""<div id='d""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a
-                          id='line""" + str(line_index) + """' style='display:inline-block;'><code class='hljs language-c'
-                          style='position:relative;width:100%; background-color:rgb(0,0,0,0);margin-bottom:0;
-                          padding-bottom:0;overflow-x:hidden;"""
-        #div_inject = "<div class='percentage' style='background-color:" + pal[int(comm_percentage)%len(pal)] + ";opacity:0.4;width:" + str(comm_percentage) + "%'></div>"
-        #content_head+="""<div id='line""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a 
-        #                id='line""" + str(line_index) + """'><code class='hljs language-c' style='position:relative;width:100%;
-        #                background-color:rgb(0,0,0,0);margin-bottom:0;padding-bottom:0;overflow-x:hidden;"""
+        content_head+="""<div id='d""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a 
+                        id='line""" + str(line_index) + """' style='display:inline-block;'><code class='hljs language-c' style='position:relative;width:100%;
+                        background-color:rgb(0,0,0,0);margin-bottom:0;padding-bottom:0;overflow-x:hidden;"""
         # if line_index in ptx_code_rev.keys():
         #     print("THE LINE!")
         #     print(line_index)
@@ -822,7 +871,7 @@ if __name__ == "__main__":
             content_head+="'>"
         else:
             content_head+=";margin-top:0;padding-top:0'>"
-        content_head+=str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) + line + "</a></code>"
+        content_head+=str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) + line + "</a></code></div>"
         # content_head+="<progress style='position:absolute;top:0;left:0;z-index:-1;' value='" + str(comm_percentage) + "' max='100'> 32% </progress></div>"
 
 
@@ -839,85 +888,32 @@ if __name__ == "__main__":
     )
     
     if clicked_src:
-        linenum = int(clicked_src[4:])
-        if (linenum in data_by_line):
-            with st.sidebar:
-                linedata = data_by_line[linenum]
-                st.markdown(
-                    f'''
-                    <style>
-                        .css-1544g2n {{
-                            padding-top: 0px;
-                            margin-top: 0px;
-                            margin-right: {-6}rem;
-                        }}
-                        .css-ysnqb2 {{
-                            margin-top: {0}rem;
-                            padding-top: {0}rem;
-                            padding-right: {-2}rem;
-                            margin-left: -60px;
-                            padding-bottom: {0}rem;
-                        }}
-                    </style>
-                    ''',
-                    unsafe_allow_html=True)
-                st.markdown("# Line " + str(linenum))
-                st.markdown(
-                    """
-                    <style>
-                    :root {
-                        background-color: #f5f5f5;
-                    }
-                    </style>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.markdown("""<head><script>hljs.highlightAll();</script></head><body>
-                                <code class='hljs language-c'>""" + lines[linenum-1] + """</code></body>""",
-                    unsafe_allow_html=True,)
-                st.markdown("## Total transfers: " + str(linedata['total']))
+        chosen_line = int(clicked_src[4:])
+        ckey = 'code_select'
+        if (ckey not in st.session_state or st.session_state[ckey] != chosen_line):
+            show_sidebar()
+            st.session_state[ckey] = chosen_line
 
-                # obj_str = "### Object(s) involved: \\"
-                # for obj in linedata.get('objects', set()):
-                #     obj_str += str(obj) + ": " + str(linedata[obj]) + "" 
+if __name__ == "__main__":
+    
+    st.set_page_config(layout="wide")
 
-                # st.markdown(obj_str)
-                
-                cols_rows_name = ['GPU%d' % i for i in range(gpu_num)]
+    if (len(sys.argv) < 2):
+        print("Provide an input file")
+    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev = read_data(sys.argv[1])
 
-                widths = []
+    f = None
+    if os.path.exists(src_code_file):
+        f = open(src_code_file, "r")
 
-                for i in range(gpu_num):
-                    src_label = "GPU"+str(i)
-                    widths.append([])
-                    for j in range(gpu_num):
-                        target_label = "GPU"+str(j)
-                        pair_label = src_label+"-"+target_label
-                        width = 0.0
-                        if (pair_label in linedata):
-                            width = linedata[pair_label]
-                        widths[i].append(width)
+    if f is None:
+        print("Source code file not found")
+        exit(0)
 
-                df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype('int')
-                fig = px.imshow(df, color_continuous_scale=colorscale, 
-                        labels=dict(x="Owner", y="Issued by", color="Data transfer<br>count"))
-                fig.update_traces(colorbar=dict(lenmode='fraction', len=0.5, thickness=10))
-                fig.update_layout(
-                    font_family="Open Sans, sans-serif",
-                    # font_color="#fafafa",
-                    # paper_bgcolor="#0e1117",
-                    # paper_bgcolor="#e6e6e6",
-                    font_color="#1a1a1a",
-                    paper_bgcolor="#f5f5f5",
-                )
-                fig.update_yaxes(title_standoff = 10)
+    read_code(f)
+    main()
 
-                fig.layout.width = 300
-                fig.layout.height = 300
-                chosen_point = plotly_events(fig)
-                # print(chosen_point)
-                if len(chosen_point) > 0:
-                    chosen_point = chosen_point[0]['pointNumber']
-                else:
-                    chosen_point = None
+    st.markdown("""---""")
+
+    show_code()
     # print(clicked_src)
