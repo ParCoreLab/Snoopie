@@ -27,7 +27,7 @@ sanitize: jacobi
 	compute-sanitizer ./jacobi -niter 10
 
 run: jacobi
-	NOBANNER=1 ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
+	./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	@ # LD_PRELOAD="../../tools/cudaops/cudaops.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 
 profile: jacobi

@@ -29,6 +29,9 @@
 
 /* information collected in the instrumentation function and passed
  * on the channel from the GPU to the CPU */
+
+#ifndef MEMTINGS2
+#define MEMTINGS2
 typedef struct {
     // uint64_t grid_launch_id;
     int dev_id;
@@ -45,3 +48,4 @@ typedef struct {
     uint64_t thread_index;
     //uint64_t allocation_pc;
 } mem_access_t;
+#endif

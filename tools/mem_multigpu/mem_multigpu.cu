@@ -87,23 +87,6 @@ Logger logger("snoopie-log-" + std::to_string(getpid()) + ".zst");
 //static std::pair<std::vector<int>, std::vector<int>> line_tracking;
 std::map<std::string, std::tuple<std::string, std::vector<int>, std::vector<int>>> line_tracking;
 
-struct CTXstate
-{
-  /* context id */
-  int id;
-
-  /* Channel used to communicate from GPU to CPU receiving thread */
-  ChannelDev *channel_dev;
-  ChannelHost channel_host;
-};
-
-struct MemoryAllocation
-{
-  int deviceID;
-  uint64_t pointer;
-  uint64_t bytesize;
-};
-
 void initialize_object_table(int size);
 
 void initialize_line_table(int size);
@@ -391,7 +374,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
 
-  // std::cout << "about to instrument" << std::endl;
   if (already_instrumented.count(func))
   {
     return;
@@ -434,7 +416,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     std::string curr_kernel_name = nvbit_get_func_name(ctx, f);
 
     std::size_t parenthes_pos = curr_kernel_name.find_first_of('(');
-    //std::cerr << "before encoded_kernel_name\n";
+
     if(parenthes_pos != std::string::npos)
     	curr_kernel_name.erase(parenthes_pos);
     std::string encoded_kernel_name;
@@ -443,37 +425,26 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     std::string path;
 
     if(code_attribution) {
-	//std::cerr << "test 1\n";
+
 	curr_kernel_name = nvbit_get_func_name(ctx, f);
-	//std::cerr << "curr_kernel_name: " << curr_kernel_name << "\n";
 	parenthes_pos = curr_kernel_name.find_first_of('<');
 	if(parenthes_pos != std::string::npos) {
 		curr_kernel_name.erase(parenthes_pos);
-	//std::cerr << "curr_kernel_name: " << curr_kernel_name << " 2\n";
 	}
 	else {
-		//std::cerr << "curr_kernel_name 2: " << curr_kernel_name << "\n";
 		parenthes_pos = curr_kernel_name.find_first_of('(');
 		if(parenthes_pos != std::string::npos)
 			curr_kernel_name.erase(parenthes_pos);
 	}
-	//std::cerr << "curr_kernel_name 3: " << curr_kernel_name << "\n";
 	std::istringstream tokenized_kern_name(curr_kernel_name);
 	std::string name;
 	while (std::getline(tokenized_kern_name, name, ' '));
-	//name.erase(0, name.find_last_of(':'));
-	//trim(name, ":");
-	//std::cerr << "test 1.1 " << name << "\n";
 	encoded_kernel_name = find_recorded_kernel(name);
-	//std::cerr << "test 1.2 encoded_kernel_name: " << encoded_kernel_name << "\n";
 	path = get<0>(line_tracking[encoded_kernel_name]);
 	if(path.size() > 0) {
 		std::istringstream tokenized_path(path);
     		while (std::getline(tokenized_path, file, '/'));
-    		//path = get<0>(line_tracking[encoded_kernel_name]);
-		//std::cerr << "path: " << path << " file: " << file << "\n";
     		path.erase(path.size()-file.size()-1, file.size()+1);
-		//std::cerr << "test 2\n";
 	}
     }
 
@@ -496,17 +467,12 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       std::string filename = file_name;
       std::string dirname = dir_name;
       std::string sass = instr->getSass();
-      //std::cout << "sass is detected: " << sass << "\n";
- 
-// before
+
       if(code_attribution && path.size() > 0) {
       	std::istringstream input1(sass);
       	for (std::string word; std::getline(input1, word, ' '); ) {
 	      if(word.substr(0,3) == "LDG" || word.substr(0,3) == "LD.") {
-		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
-		      //line_tracking.first.push_back(curr_line);
 		      if(!ret_line_info) {
-			//std::cout << "ldg_count: " << ldg_count << " " << line_tracking.first[ldg_count] << "\n";
 		      	line_num = get<1>(line_tracking[encoded_kernel_name])[ldg_count]; //line_tracking.first[ldg_count];
 			dirname = path;
 			filename = file;
@@ -514,9 +480,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 		      ldg_count++;
 	      } 
 	      else if(word.substr(0,3) == "STG" || word.substr(0,3) == "ST.") {
-		      //std::cout << word.substr(0,3) << " found in line " << curr_line << "\n";
 		      if(!ret_line_info) {
-			//std::cout << "stg_count: " << stg_count << " " << line_tracking.second[stg_count] << "\n";
                         line_num = get<2>(line_tracking[encoded_kernel_name])[stg_count]; //line_tracking.second[stg_count];
 			dirname = path;
                         filename = file;
@@ -525,9 +489,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 	      }
       	}
       }
-// after      
-      //free(file_name);
-      //free(dir_name);
+
       short estimated_status = 2; // it is estimated
       if(line_num != 0) {
 
@@ -581,7 +543,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           /* device id */
           int dev_id = -1;
           cudaGetDevice(&dev_id);
+          
           nvbit_add_call_arg_const_val32(instr, dev_id);
+          //  nvbit_add_call_arg_const_val32(instr, ctx_state->id);
           /* memory reference 64 bit address */
           nvbit_add_call_arg_mref_addr64(instr, mref_idx);
           /* add "space" for kernel function pointer that will be set
@@ -748,6 +712,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
+
+    for (const auto & ctx_map_pair : ctx_state_map) {
+      ctx_map_pair.second->channel_dev->add_malloc(ma);
+    }
 
     if (JSON) {
       std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
@@ -938,12 +906,20 @@ void *recv_thread_fun(void *args)
 
   CUcontext ctx = (CUcontext)args;
 
+
   pthread_mutex_lock(&mutex1);
   /* get context state from map */
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
 
+  int dev_id = -1;
+  cudaGetDevice(&dev_id);
+  ctx_state->id = dev_id;
+
   ChannelHost *ch_host = &ctx_state->channel_host;
+  ch_host->setID(dev_id);
+
+
   pthread_mutex_unlock(&mutex1);
   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
 
@@ -1097,6 +1073,7 @@ void nvbit_at_ctx_init(CUcontext ctx)
   assert(ctx_state_map.find(ctx) == ctx_state_map.end());
   ctx_state_map[ctx] = ctx_state;
   cudaMallocManaged(&ctx_state->channel_dev, sizeof(ChannelDev));
+
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
       ctx_state->channel_dev, recv_thread_fun, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());

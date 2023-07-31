@@ -38,6 +38,32 @@
 #define ULL unsigned long long int
 // #define USE_ASYNC_STREAM
 
+#ifndef MEMTINGS2
+#define MEMTINGS2
+typedef struct {
+    int dev_id;
+
+    int lane_id;
+    int func_id;
+    int opcode_id;
+    uint64_t addrs[32];
+
+    int global_index;
+    uint64_t thread_index;
+} mem_access_t;
+#endif
+
+#ifndef MEMTINGS
+#define MEMTINGS
+struct MemoryAllocation
+{
+  int deviceID;
+  uint64_t pointer;
+  uint64_t bytesize;
+};
+#endif
+
+
 class ChannelDev {
   private:
     int id;
@@ -50,13 +76,57 @@ class ChannelDev {
     uint8_t* volatile buff_write_head_ptr;
     uint8_t* volatile buff_write_tail_ptr;
 
+    MemoryAllocation* mallocs_record;
+
+    uint64_t no_mallocs = 0;
+
   public:
     ChannelDev() {}
+
+    void setID(int id) {
+      this->id = id;
+    }
+
 
     __device__ __forceinline__ void push(void* packet, uint32_t nbytes) {
         assert(nbytes != 0);
 
         uint8_t* curr_ptr = NULL;
+
+        
+        mem_access_t* mc = (mem_access_t*) packet;
+
+
+        // TODO: CHECK all packets, if any of them is a remote address, allow to push, otherwise skip
+
+
+        bool found_remote = false;
+
+        for (int i = 0; i < 32; i++) {
+          uint64_t ptr = mc->addrs[i];
+
+          if (found_remote) break;
+
+
+          for (int j = 0; j < no_mallocs; j++) {
+            MemoryAllocation ma = mallocs_record[j];
+            if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
+            {
+
+              if (ma.deviceID != this->id) {
+                found_remote = true;
+              }
+
+              continue;
+            }
+          }
+        }
+
+        if (!found_remote) {
+          nbytes = 0; // sizeof(mem_access_t);
+        }
+
+
 
         while (curr_ptr == NULL) {
             curr_ptr =
@@ -114,6 +184,10 @@ class ChannelDev {
 
         // printf("FLUSH CHANNEL#%d: DONE\n", id);
     }
+  
+    void add_malloc(MemoryAllocation ma) {
+      mallocs_record[no_mallocs++] = ma;
+    }
 
   private:
     /* called by the ChannelHost init */
@@ -127,11 +201,13 @@ class ChannelDev {
 #else
         CUDA_SAFECALL(cudaMallocManaged((void**)&buff, buff_size));
 #endif
+        CUDA_SAFECALL(cudaMallocManaged((void **)&mallocs_record, buff_size));
         buff_write_head_ptr = buff;
         buff_write_tail_ptr = buff;
         buff_end = buff + buff_size;
         this->id = id;
     }
+
 
     friend class ChannelHost;
 };
@@ -157,6 +233,11 @@ class ChannelHost {
 
   public:
     ChannelHost() {}
+
+    void setID(int id) {
+      this->id = id;
+      ch_dev->setID(id);
+    }
 
     void init(int id, int buff_size, ChannelDev* ch_dev,
               void* (*thread_fun)(void*), void* args = NULL) {

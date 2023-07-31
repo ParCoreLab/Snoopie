@@ -33,6 +33,26 @@
 #include <cstdio>
 #include <mutex>
 
+#ifndef MEMTINGS
+#define MEMTINGS
+struct MemoryAllocation
+{
+  int deviceID;
+  uint64_t pointer;
+  uint64_t bytesize;
+};
+#endif
+
+struct CTXstate
+{
+  /* context id */
+  int id;
+
+  /* Channel used to communicate from GPU to CPU receiving thread */
+  ChannelDev *channel_dev;
+  ChannelHost channel_host;
+};
+
 int fread_ss(void *buffIn, size_t toRead, std::stringstream &ss);
 void write_to_stream(ZSTD_CStream *cs, std::string msg, void *buffIn,
     void *buffOut, size_t buffInSize, size_t buffOutSize,
