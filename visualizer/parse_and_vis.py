@@ -15,7 +15,7 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 from streamlit_plotly_events import plotly_events
 import plotly.graph_objects as go
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
 import zstandard as zstd
 import io
 
@@ -35,14 +35,11 @@ src_code_file = "workq_ring.cu"     #
 #                                   #
 #####################################
 
-keys = []
 ops = set()
-ptx_code = []
-ptx_code_rev = {}
 
-MIN_TABLE_HEIGHT = 60
-ROW_HEIGHT = 30
-MAX_TABLE_HEIGHT = 600
+MIN_TABLE_HEIGHT = 50
+ROW_HEIGHT = 27
+MAX_TABLE_HEIGHT = 540
 
 GRAPH_SIZE_LIMIT = 100000
 ADDR_DIST = 4
@@ -101,7 +98,7 @@ def isInt_try(v):
 
 @st.cache_data
 def read_data(file):
-    global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev
+    global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops
     f = open(file, "r")
 
     if file.endswith(".zst"):
@@ -124,6 +121,13 @@ def read_data(file):
     if os.path.isfile(pickle_filename):
         with open(pickle_filename, 'rb') as f:
             pickle_file = pickle.load(f)
+            if len(pickle_file) > 6:
+                new_pickle_file = pickle_file[:5]
+                new_pickle_file.append(pickle_file[6])
+                pickle_file = new_pickle_file
+            for item in pickle_file:
+                print(item)
+                print()
             print("Data loaded from " + pickle_filename)
 
     reading_data = 0
@@ -236,13 +240,6 @@ def read_data(file):
                 # elif (line.startswith('offset')):
                 #     objkeys = line.split(', ')
                 #     reading_data = 2
-                # elif (line.startswith('global_index')):
-                #     splt_line = line.split(', ')
-                #     instr = ''.join(splt_line[-3].split[' '][1:])
-                #     line_num = int(splt_line[-2].split[' '][1])
-                #     if 'estimated' in splt_line[-1]:
-                #         line_num = -line_num
-                #     ptx_code.append(instr, line_num)
 
         for line in f:
             if reading_data:
@@ -265,43 +262,18 @@ def read_data(file):
                 if (line.startswith('offset')):
                     objkeys = line.split(', ')
                     reading_data = True
-                elif (line.startswith('global_index')):
-                    splt_line = line.split('sass_instruction: ')[1].split(';')
-                    instr = splt_line[0] + ';'
-                    rh = splt_line[1][2:]
-                    line_num = int(rh[10:rh.index(',')])
-                    if 'estimated' in splt_line[-1]:
-                        line_num = -line_num
-                    ptx_code.append([instr, line_num])
-                    ptx_code_rev[line_num] = ptx_code_rev.get(line_num, list())
-                    ptx_code_rev[line_num].append(instr)
 
         print("Reading complete")
 
-        # print(graph_name, end=',')
-        # print(gpu_num)
-        # for key, value in sorted(data_by_device.items(), key=lambda x: x[0]): 
-        #     print("{} : {}".format(key, value))
-        # print(keys)
-        # print(ops)
-        # print("ADDRESS")
-        # print(data_by_address[list(data_by_address.keys())[0]])
-        # print("\n\nDEVICE")
-        # print(data_by_device[list(data_by_device.keys())[0]])
-        # print("\n\nOBJECT")
-        # print(data_by_obj[list(data_by_obj.keys())[0]])
-        # for elem in list(data_by_obj.keys()):
-        #     print(data_by_obj[elem]['var_name'])
-
-        all_data = [data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev]
+        all_data = [data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops]
         
         with open(pickle_filename, 'wb') as pf:
             pickle.dump(all_data, pf)
             print("Data saved to " + pickle_filename)
     else:
-        data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev = pickle_file
+        data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = pickle_file
 
-    return data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev
+    return data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops
 
 
 def scale_lightness(rgb, scale_l):
@@ -312,7 +284,7 @@ def scale_lightness(rgb, scale_l):
 
 
 def main():
-    global data_by_address, data_by_device, gpu_num, keys, ops, chosen_line
+    global data_by_address, data_by_device, gpu_num, ops, chosen_line
 
     st.radio(
         "Communication units",
@@ -321,7 +293,6 @@ def main():
         horizontal=True
     )
 
-    # date = st.radio("Pick a metric", keys)
     nodes = []
     edges = []
     max_size = 40.0
@@ -363,9 +334,6 @@ def main():
         
 
     cols = math.ceil(math.sqrt(gpu_num))
-    # print("ATTENTION")
-    # print(cols)
-    # print(gpu_num)
     rows = int(gpu_num/cols)
     delta_pos = [int((graph_width-2*margin)/max(1, cols-1)), int((graph_height-2*margin)/max(1, rows-1))]
 
@@ -375,7 +343,6 @@ def main():
         label_bytes = "bytes"
 
 
-    # print(data_by_device)
     for i in range(gpu_num):
         label = "GPU"+str(i)
 
@@ -450,9 +417,12 @@ def main():
     # modify_cell((H0: 0)) 2  != (H1: 0) 0
     chosen_point = None
     with cols[1]:
+        color_title = "Data transfer<br>count"
+        if (label_bytes != ""):
+            color_title = "Transferred<br>bytes"
         df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype('int')
         fig = px.imshow(df, color_continuous_scale=colorscale, 
-                labels=dict(x="Owner", y="Issued by", color="Data transfer<br>count"))
+                labels=dict(x="Owner", y="Issued by", color=color_title))
         fig.update_traces(colorbar=dict(lenmode='fraction', len=0.5, thickness=10))
         fig.update_layout(
             font_family="Open Sans, sans-serif",
@@ -467,17 +437,13 @@ def main():
         fig.layout.width = graph_width*(4.0/7.0)
         fig.layout.height = graph_height
         chosen_point = plotly_events(fig)
-        # print(chosen_point)
         if len(chosen_point) > 0:
             chosen_point = chosen_point[0]['pointNumber']
         else:
             chosen_point = None
-        # print(chosen_point)
 
-    # print(chosen_id_graph)
     if chosen_point != None:
         chosen_id_graph = chosen_point[0]
-    # print(chosen_id_graph)
 
     chosen_id_tab = stx.tab_bar(data=[
         stx.TabBarItemData(id=str(i), title="GPU"+str(i), description="") for i in range(gpu_num)], default=0)
@@ -515,8 +481,13 @@ def main():
                     if op in dict_details:
                         html_details += " "*8 + str(op) + ": " + str(dict_details[op]) + "<br>"
                 for line in dict_details['lines']:
+                    intline = int(line[5:])
                     html_details += " "*8 + str(line) + ": " + str(dict_details[line]) + "<br>"
-
+                    data_by_line[intline] = data_by_line.get(intline, {})
+                    temp_data = data_by_line[intline]
+                    # calculate how many times each object is updated in that line
+                    temp_data["objects_updated"] = temp_data.get("objects_updated", dict())
+                    temp_data["objects_updated"][data_by_obj[key]["var_name"]] = temp_data["objects_updated"].get(data_by_obj[key]["var_name"], 0) + dict_details['total']
                 obj[-1].append([hex_addr, html_details])
                 object_map[-1].append(dict_details['total'])
             else:
@@ -569,7 +540,6 @@ def main():
             obj_fig['layout']['xaxis' + str(index-1)].update(dict(title="Offset", title_standoff=8))
                 
             chosen_addr = plotly_events(obj_fig)
-            # print(chosen_addr)
 
             st.markdown("""---""")
 
@@ -651,62 +621,73 @@ def main():
 
             st.markdown("""---""")
             st.markdown(f"### Communication issued by **<span style='color:{pal[i]}'>GPU{i}</span>**", unsafe_allow_html=True)
-            cols = st.columns([1 for i in range(gpu_num-1)])
+            cols = st.columns([1 for i in range(3)])
             other_gpus = [i for i in range(gpu_num)]
             other_gpus.remove(i)
+            table_objs = []
+            table_instr = []
+            table_lines = []
             for peer_gpu in other_gpus:
                 pair = "GPU" + str(i) + "-GPU" + str(peer_gpu)
                 if pair in data_by_device:
-                    cols[other_gpus.index(peer_gpu)].markdown(f"##### Data owner: **<span style='color:{pal[peer_gpu]} \
-                                                              '> GPU{peer_gpu}</span>**", unsafe_allow_html=True)
-                    table_objs = []
-                    table_instr = []
-                    table_lines = []
                     for item in data_by_device[pair].items():
+                        litem = [item[0], item[1], peer_gpu]
                         if 'total' == item[0]:
-                            table_instr.insert(0, item)    
-                            table_objs.insert(0, item) 
-                            table_lines.insert(0, item) 
+                            table_instr.insert(0, litem)    
+                            table_objs.insert(0, litem) 
+                            # table_lines.insert(0, litem) 
                         elif '.E' in item[0]:
-                            table_instr.append(item)                            
+                            table_instr.append(litem)                            
                         elif item[0].startswith('line') or item[0].startswith('totalbytes'):
                             continue
                         else:
-                            table_objs.append([data_by_obj[item[0].strip()]['var_name'], item[1]])
+                            table_objs.append([data_by_obj[item[0].strip()]['var_name'], item[1], peer_gpu])
                     
                     for line in data_by_device[pair]['lines']:
-                        table_lines.append([line[5:], data_by_device[pair][line]])
+                        table_lines.append([int(line[5:]), data_by_device[pair][line], peer_gpu])
+
+            ag_custom_css={
+                    "#gridToolBar": {
+                        "padding-bottom": "0px !important",
+                    }
+                }
                     
-                    df = pd.DataFrame.from_dict(table_objs)
-                    df.columns = ['object', 'count']
-                    table_height = min(MIN_TABLE_HEIGHT + len(df) * ROW_HEIGHT, MAX_TABLE_HEIGHT)
-                    with cols[other_gpus.index(peer_gpu)]:
-                        AgGrid(df, height=table_height, fit_columns_on_grid_load=True)
+            
+            cols[0].markdown(f"##### Objects", unsafe_allow_html=True)
+            df = pd.DataFrame.from_dict(table_objs)
+            df.columns = ['object', 'count', 'destination']
+            table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
+            with cols[0]:
+                AgGrid(df, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
+                                        columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
 
-                    df = pd.DataFrame.from_dict(table_instr)
-                    df.columns = ['instruction', 'count']
-                    table_height = min(MIN_TABLE_HEIGHT + len(df) * ROW_HEIGHT, MAX_TABLE_HEIGHT)
-                    with cols[other_gpus.index(peer_gpu)]:
-                        AgGrid(df, height=table_height, fit_columns_on_grid_load=True)
+            cols[1].markdown(f"##### Instructions", unsafe_allow_html=True)
+            df = pd.DataFrame.from_dict(table_instr)
+            df.columns = ['instruction', 'count', 'destination']
+            table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
+            with cols[1]:
+                AgGrid(df, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
+                                        columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
 
-                    df = pd.DataFrame.from_dict(table_lines)
-                    df.columns = ['code line', 'count']
-                    table_height = min(MIN_TABLE_HEIGHT + len(df) * ROW_HEIGHT, MAX_TABLE_HEIGHT)
-                    with cols[other_gpus.index(peer_gpu)]:
-                        gb = GridOptionsBuilder.from_dataframe(df)
-                        gb.configure_selection('single', use_checkbox=False, pre_selected_rows=None)
-                        gridOptions = gb.build()
-                        grid_response = AgGrid(df, gridOptions, height=table_height, fit_columns_on_grid_load=True,
-                                               update_mode = GridUpdateMode.SELECTION_CHANGED)
-                        print(grid_response)
-                        selected_rows = grid_response['selected_rows']
-                        if (len(selected_rows) > 0):
-                            if (selected_rows[0]['code line'] != 'total'):
-                                chosen_line = int(selected_rows[0]['code line'])
-                                tkey = 'table_select' + str(peer_gpu)
-                                if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
-                                    show_sidebar()
-                                    st.session_state[tkey] = chosen_line
+            cols[2].markdown(f"##### Code lines", unsafe_allow_html=True)
+            df = pd.DataFrame.from_dict(table_lines)
+            df.columns = ['code line', 'count', 'destination']
+            table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
+            with cols[2]:
+                gb = GridOptionsBuilder.from_dataframe(df)
+                gb.configure_selection('single', use_checkbox=False, pre_selected_rows=None)
+                gridOptions = gb.build()
+                grid_response = AgGrid(df, gridOptions, height=table_height, fit_columns_on_grid_load=True,
+                                        update_mode = GridUpdateMode.SELECTION_CHANGED, custom_css=ag_custom_css,
+                                        columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
+                selected_rows = grid_response['selected_rows']
+                if (len(selected_rows) > 0):
+                    if (selected_rows[0]['code line'] != 'total'):
+                        chosen_line = int(selected_rows[0]['code line'])
+                        tkey = 'table_select' + str(peer_gpu)
+                        if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
+                            show_sidebar()
+                            st.session_state[tkey] = chosen_line
                         # show_sidebar(int(selected_rows['code line']))
                         # .scrollTop = ''' + str(graph_height + i/100) + ''';
             components.html(scroll_js(graph_height + margin + i*0.0001), height=0)
@@ -715,9 +696,8 @@ def main():
 
 def show_sidebar():
     global chosen_line
-    print("CHOSEN LINE " + str(chosen_line))
+    # print("CHOSEN LINE " + str(chosen_line))
     linenum = chosen_line
-    print(linenum)
     if (linenum in data_by_line):
         with st.sidebar:
             linedata = data_by_line[linenum]
@@ -753,7 +733,10 @@ def show_sidebar():
             st.markdown("""<head><script>hljs.highlightAll();</script></head><body>
                             <code class='hljs language-c'>""" + src_lines[linenum-1] + """</code></body>""",
                 unsafe_allow_html=True,)
-            st.markdown("## Total transfers: " + str(linedata['total']))
+            st.markdown("### Total transfers: " + str(linedata['total']))
+            st.markdown("#### Objects updated: ")
+            for key in linedata['objects_updated'].keys():
+                st.markdown("###### " + key + ": "  + str(linedata['objects_updated'][key]))
 
             # obj_str = "### Object(s) involved: \\"
             # for obj in linedata.get('objects', set()):
@@ -859,20 +842,15 @@ def show_code():
             str_percentage = " " + str_percentage
         if (comm_percentage == 0):
             str_percentage = " " * 6
-        div_inject = "<span style='display:inline-block;' >"+ str_percentage +"</span>"
+        div_inject += "<span style='position:absolute; bottom:0.2rem;'>"+ str_percentage +"</span>"
         content_head+="""<div id='d""" + str(line_index) + """'style='position:relative;width=100%'>""" +div_inject+ """<a 
-                        id='line""" + str(line_index) + """' style='display:inline-block;'><code class='hljs language-c' style='position:relative;width:100%;
+                        id='line""" + str(line_index) + """' style='display:inline-block;margin-left:2.5rem'><code class='hljs language-c' style='position:relative;width:100%;
                         background-color:rgb(0,0,0,0);margin-bottom:0;padding-bottom:0;overflow-x:hidden;"""
-        # if line_index in ptx_code_rev.keys():
-        #     print("THE LINE!")
-        #     print(line_index)
-        #     content_head+=";margin-top:50;padding-top:50;background:#6da2d1"
         if line_index == 1:
             content_head+="'>"
         else:
             content_head+=";margin-top:0;padding-top:0'>"
         content_head+=str(line_index)+ '.' + ''.join([' '*(index_chars-len(str(line_index)))]) + line + "</a></code></div>"
-        # content_head+="<progress style='position:absolute;top:0;left:0;z-index:-1;' value='" + str(comm_percentage) + "' max='100'> 32% </progress></div>"
 
 
     clicked_src = click_detector(content_head + content_end)
@@ -900,7 +878,7 @@ if __name__ == "__main__":
 
     if (len(sys.argv) < 2):
         print("Provide an input file")
-    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, keys, ops, ptx_code, ptx_code_rev = read_data(sys.argv[1])
+    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = read_data(sys.argv[1])
 
     f = None
     if os.path.exists(src_code_file):
