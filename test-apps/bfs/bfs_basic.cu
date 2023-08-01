@@ -777,9 +777,9 @@ int main(int argc, char *argv[])
         metis_graph = metis_part(graph); 
     }*/
 
-    gettimeofday(&t2, NULL);
-    time = get_elapsed_time(&t1, &t2);
-    if (verbose) printf("Load=%lld\n", time);
+    //gettimeofday(&t2, NULL);
+    //time = get_elapsed_time(&t1, &t2);
+    //if (verbose) printf("Load=%lld\n", time);
 
     if (METHOD == -2) 
     {
@@ -882,4 +882,7 @@ int main(int argc, char *argv[])
     delete graph;
     //delete metis_graph;
     // printf("\n");
+    gettimeofday(&t2, NULL);
+    time = get_elapsed_time(&t1, &t2);
+    printf("elapsed time=%lld\n", time); 
 }
