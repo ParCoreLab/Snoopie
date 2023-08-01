@@ -11,4 +11,7 @@ clean:
 
 run:
 	@rm -f *.zst
+	./diim -n $(SIZE)
+
+profile:
 	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" ./diim -n $(SIZE)

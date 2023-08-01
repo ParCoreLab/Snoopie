@@ -932,12 +932,13 @@ void *recv_thread_fun(void *args)
   }
 
 
-
   bool done = false;
   while (!done)
   {
+
     /* receive buffer from channel */
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
+
     if (num_recv_bytes > 0)
     {
       uint32_t num_processed_bytes = 0;

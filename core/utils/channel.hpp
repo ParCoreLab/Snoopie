@@ -100,33 +100,38 @@ class ChannelDev {
         // TODO: CHECK all packets, if any of them is a remote address, allow to push, otherwise skip
 
 
-        bool found_remote = false;
+         bool found_remote = false;
 
-        for (int i = 0; i < 32; i++) {
-          uint64_t ptr = mc->addrs[i];
+         if (mc->lane_id != -1) {
+           for (int i = 0; i < 32; i++) {
+             uint64_t ptr = mc->addrs[i];
 
-          if (found_remote) break;
-
-
-          for (int j = 0; j < no_mallocs; j++) {
-            MemoryAllocation ma = mallocs_record[j];
-            if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
-            {
-
-              if (ma.deviceID != this->id) {
-                found_remote = true;
-              }
-
-              continue;
-            }
-          }
-        }
-
-        if (!found_remote) {
-          nbytes = 0; // sizeof(mem_access_t);
-        }
+             if (found_remote) break;
 
 
+             for (int j = 0; j < no_mallocs; j++) {
+               MemoryAllocation ma = mallocs_record[j];
+               if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
+               {
+
+                 if (ma.deviceID != this->id) {
+                   found_remote = true;
+                   break;
+                 }
+               }
+
+               // check if ptr falls within nvshmem's peer memory address space
+               if (0x0000012020000000 <= ptr && ptr <= 0x0000020020000000) {
+                 found_remote = true;
+               }
+               
+             }
+           }
+
+           if (!found_remote) {
+             return;
+           }
+         }
 
         while (curr_ptr == NULL) {
             curr_ptr =
