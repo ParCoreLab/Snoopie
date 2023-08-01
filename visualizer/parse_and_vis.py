@@ -37,6 +37,7 @@ src_code_file = "workq_ring.cu"     #
 
 ops = set()
 
+GRAPH_SHAPES = {"square": 0, "polygon": 1, "rectangle": 2}
 MIN_TABLE_HEIGHT = 50
 ROW_HEIGHT = 27
 MAX_TABLE_HEIGHT = 540
@@ -88,6 +89,33 @@ def style_js():
 def regular_polygon_coord(center, radius, n):
     return [[center[0] + radius * math.sin((2*math.pi/n) * i),
             center[1] + radius * math.cos((2*math.pi/n) * i)] for i in range(n)]
+
+
+def rectangle_coord(height, width, n):
+    vertices_per_side = n/4
+    result = []
+    side_index = 0
+    x_dim = 0
+    y_dim = 0
+    while (side_index < 4):
+        side_count = 0
+        delta_x = 0
+        delta_y = 0
+        if (side_index == 0):
+            delta_x = width/vertices_per_side
+        if (side_index == 1):
+            delta_y = height/vertices_per_side
+        if (side_index == 2):
+            delta_x = -width/vertices_per_side
+        if (side_index == 3):
+            delta_y = -height/vertices_per_side
+        while (side_count < vertices_per_side):
+            side_count+=1
+            x_dim += delta_x
+            y_dim += delta_y
+            result.append([x_dim, y_dim])
+        side_index+=1
+    return result
 
 
 def isInt_try(v):
@@ -309,8 +337,17 @@ def main():
     graph_height = 400
     font_size = int(graph_height/22)
     margin = 30
-    positions = regular_polygon_coord([int(graph_width/2), int(graph_height/2)], 
-                                      int(min(graph_width, graph_height)/2)-margin, gpu_num)
+
+    graph_shape = GRAPH_SHAPES["polygon"]
+    positions = []
+
+    if (graph_shape == GRAPH_SHAPES["polygon"]):
+        positions = regular_polygon_coord([int(graph_width/2), int(graph_height/2)], 
+                        int(min(graph_width, graph_height)/2)-margin, gpu_num)
+    elif (graph_shape == GRAPH_SHAPES["square"]):
+        positions = rectangle_coord(graph_height, graph_height, gpu_num) 
+    elif (graph_shape == GRAPH_SHAPES["rectangle"]):
+        positions = rectangle_coord(graph_height, graph_width, gpu_num) 
 
     # reduce whitespace on top
     st.markdown("""
@@ -327,15 +364,16 @@ def main():
     
     if (graph_width > graph_height):
         ratio = (graph_width)/(graph_height)
-        for pos in positions:
-            pos[0] += ratio*(pos[0]-graph_width/2)/2
-            pos[0] = max(margin, pos[0])
-            pos[0] = min(graph_width-margin, pos[0])
+        if (graph_shape == GRAPH_SHAPES["polygon"]):
+            for pos in positions:
+                pos[0] += ratio*(pos[0]-graph_width/2)/2
+                pos[0] = max(margin, pos[0])
+                pos[0] = min(graph_width-margin, pos[0])
         
 
     cols = math.ceil(math.sqrt(gpu_num))
     rows = int(gpu_num/cols)
-    delta_pos = [int((graph_width-2*margin)/max(1, cols-1)), int((graph_height-2*margin)/max(1, rows-1))]
+    # delta_pos = [int((graph_width-2*margin)/max(1, cols-1)), int((graph_height-2*margin)/max(1, rows-1))]
 
     label_bytes = ""
 
