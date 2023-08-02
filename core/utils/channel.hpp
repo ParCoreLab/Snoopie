@@ -83,12 +83,7 @@ class ChannelDev {
   public:
     ChannelDev() {}
 
-    void setID(int id) {
-      this->id = id;
-    }
-
-
-    __device__ __forceinline__ void push(void* packet, uint32_t nbytes) {
+    __device__ __forceinline__ void push(void* packet, uint32_t nbytes, int this_device) {
         assert(nbytes != 0);
 
         uint8_t* curr_ptr = NULL;
@@ -96,9 +91,7 @@ class ChannelDev {
         
         mem_access_t* mc = (mem_access_t*) packet;
 
-
         // TODO: CHECK all packets, if any of them is a remote address, allow to push, otherwise skip
-
 
          bool found_remote = false;
 
@@ -114,7 +107,7 @@ class ChannelDev {
                if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
                {
 
-                 if (ma.deviceID != this->id) {
+                 if (ma.deviceID != this_device) {
                    found_remote = true;
                    break;
                  }
@@ -238,11 +231,6 @@ class ChannelHost {
 
   public:
     ChannelHost() {}
-
-    void setID(int id) {
-      this->id = id;
-      ch_dev->setID(id);
-    }
 
     void init(int id, int buff_size, ChannelDev* ch_dev,
               void* (*thread_fun)(void*), void* args = NULL) {

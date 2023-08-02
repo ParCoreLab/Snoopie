@@ -573,7 +573,7 @@ __global__ void flush_channel(ChannelDev *ch_dev)
    * termination flag */
   mem_access_t ma;
   ma.lane_id = -1;
-  ch_dev->push(&ma, sizeof(mem_access_t));
+  ch_dev->push(&ma, sizeof(mem_access_t), 0);
   /* flush channel */
   ch_dev->flush();
 }
@@ -914,10 +914,8 @@ void *recv_thread_fun(void *args)
 
   int dev_id = -1;
   cudaGetDevice(&dev_id);
-  ctx_state->id = dev_id;
 
   ChannelHost *ch_host = &ctx_state->channel_host;
-  ch_host->setID(dev_id);
 
 
   pthread_mutex_unlock(&mutex1);

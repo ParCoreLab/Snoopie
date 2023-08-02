@@ -99,7 +99,7 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
 
         //float randf = curand_uniform(&state);
 	if (rand_num < 100000/sample_size)
-        	channel_dev->push(&ma, sizeof(mem_access_t));
+        	channel_dev->push(&ma, sizeof(mem_access_t), dev_id);
     }
 //#endif
 }
