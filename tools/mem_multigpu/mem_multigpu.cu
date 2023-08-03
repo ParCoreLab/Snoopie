@@ -135,6 +135,8 @@ uint32_t instr_begin_interval = 0;
 uint32_t instr_end_interval = UINT32_MAX;
 std::string kernel_name;
 int verbose = 0;
+std::string nvshmem_version = "2.8";
+int nvshmem_ngpus = 10;
 int silent = 0;
 int code_attribution = 0;
 int sample_size;
@@ -144,47 +146,56 @@ std::map<std::string, int> opcode_to_id_map;
 std::map<int, std::string> id_to_opcode_map;
 std::vector<MemoryAllocation> mem_allocs;
 
-int64_t find_nvshmem_dev_of_ptr(int mype, uint64_t mem_addr) {
+int64_t find_nvshmem_dev_of_ptr(int mype,uint64_t mem_addr, int nvshmem_ngpus,
+    std::string version) {
 
-  int size = 10; 
+  int size = 10;
 
-  int region = -1; 
+  int region = -1;
 
   // 0x000012020000000 is nvshmem's first address for a remote peer
-  uint64_t start =  0x000012020000000;
+  uint64_t start = 0x000012020000000;
 
   // 0x000010020000000 is nvshmem's address for the peer itself
-  uint64_t incrmnt = (uint64_t) 0x000012020000000 - (uint64_t) 0x000010020000000;
+  uint64_t incrmnt = (uint64_t)0x000012020000000 - (uint64_t)0x000010020000000;
 
   for (int i = 1; i <= size; i++) {
-    uint64_t bottom =  (uint64_t) start + (i - 1) * incrmnt;
-    uint64_t top =  (uint64_t) start + i * incrmnt;
-    if ((uint64_t) bottom <= (uint64_t) mem_addr && (uint64_t) mem_addr < (uint64_t) top) {
-      region = i - 1; break;
-    }   
+    uint64_t bottom = (uint64_t)start + (i - 1) * incrmnt;
+    uint64_t top = (uint64_t)start + i * incrmnt;
+    if ((uint64_t)bottom <= (uint64_t)mem_addr &&
+        (uint64_t)mem_addr < (uint64_t)top) {
+      region = i - 1;
+      break;
+    }
   }
 
   if (region == -1) {
-    return -1; 
+    return -1;
+  }
+
+  if (version == "2.9" || version == "2.8") {
+    region += mype;
   }
 
   if (mype == region) {
-    return (mype + 1) % size;
-  } 
-
+    return (mype + 1) % nvshmem_ngpus;
+  }
 
   for (int i = 0; i < size; i++) {
-    if (mype == i) continue;
+    if (mype == i)
+      continue;
 
     if (region == 0) {
-      return i;
-    }   
+      return i % nvshmem_ngpus;
+    }
 
     region--;
-  }   
+  }
 
   return -1;
 }
+
+
 
 int64_t find_dev_of_ptr(uint64_t ptr)
 {
@@ -331,6 +342,9 @@ void nvbit_at_init()
       "End of the instruction interval where to apply instrumentation");
   GET_VAR_INT(verbose, "TOOL_VERBOSE", 0, "Enable verbosity inside the tool");
   GET_VAR_INT(silent,  "SILENT",       0, "Silence long output of the tool");
+
+  GET_VAR_STR(nvshmem_version, "NVSHMEM_VERSION", "Specify the nvshmem version to use the correct memory mapping");
+  GET_VAR_INT(nvshmem_ngpus, "NVSHMEM_NGPUS", 10, "Setting the number of GPUS nvshmem will use");
 
   GET_VAR_STR(kernel_name, "KERNEL_NAME", "Specify the name of the kernel to track");
   GET_VAR_INT(code_attribution, "CODE_ATTRIBUTION", 0, "Enable source code line attribution");
@@ -981,8 +995,9 @@ void *recv_thread_fun(void *args)
 
           // nvshmem heap_base = 0x10020000000
           // ignore operations on memory locations not allocated by cudaMalloc on the host
-          if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000))
-            mem_device_id = find_nvshmem_dev_of_ptr(ma->dev_id, ma->addrs[i]);
+          if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000)) {
+            mem_device_id = find_nvshmem_dev_of_ptr(ma->dev_id, ma->addrs[i], nvshmem_ngpus, nvshmem_version);
+          }
 
           // ignore operations on the same device
           if (mem_device_id == ma->dev_id)
