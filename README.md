@@ -25,6 +25,14 @@ $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" ./mul
 
 $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 ./multigpu-app
 
+> To run with NVSHMEM version besides 2.8 and 2.9
+
+$ LD_PRELOAD="/path/to/mem_multigpu.so" NVSHMEM_VERSION="2.7" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 ./multigpu-app
+
+> When running with nvshmem version 2.8 or 2.9, you need to specify the number of GPUs being used as follows
+
+$ LD_PRELOAD="/path/to/mem_multigpu.so" NVSHMEM_NGPUS="4" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 ./multigpu-app
+
 > To enable sampling-based profiling, pass SAMPLE_SIZE=<sample_size> environment variable as follow. 
 
 $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" SAMPLE_SIZE=<sample_size> ./multigpu-app
