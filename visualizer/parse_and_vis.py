@@ -30,8 +30,9 @@ chosen_line = None
 
 #####################################
 #     CHANGE THESE WHEN NEEDED!     #
-gpu_num = 4                         #
-src_code_file = "workq_ring.cu"     #
+gpu_num = 8                         #
+src_code_file = "jacobi.cu"         #
+sampling_period = 10                #
 #                                   #
 #####################################
 
@@ -333,7 +334,9 @@ def main():
     pal = sns.color_palette([scale_lightness(color, 1.2) for color in pal_base]).as_hex()
     pal2 = sns.color_palette([scale_lightness(color, 1.0) for color in pal_base]).as_hex()
 
+    #graph_width = 1200
     graph_width = 600
+    #graph_height = 800
     graph_height = 400
     font_size = int(graph_height/22)
     margin = 30
@@ -407,7 +410,7 @@ def main():
             target_label = "GPU"+str(j)+label_bytes
             width = 0.0
             if (src_label in data_by_device and target_label in data_by_device[src_label]):
-                width = data_by_device[src_label][target_label]
+                width = data_by_device[src_label][target_label]*sampling_period
             widths[i].append(width)
             if width > max_val:
                 max_val = width
@@ -441,6 +444,7 @@ def main():
                     )
 
     cols = st.columns([7, 4])
+    #cols = st.columns([100, 1])
             
     chosen_id_graph = None
     with cols[0]:
