@@ -95,11 +95,11 @@ bool line_exists(int index);
 
 std::string get_line_file_name(int index);
 
-std::string get_line_dir_name(int index); 
+std::string get_line_dir_name(int index);
 
 std::string get_line_sass(int index);
 
-uint32_t get_line_line_num(int index); 
+uint32_t get_line_line_num(int index);
 
 short get_line_estimated_status(int index);
 
@@ -149,7 +149,7 @@ std::vector<MemoryAllocation> mem_allocs;
 int64_t find_nvshmem_dev_of_ptr(int mype,uint64_t mem_addr, int nvshmem_ngpus,
     std::string version) {
 
-  int size = 10;
+  int size = 15;
 
   int region = -1;
 
@@ -292,7 +292,7 @@ void memop_to_line () {
    infile.close();
 }
 
-std::string find_recorded_kernel(const std::string& curr_kernel) 
+std::string find_recorded_kernel(const std::string& curr_kernel)
 {
 	std::string chosen_key;
 	size_t shortest_len = 1000;
@@ -320,13 +320,13 @@ std::string find_recorded_kernel(const std::string& curr_kernel)
                 	}
 			token_count++;
 		}
-		
+
 		if(token_count != 0 && token_count == match_count && shortest_len > key_str.size()) {
 			chosen_key = key_str;
 			shortest_len = key_str.size();
-		}	
+		}
 	}
-	//std::cerr << "chosen_key: " << chosen_key << "\n"; 
+	//std::cerr << "chosen_key: " << chosen_key << "\n";
 	return chosen_key;
 }
 
@@ -464,10 +464,10 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
     std::string prev_valid_file_name;
     std::string prev_valid_dir_name;
-    uint32_t prev_valid_line_num = 0;  
+    uint32_t prev_valid_line_num = 0;
     uint32_t cnt = 0;
     int ldg_count = 0;
-    int stg_count = 0; 
+    int stg_count = 0;
     /* iterate on all the static instructions in the function */
     for (auto instr : instrs)
     {
@@ -492,7 +492,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 			filename = file;
 		      }
 		      ldg_count++;
-	      } 
+	      }
 	      else if(word.substr(0,3) == "STG" || word.substr(0,3) == "ST.") {
 		      if(!ret_line_info) {
                         line_num = get<2>(line_tracking[encoded_kernel_name])[stg_count]; //line_tracking.second[stg_count];
@@ -557,7 +557,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           /* device id */
           int dev_id = -1;
           cudaGetDevice(&dev_id);
-          
+
           nvbit_add_call_arg_const_val32(instr, dev_id);
           //  nvbit_add_call_arg_const_val32(instr, ctx_state->id);
           /* memory reference 64 bit address */
@@ -734,20 +734,20 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     if (JSON) {
       std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
     }
-  } 
-  else if (is_exit && cbid == API_CUDA_cuMemcpyDtoDAsync_v2) 
+  }
+  else if (is_exit && cbid == API_CUDA_cuMemcpyDtoDAsync_v2)
   {
     cuMemcpyDtoDAsync_v2_params *p = (cuMemcpyDtoDAsync_v2_params *) params;
 
     CUdevice srcDeviceID;
     CUdevice dstDeviceID;
-    
-    
+
+
     cuPointerGetAttribute(&srcDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->srcDevice);
     cuPointerGetAttribute(&dstDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->dstDevice);
 
-    
-    adm_range_t* range = nullptr; 
+
+    adm_range_t* range = nullptr;
     uint64_t offset_address_range = 0;
 
     if (object_attribution) {
@@ -758,7 +758,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     // Log this operation
 
     std::stringstream ss;
-    ss << find_cbid_name(cbid) << "," 
+    ss << find_cbid_name(cbid) << ","
       << HEX(p->dstDevice) << ","
       << -1  << ","
       << srcDeviceID       << ","
@@ -779,12 +779,12 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     cuMemcpyDtoD_v2_params *p = (cuMemcpyDtoD_v2_params *)params;
     CUdevice srcDeviceID;
     CUdevice dstDeviceID;
-    
-    
+
+
     cuPointerGetAttribute(&srcDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->srcDevice);
     cuPointerGetAttribute(&dstDeviceID, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, p->dstDevice);
 
-    
+
     adm_range_t* range = nullptr;
     uint64_t offset_address_range = 0;
 
@@ -797,7 +797,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     // Log this operation
 
     std::stringstream ss;
-    ss << find_cbid_name(cbid) << "," 
+    ss << find_cbid_name(cbid) << ","
       << HEX(p->dstDevice) << ","
       << -1  << ","
       << srcDeviceID       << ","
@@ -835,7 +835,7 @@ cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_nam
     }
   }
 
-  return errorOutput;	
+  return errorOutput;
 }
 
 cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
@@ -851,7 +851,7 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
     adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
 
     if(range) {
-      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);	
+      adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
       if(obj) {
         range->set_index_in_object(obj->get_range_count());
         obj->inc_range_count();
@@ -970,14 +970,14 @@ void *recv_thread_fun(void *args)
           break;
         }
         adm_range_t* range = nullptr; //adm_range_find(ma.addrs[0]);
-        uint64_t allocation_pc = 0; //obj->get_allocation_pc();	
+        uint64_t allocation_pc = 0; //obj->get_allocation_pc();
         std::string varname;
         std::string filename;
         std::string funcname;
         uint32_t linenum;
         uint32_t data_type_size = 1;
         int dev_id = -1;
-        int line_index = ma->global_index;	
+        int line_index = ma->global_index;
         std::string line_filename = get_line_file_name(line_index);
         std::string line_dirname = get_line_dir_name(line_index);
         std::string line_sass = get_line_sass(line_index);
@@ -1053,7 +1053,7 @@ void *recv_thread_fun(void *args)
               << "\"code_line_estimated_status\": " << line_estimated_status
               << "}" << std::endl;
           } else {
-            ss << id_to_opcode_map[ma->opcode_id] << "," 
+            ss << id_to_opcode_map[ma->opcode_id] << ","
               << HEX(ma->addrs[i]) << ","
               << ma->thread_index  << ","
               << ma->dev_id        << ","
@@ -1062,7 +1062,7 @@ void *recv_thread_fun(void *args)
               << line_index        << ","
               << line_estimated_status << ","
               << HEX(offset_address_range) << ","
-              << 4 
+              << 4
               << std::endl;
           }
           logger.log(ss.str());
@@ -1128,7 +1128,7 @@ void nvbit_at_term()
         adm_ranges_print();
     adm_line_table_print();
   }
-  // memop_outfile.close(); 
+  // memop_outfile.close();
   // TODO: Print the below agian at some point
   // adm_line_table_print();
   adm_db_fini();
