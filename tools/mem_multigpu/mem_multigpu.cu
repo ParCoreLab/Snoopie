@@ -629,6 +629,15 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     for (auto f : related_functions)
     {
+
+      // NOTE: Needs to verify if cuda_sm_20_div_s64 contains any addrs writes
+      // or not. Avoid instrumentting this (possibly a whole family of
+      // functions similar to this should be avoided to speed up NCCL
+      // profiling)
+      if (strcmp(nvbit_get_func_name(ctx, f), "__cuda_sm20_div_s64") == 0) {
+        continue;
+      }
+
       // only instrument kernel's with the kernel name supplied by the user,
       // the substr and find are to extract the func name from the func
       // signature
