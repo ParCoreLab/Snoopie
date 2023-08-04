@@ -727,9 +727,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     MemoryAllocation ma = {deviceID, pointer, bytesize};
     mem_allocs.push_back(ma);
 
-    for (const auto & ctx_map_pair : ctx_state_map) {
-      ctx_map_pair.second->channel_dev->add_malloc(ma);
-    }
+    // NOTE: Commented out to disable device side filtering
+    // for (const auto & ctx_map_pair : ctx_state_map) {
+      // ctx_map_pair.second->channel_dev->add_malloc(ma);
+    // }
 
     if (JSON) {
       std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;

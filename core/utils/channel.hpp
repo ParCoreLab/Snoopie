@@ -88,43 +88,44 @@ class ChannelDev {
 
         uint8_t* curr_ptr = NULL;
 
-        
-        mem_access_t* mc = (mem_access_t*) packet;
+
+        // NOTE: Commented out to disable device side filtering
+        // mem_access_t* mc = (mem_access_t*) packet;
 
         // TODO: CHECK all packets, if any of them is a remote address, allow to push, otherwise skip
 
-         bool found_remote = false;
+         // bool found_remote = false;
 
-         if (mc->lane_id != -1) {
-           for (int i = 0; i < 32; i++) {
-             uint64_t ptr = mc->addrs[i];
+         // if (mc->lane_id != -1) {
+         //   for (int i = 0; i < 32; i++) {
+         //     uint64_t ptr = mc->addrs[i];
 
-             if (found_remote) break;
+         //     if (found_remote) break;
 
 
-             for (int j = 0; j < no_mallocs; j++) {
-               MemoryAllocation ma = mallocs_record[j];
-               if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
-               {
+         //     for (int j = 0; j < no_mallocs; j++) {
+         //       MemoryAllocation ma = mallocs_record[j];
+         //       if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
+         //       {
 
-                 if (ma.deviceID != this_device) {
-                   found_remote = true;
-                   break;
-                 }
-               }
+         //         if (ma.deviceID != this_device) {
+         //           found_remote = true;
+         //           break;
+         //         }
+         //       }
 
-               // check if ptr falls within nvshmem's peer memory address space
-               if (0x0000012020000000 <= ptr && ptr <= 0x0000020020000000) {
-                 found_remote = true;
-               }
-               
-             }
-           }
+         //       // check if ptr falls within nvshmem's peer memory address space
+         //       if (0x0000012020000000 <= ptr && ptr <= 0x0000020020000000) {
+         //         found_remote = true;
+         //       }
+         //
+         //     }
+         //   }
 
-           if (!found_remote) {
-             return;
-           }
-         }
+         //   if (!found_remote) {
+         //     return;
+         //   }
+         // }
 
         while (curr_ptr == NULL) {
             curr_ptr =
@@ -182,7 +183,7 @@ class ChannelDev {
 
         // printf("FLUSH CHANNEL#%d: DONE\n", id);
     }
-  
+
     void add_malloc(MemoryAllocation ma) {
       mallocs_record[no_mallocs++] = ma;
     }
