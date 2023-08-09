@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include<unistd.h>
 
+//#include <stacktrace>
+#include <iostream>
+
 using namespace std;
 
 
@@ -43,27 +46,33 @@ int main() {
 
   int *g0 = NULL;
   cudaSetDevice(gpuid[0]);
+  std::cerr << "before cudaMalloc 1\n";
   gpuErrchk(cudaMalloc(&g0, buf_size));
 
   int *g1 = NULL;
 
   cudaSetDevice(gpuid[1]);
+  std::cerr << "before cudaMalloc 2\n";
   gpuErrchk(cudaMalloc(&g1, buf_size));
   cudaSetDevice(gpuid[0]);
 
   int *g2 = NULL;
 
   cudaSetDevice(gpuid[2]);
+  std::cerr << "before cudaMalloc 3\n";
   gpuErrchk(cudaMalloc(&g2, buf_size));
   cudaSetDevice(gpuid[0]);
 
   int *h0 = NULL;
+  std::cerr << "before cudaMallocHost 1\n";
   gpuErrchk(cudaMallocHost(&h0, buf_size));
 
   int *h1 = NULL;
+  std::cerr << "before cudaMallocHost 2\n";
   gpuErrchk(cudaMallocHost(&h1, buf_size));
 
   int *h2 = NULL;
+  std::cerr << "before cudaMallocHost 3\n";
   gpuErrchk(cudaMallocHost(&h2, buf_size));
 
   gpuErrchk(cudaMemcpy(g0, h0, buf_size, cudaMemcpyHostToDevice));
@@ -86,7 +95,6 @@ int main() {
   }
 
   //printf("\ntransfer finished successfully\n");
-
   
   cudaFree(h0);
   cudaFree(h1);

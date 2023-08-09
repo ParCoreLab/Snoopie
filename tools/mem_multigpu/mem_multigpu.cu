@@ -40,6 +40,8 @@
 #include <adm_splay.h>
 #include <adm_memory.h>
 #include <adm_database.h>
+#include <cpptrace.hpp>
+#include <iostream>
 
 /* every tool needs to include this once */
 #include "nvbit_tool.h"
@@ -74,6 +76,7 @@
 
 // ofstream memop_outfile;
 
+using namespace cpptrace;
 using namespace adamant;
 
 //static adm_splay_tree_t* tree = nullptr;
@@ -721,6 +724,11 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   }
   else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2)
   {
+    std::cerr << "API_CUDA_cuMemAlloc_v2 is detected\n";
+    std::vector<stacktrace_frame> trace = generate_trace(); 
+    for(auto itr : trace) {
+	std::cout << "pc " << itr.address << ", function " << itr.symbol << ", file " << itr.filename << ", line " << itr.line << "\n";
+    } 
     cuMemAlloc_v2_params *p = (cuMemAlloc_v2_params *)params;
     std::stringstream ss;
     ss << HEX(*p->dptr);
@@ -742,6 +750,70 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     if (JSON) {
       std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
+    }
+  }
+  else if (cbid == API_CUDA_cuMemAllocHost)
+  { 
+    cuMemAllocHost_params *p = (cuMemAllocHost_params *)params;
+    std::stringstream ss;
+    ss << HEX(*p->pp);
+    std::stringstream ss2;
+    ss2 << HEX(*p->pp + p->bytesize);
+    int deviceID = -1;
+    uint64_t pointer = (uint64_t) *p->pp;
+    uint64_t bytesize = p->bytesize;
+    assert(cudaGetLastError() == cudaSuccess);
+
+    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    mem_allocs.push_back(ma);
+
+    for (const auto & ctx_map_pair : ctx_state_map) {
+      ctx_map_pair.second->channel_dev->add_malloc(ma);
+    }
+  } 
+  else if (cbid == API_CUDA_cuMemAllocHost_v2)
+  {
+    print_trace();
+    std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
+    cuMemAllocHost_v2_params *p = (cuMemAllocHost_v2_params *)params;
+    std::stringstream ss;
+    ss << HEX(*p->pp);
+    std::stringstream ss2;
+    ss2 << HEX(*p->pp + p->bytesize);
+    int deviceID = -1;
+    uint64_t pointer = (uint64_t) *p->pp;
+    uint64_t bytesize = p->bytesize;	
+    assert(cudaGetLastError() == cudaSuccess);
+
+    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    mem_allocs.push_back(ma);
+
+    for (const auto & ctx_map_pair : ctx_state_map) {
+      ctx_map_pair.second->channel_dev->add_malloc(ma);
+    }
+  }
+  else if (cbid == API_CUDA_cuMemHostAlloc)
+  {
+    std::cerr << "API_CUDA_cuMemHostAlloc is detected\n";
+    std::vector<stacktrace_frame> trace = generate_trace();
+    for(auto itr : trace) {
+        std::cout << "pc " << itr.address << ", function " << itr.symbol << ", file " << itr.filename << ", line " << itr.line << "\n";
+    }   
+    cuMemHostAlloc_params *p = (cuMemHostAlloc_params *)params;
+    std::stringstream ss;
+    ss << HEX(*p->pp);
+    std::stringstream ss2;
+    ss2 << HEX(*p->pp + p->bytesize);
+    int deviceID = -1;
+    uint64_t pointer = (uint64_t) *p->pp;
+    uint64_t bytesize = p->bytesize;
+    assert(cudaGetLastError() == cudaSuccess);
+
+    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    mem_allocs.push_back(ma);
+
+    for (const auto & ctx_map_pair : ctx_state_map) {
+      ctx_map_pair.second->channel_dev->add_malloc(ma);
     }
   }
   else if (is_exit && cbid == API_CUDA_cuMemcpyDtoDAsync_v2)
