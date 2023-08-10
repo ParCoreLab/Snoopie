@@ -58,7 +58,7 @@ function run_nvshmem() {
    np=4
    exp_size=64
 
-   results=$(NP=$np SIZE=$exp_size make run && zstd -dc *.zst | grep -v "op_code")
+   results=$(NP=$np SIZE=$exp_size make run && zstd -dc *.zst | grep -v "op_code" | grep -iv "cumemcpy")
 
    # count the number of operations
    recv_size=$(echo "$results" |  wc -l)
