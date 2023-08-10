@@ -18,6 +18,7 @@ import plotly.graph_objects as go
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
 import zstandard as zstd
 import io
+import argumentparser
 
 
 data_by_address = {}
@@ -914,13 +915,19 @@ def show_code():
             show_sidebar()
             st.session_state[ckey] = chosen_line
 
+
 if __name__ == "__main__":
-    
     st.set_page_config(layout="wide")
 
-    if (len(sys.argv) < 2):
+    args = argumentparser.parse()
+    gpu_num = args.gpu_num                      
+    src_code_file = args.src_code_file         
+    sampling_period = args.sampling_period   
+    logfile = args.logfile
+
+    if (logfile == None):
         print("Provide an input file")
-    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = read_data(sys.argv[1])
+    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = read_data(logfile)
 
     f = None
     if os.path.exists(src_code_file):
