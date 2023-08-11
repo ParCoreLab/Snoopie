@@ -313,6 +313,55 @@ def scale_lightness(rgb, scale_l):
     return colorsys.hls_to_rgb(h, min(1, l * scale_l), s = min(0.85, s * 1.75) )
 
 
+def get_object_view_data(filter = None):
+    cols_rows_name = ['GPU%d' % i for i in range(gpu_num)]
+    object_view = []
+    for dev in range(gpu_num):
+        object_view.append({})
+
+    for key in data_by_obj.keys():
+        offset = int(data_by_obj[key]['offset'], 16)
+        obj = [[]]
+        object_map = [[]]
+        obj_size = int(data_by_obj[key]['size']/ADDR_DIST)
+        step = ADDR_DIST
+        if obj_size > GRAPH_SIZE_LIMIT:
+            step *= int(obj_size/GRAPH_SIZE_LIMIT)
+        cols = int(math.sqrt(obj_size))*4
+        ycounter = cols
+        # set up the data to be displayed in the objectview on hover
+        for i in range(0, int(data_by_obj[key]['size']), step):
+            # if i >= ycounter:
+            #     ycounter += cols
+            #     obj.append([])
+            #     object_map.append([])
+            hex_addr = str.format('0x{:016x}', offset+i)
+            if hex_addr in data_by_address.keys() and (filter == None or filter in data_by_address[hex_addr]):
+                dict_details = data_by_address[hex_addr]
+                html_details = "<br>"
+                for dev in cols_rows_name:
+                    if dev in dict_details:
+                        html_details += " "*8 + str(dev) + ": " + str(dict_details[dev]) + "<br>"
+                for op in ops:
+                    if op in dict_details:
+                        html_details += " "*8 + str(op) + ": " + str(dict_details[op]) + "<br>"
+                for line in dict_details['lines']:
+                    intline = int(line[5:])
+                    html_details += " "*8 + str(line) + ": " + str(dict_details[line]) + "<br>"
+                    data_by_line[intline] = data_by_line.get(intline, {})
+                    temp_data = data_by_line[intline]
+                    # calculate how many times each object is updated in that line
+                    temp_data["objects_updated"] = temp_data.get("objects_updated", dict())
+                    temp_data["objects_updated"][data_by_obj[key]["var_name"]] = temp_data["objects_updated"].get(data_by_obj[key]["var_name"], 0) + dict_details['total']
+                obj[-1].append([hex_addr, html_details])
+                object_map[-1].append(dict_details['total'])
+            else:
+                obj[-1].append([hex_addr, ""])
+                object_map[-1].append(0)
+        if (data_by_obj[key]['device_id'] >= 0):
+            object_view[data_by_obj[key]['device_id']][data_by_obj[key]['var_name']] = [obj, object_map]
+    return object_view
+
 def main():
     global data_by_address, data_by_device, gpu_num, ops, chosen_line
 
@@ -497,52 +546,34 @@ def main():
 
     selected_rows = None
 
-    for key in data_by_obj.keys():
-        offset = int(data_by_obj[key]['offset'], 16)
-        obj = [[]]
-        object_map = [[]]
-        obj_size = int(data_by_obj[key]['size']/ADDR_DIST)
-        step = ADDR_DIST
-        if obj_size > GRAPH_SIZE_LIMIT:
-            step *= int(obj_size/GRAPH_SIZE_LIMIT)
-        cols = int(math.sqrt(obj_size))*4
-        ycounter = cols
-        # set up the data to be displayed in the objectview on hover
-        for i in range(0, int(data_by_obj[key]['size']), step):
-            # if i >= ycounter:
-            #     ycounter += cols
-            #     obj.append([])
-            #     object_map.append([])
-            hex_addr = str.format('0x{:016x}', offset+i)
-            if hex_addr in data_by_address.keys():
-                dict_details = data_by_address[hex_addr]
-                html_details = "<br>"
-                for dev in cols_rows_name:
-                    if dev in dict_details:
-                        html_details += " "*8 + str(dev) + ": " + str(dict_details[dev]) + "<br>"
-                for op in ops:
-                    if op in dict_details:
-                        html_details += " "*8 + str(op) + ": " + str(dict_details[op]) + "<br>"
-                for line in dict_details['lines']:
-                    intline = int(line[5:])
-                    html_details += " "*8 + str(line) + ": " + str(dict_details[line]) + "<br>"
-                    data_by_line[intline] = data_by_line.get(intline, {})
-                    temp_data = data_by_line[intline]
-                    # calculate how many times each object is updated in that line
-                    temp_data["objects_updated"] = temp_data.get("objects_updated", dict())
-                    temp_data["objects_updated"][data_by_obj[key]["var_name"]] = temp_data["objects_updated"].get(data_by_obj[key]["var_name"], 0) + dict_details['total']
-                obj[-1].append([hex_addr, html_details])
-                object_map[-1].append(dict_details['total'])
-            else:
-                obj[-1].append([hex_addr, ""])
-                object_map[-1].append(0)
-        if (data_by_obj[key]['device_id'] >= 0):
-            object_view[data_by_obj[key]['device_id']][data_by_obj[key]['var_name']] = [obj, object_map]
-   
+
+    object_view = get_object_view_data(filter = None)
+    
+
     for i in range(gpu_num):
         if len(object_view[i]) > 0 and chosen_id_tab == str(i):
             st.markdown(f"### Objects owned by **<span style='color:{pal[i]}'>GPU{i}</span>**", unsafe_allow_html=True)
             
+            objects_owned_cols = st.columns([4,7])
+            other_gpus_selector = [s for s in cols_rows_name if s != f"GPU{i}"] + ["All Accesses"]
+            with objects_owned_cols[0]:
+                filter_chooser = st.selectbox("Filter accesses by GPU",other_gpus_selector, index = len(other_gpus_selector)-1)
+
+            is_all_zeros = False
+            if filter_chooser != other_gpus_selector[-1]:
+                object_view = get_object_view_data(filter_chooser)
+                is_all_zeros = True
+                for key in object_view[i].keys():
+                    obj_data = object_view[i][key]
+                    for arr in obj_data[1]:
+                        for elem in arr:
+                            if elem != 0:
+                                is_all_zeros = False
+                            if not is_all_zeros: break
+                        if not is_all_zeros: break
+                    if not is_all_zeros: break
+        
+
             obj_fig = make_subplots(rows=len(object_view[i]), 
                                     shared_xaxes=True, cols=1, vertical_spacing=0.05)
             index = 1
@@ -568,6 +599,14 @@ def main():
 
                 obj_fig.update_layout(coloraxis_colorbar=dict(title="Data transfer<br>count"))               
                 index += 1
+
+            if is_all_zeros:
+                obj_fig.update_layout(
+                    {
+                        "coloraxis_cmin": -.2,
+                        "coloraxis_cmax": 10,
+                    }
+                )
 
             obj_fig.update_layout(coloraxis=dict(colorscale=colorscale), showlegend=False)
             obj_fig.update_layout(
