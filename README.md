@@ -61,5 +61,19 @@ cd visualizer; pip install st-click-detector-0.1.3/
 
 ### Usage
 ```
-streamlit run visualizer/parse_and_vis.py <my_data_file.txt>
+streamlit run /path/to/parse_and_vis.py -- [optional arguments] logfile
+
+positional arguments:
+  logfile               Path to the snoopie log file. Either the
+                        compressed .zst file or the decompressed file.
+
+options:
+  -h, --help            show this help message and exit
+  --gpu-num GPU_NUM, -n GPU_NUM
+                        Number of gpus the code was run on.
+  --src-code-file SRC_CODE_FILE, -s SRC_CODE_FILE
+                        Source code file for code attribution.
+  --sampling-period SAMPLING_PERIOD, -p SAMPLING_PERIOD
+                        Sampling period
+
 ```
