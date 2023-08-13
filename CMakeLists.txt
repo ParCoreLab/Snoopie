@@ -1,0 +1,35 @@
+cmake_minimum_required(VERSION 3.23)
+
+project(snoopie VERSION 1.0
+        DESCRIPTION "ok"
+        LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 14)
+
+# Minimum supported NVCC version
+set(NVCC_VER_MIN 10.1)
+
+# Debugging Makefile
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Not portable
+add_link_options("-Wl,--no-undefined")
+
+# CUDA
+set(CMAKE_CUDA_ARCHITECTURES "80")
+find_package(CUDAToolkit ${NVCC_VER_MIN} REQUIRED)
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+
+enable_language(CUDA)
+
+find_package(NVSHMEM REQUIRED)
+find_package(MPI REQUIRED)
+find_package(NVBIT REQUIRED)
+
+add_subdirectory(tools/mem_multigpu)
+add_subdirectory(tests)
+#add_subdirectory(tests/stencil/stencil-p2p_base)
+add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
