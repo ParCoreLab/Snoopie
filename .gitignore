@@ -1,4 +1,17 @@
-.vscode
+.idea/
+.vscode/
+
 *.zst
 *.o
+*.a
 *.so
+*.cubin
+
+# Special files
+testfile.txt
+*.nsys-rep
+
+# cmake files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
