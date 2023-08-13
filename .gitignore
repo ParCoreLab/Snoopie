@@ -8,6 +8,7 @@
 *.cubin
 
 # Special files
+codeline_log_*.txt
 testfile.txt
 *.nsys-rep
 
