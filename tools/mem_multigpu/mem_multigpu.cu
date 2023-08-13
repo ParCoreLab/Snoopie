@@ -78,12 +78,26 @@
 
 using namespace cpptrace;
 using namespace adamant;
+using namespace std;
+
+#define CHILD 1
+#define SIBLING 2
+
+int object_counter = 0;
 
 //static adm_splay_tree_t* tree = nullptr;
 static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 static int global_index = 0;
+
+static allocation_site_t* root = NULL;
+
+static allocation_line_hash_table_t* allocation_line_table;
+
+std::vector<adm_range_t*> range_nodes; 
+
+std::vector<adm_object_t*> object_nodes;
 
 Logger logger("snoopie-log-" + std::to_string(getpid()) + ".zst");
 
@@ -198,7 +212,13 @@ int64_t find_nvshmem_dev_of_ptr(int mype,uint64_t mem_addr, int nvshmem_ngpus,
   return -1;
 }
 
+allocation_site_t* search_at_level(allocation_site_t* allocation_site, uint64_t pc)
+{
+    if (allocation_site == NULL || allocation_site->get_pc() == pc)
+        return allocation_site;
 
+    return search_at_level(allocation_site->get_next_sibling(), pc); 
+}
 
 int64_t find_dev_of_ptr(uint64_t ptr)
 {
@@ -333,6 +353,87 @@ std::string find_recorded_kernel(const std::string& curr_kernel)
 	return chosen_key;
 }
 
+// Function to print the
+// N-ary tree graphically
+void printNTree(allocation_site_t* x,
+    vector<bool> flag,
+    int depth = 0, bool isLast = false)
+{
+    //cout << "in the beginning\n";
+    // Condition when allocation_site is None
+    if (x == NULL)
+        return;
+     //cout << "depth " << depth << "\n";
+    // Loop to print the depths of the
+    // current allocation_site
+    for (int i = 1; i < depth; ++i) {
+         
+        // Condition when the depth
+        // is exploring
+        if (flag[i] == true) {
+            cout << "| "
+                << " "
+                << " "
+                << " ";
+        }
+         
+        // Otherwise print
+        // the blank spaces
+        else {
+            cout << " "
+                << " "
+                << " "
+                << " ";
+        }
+    }
+    //cout << "depth " << depth << "\n";    
+    // Condition when the current
+    // allocation_site is the root allocation_site
+    uint64_t pc = x->get_pc();
+    int obj_id = x->get_object_id();
+    if (depth == 0) {
+        cout << pc << endl;
+	//cout << "here depth is 0\n";
+    // Condition when the allocation_site is
+    // the last allocation_site of
+    // the exploring depth
+    } else if (isLast) {
+        cout << "+--- " << pc;
+//#if 0
+	if (obj_id > 0)
+		cout << " " << obj_id;
+//#endif         
+	cout << endl;
+        // No more childrens turn it
+        // to the non-exploring depth
+	//cout << "here 2\n";
+        flag[depth] = false;
+	//cout << "here 2 1\n";
+    }
+    else {
+	//cout << "before\n";
+        cout << "+--- " << pc;
+//#if 0
+	if (obj_id > 0)
+		cout << " " << obj_id;
+	cout << endl;
+//#endif
+	//cout << "here 1\n";
+    }
+    //cout << "after value is printed\n";
+    int it = 0;
+    x = x->get_first_child();
+        // Recursive call for the
+        // children allocation_sites
+    //cout << "before while\n";
+    while(x != NULL) {
+        printNTree(x, flag, depth + 1,
+            x->get_next_sibling() == NULL);
+	x = x->get_next_sibling();
+    } //while(x != NULL);
+    flag[depth] = true;
+}
+
 
 void nvbit_at_init()
 {
@@ -360,6 +461,7 @@ void nvbit_at_init()
   }
   // read the file with line info here
   initialize_object_table(100);
+  allocation_line_table = new allocation_line_hash_table_t(100);
   initialize_line_table(100);
   //std::cerr << "code_attribution: " << code_attribution << std::endl;
   if(code_attribution) {
@@ -724,11 +826,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   }
   else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2)
   {
-    std::cerr << "API_CUDA_cuMemAlloc_v2 is detected\n";
-    std::vector<stacktrace_frame> trace = generate_trace(); 
-    for(auto itr : trace) {
-	std::cout << "pc " << itr.address << ", function " << itr.symbol << ", file " << itr.filename << ", line " << itr.line << "\n";
-    } 
     cuMemAlloc_v2_params *p = (cuMemAlloc_v2_params *)params;
     std::stringstream ss;
     ss << HEX(*p->dptr);
@@ -793,12 +890,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     }
   }
   else if (cbid == API_CUDA_cuMemHostAlloc)
-  {
-    std::cerr << "API_CUDA_cuMemHostAlloc is detected\n";
-    std::vector<stacktrace_frame> trace = generate_trace();
-    for(auto itr : trace) {
-        std::cout << "pc " << itr.address << ", function " << itr.symbol << ", file " << itr.filename << ", line " << itr.line << "\n";
-    }   
+  {   
     cuMemHostAlloc_params *p = (cuMemHostAlloc_params *)params;
     std::stringstream ss;
     ss << HEX(*p->pp);
@@ -891,6 +983,62 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       << std::endl;
 
     logger.log(ss.str());
+  }
+
+  if(is_exit && (cbid == API_CUDA_cuMemAlloc_v2 || cbid == API_CUDA_cuMemAllocHost || cbid == API_CUDA_cuMemAllocHost_v2 || cbid == API_CUDA_cuMemHostAlloc)) {
+	std::cout << "captured malloc\n";
+        std::vector<stacktrace_frame> trace = generate_trace();
+	allocation_site_t* allocation_site = root;
+	allocation_site_t* parent = NULL;
+	for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr) {
+                std::cout << "pc " << itr->address << ", function " << itr->symbol << ", file " << itr->filename << ", line " << itr->line << "\n";
+		allocation_line_t* line = allocation_line_table->find(itr->address);
+        	if(line == NULL) {
+                	allocation_line_table->insert(new allocation_line_t(itr->address, itr->symbol, itr->filename, itr->line));
+        	}	
+		if(root == NULL) {
+			root = new allocation_site_t (itr->address);
+			allocation_site = root;
+			//cout << "allocation_site->pc " << allocation_site->pc << "\n"; 
+			parent = allocation_site;
+                	allocation_site = allocation_site->get_first_child();
+			continue;
+		}
+		allocation_site_t* temp = allocation_site;
+		allocation_site = search_at_level(allocation_site, itr->address);
+		if(allocation_site == NULL) {
+			if(temp != NULL) {
+				//struct allocation_site* oldest_sibling = temp;
+				while(temp->get_next_sibling() != NULL)
+					temp = temp->get_next_sibling();
+				temp->set_next_sibling(new allocation_site_t(itr->address));
+				//cout << "oldest sibling is " << oldest_sibling->pc << " parent is " << parent->pc << " pc " << temp->next_sibling->pc << " is created" << endl;
+				allocation_site = temp->get_next_sibling();
+				allocation_site->set_parent(temp->get_parent());
+			} else {
+				//cout << "parent->pc " << parent->pc << "\n";
+				parent->set_first_child(new allocation_site_t(itr->address));
+				//cout << "the parent is " << parent->pc << " new allocation_site pc " << parent->first_child->pc << " is created" << endl;
+				allocation_site = parent->get_first_child();
+				allocation_site->set_parent(parent);
+			}
+		}
+		parent = allocation_site;
+		allocation_site = allocation_site->get_first_child();
+        }
+	parent = parent->get_parent();
+	if(parent->get_object_id() == 0) {
+		parent->set_object_id(++object_counter);
+		object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+	}
+	range_nodes.push_back(new adm_range_t(0x4, 100, parent->get_object_id()));
+	cout << "Identified object id " << parent->get_object_id();
+	cout << ", callstack ";
+	while(parent) {
+		cout << parent->get_pc() << " ";
+		parent = parent->get_parent();
+	}	
+	cout << endl;	  
   }
 
   skip_callback_flag = false;
@@ -1209,6 +1357,8 @@ void nvbit_at_term()
         adm_ranges_print();
     adm_line_table_print();
   }
+  delete allocation_line_table;
+  delete root;
   // memop_outfile.close();
   // TODO: Print the below agian at some point
   // adm_line_table_print();

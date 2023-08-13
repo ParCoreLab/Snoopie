@@ -52,6 +52,7 @@ class adm_range_t
 {
     uint64_t size;
     uint64_t address;
+    int object_id;
     uint64_t allocation_pc;
     uint32_t index_in_object;
     int device_id;
@@ -60,6 +61,8 @@ class adm_range_t
   public:
 
     adm_meta_t meta;
+
+    adm_range_t(uint64_t address1, uint64_t size1, int object_id1): size(size1), address(address1), object_id(object_id1) {}
 
     adm_range_t(): size(0), address(0), allocation_pc(0), index_in_object(999), device_id(0) {}
 
@@ -70,6 +73,10 @@ class adm_range_t
     uint64_t get_size() const noexcept { return size&0x0FFFFFFFFFFFFFFF; };
 
     void set_size(const uint64_t s) {size = (size&0xF000000000000000)|s; };
+
+    uint64_t get_object_id() const noexcept { return object_id; };
+
+    void set_object_id(const uint64_t a) noexcept { object_id=a; }; 
 
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 
@@ -136,8 +143,52 @@ adm_line_location_t* adm_line_location_insert(const int global_index, std::strin
 
 adm_line_location_t* adm_line_location_find(const int global_index) noexcept;
 
+class allocation_site_t {
+    int object_id;
+    uint64_t pc;
+    allocation_site_t *first_child, *next_sibling, *parent;
+public:
+    allocation_site_t(uint64_t input_pc): object_id(0), pc(input_pc), first_child(NULL), next_sibling(NULL), parent(NULL) {}
+    ~allocation_site_t() {
+        delete next_sibling;
+        delete first_child;
+    }
+    int get_object_id() {
+            return object_id;
+    }
+    uint64_t get_pc() {
+            return pc;
+    }
+    allocation_site_t *get_first_child() {
+            return first_child;
+    }
+    allocation_site_t *get_next_sibling() {
+            return next_sibling;
+    }
+    allocation_site_t *get_parent() {
+            return parent;
+    }
+    void set_object_id(int obj_id) {
+            object_id = obj_id;
+    }
+    void set_pc(uint64_t pc1) {
+            pc = pc1;
+    }
+    void set_first_child(allocation_site_t *child) {
+            first_child = child;
+    }
+    void set_next_sibling(allocation_site_t *sibling) {
+            next_sibling = sibling;
+    }
+    void set_parent(allocation_site_t *parent1) {
+            parent = parent1;
+    }
+};
+
 class adm_object_t
 {
+    int object_id;
+    allocation_site_t* allocation_site;
     uint64_t allocation_pc;
     std::string var_name;
     std::string file_name;
@@ -150,7 +201,16 @@ class adm_object_t
 
     adm_meta_t meta;
 
-    adm_object_t(): allocation_pc(0), line_num(0), data_type_size(0), range_count(0) {}
+    adm_object_t(): object_id(0), allocation_site(NULL), allocation_pc(0), line_num(0), data_type_size(0), range_count(0) {}
+
+    adm_object_t(int object_id1, allocation_site_t* allocation_site1, uint32_t data_type_size1): 
+	object_id(object_id1), allocation_site(allocation_site1), data_type_size(data_type_size1), range_count(0) {}
+
+    int get_object_id() const noexcept { return object_id; };
+
+    void set_object_id(const int obj_id) noexcept { object_id=obj_id; };
+
+    allocation_site_t* get_allocation_site() const noexcept { return allocation_site; };
 
     uint64_t get_allocation_pc() const noexcept { return allocation_pc; };
 
@@ -190,6 +250,27 @@ class adm_object_t
 adm_object_t* adm_object_insert(const uint64_t allocation_pc, std::string varname, const uint32_t element_size, std::string filename, std::string funcname, uint32_t linenum, const state_t state=ADM_STATE_STATIC) noexcept;
 
 adm_object_t* adm_object_find(const uint64_t allocation_pc) noexcept;
+
+//before
+class allocation_line_t
+{
+    uint64_t pc;
+    std::string func_name;
+    std::string file_name;
+    uint32_t line_num;
+
+  public:
+
+    allocation_line_t(uint64_t pc1, std::string func_name1, std::string file_name1, uint32_t line_num1): pc(pc1), func_name(func_name1), file_name(file_name1), line_num(line_num1) {}
+    uint64_t get_pc() { return pc; };
+    std::string get_func_name() { return func_name; };
+    std::string get_file_name() { return file_name; };
+    uint32_t get_line_num() { return line_num; };
+    void print() {
+	    std::cout << pc << "," << func_name << "," << file_name << "," << line_num << "\n";
+    }
+};
+//after
 
 void adm_db_update_size(const uint64_t address, const uint64_t size) noexcept;
 

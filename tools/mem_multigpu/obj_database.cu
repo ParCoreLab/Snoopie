@@ -364,11 +364,13 @@ void adm_range_t::print(std::ofstream& object_outfile) const noexcept
   uint64_t z = get_size();
   // std::cout << "size: " << z << ", ";
   int dev_id = get_device_id();
+  int obj_id = get_object_id();
   // std::cout << "device_id: " << dev_id << ", ";
   uint64_t p = get_allocation_pc();
 
   object_outfile << HEX(a) << ",";
   object_outfile << z << ",";
+  object_outfile << obj_id << ",";
   object_outfile << dev_id << ",";
 
   adm_object_t* obj = object_table->find(p);
@@ -389,22 +391,15 @@ void adm_object_t::print(std::ofstream& object_outfile) const noexcept
   // uint64_t p = get_allocation_pc();
   // std::cout << "allocation_pc: " << p << ", "; 
 
+  int obj_id = get_object_id();
   std::string varname = get_var_name();
-  // std::cout << "var_name: " << varname << ", ";
-  // uint32_t range_count = get_range_count();
-  // std::cout << "number_of_mallocs: " << range_count << ", ";
-  std::string filename = get_file_name();
-  // std::cout << "file_name: " << filename << ", ";
-  // std::string funcname = get_func_name();
-  // std::cout << "func_name: " << funcname << ", ";
-  uint32_t linenum = get_line_num();
-  // std::cout << "line_num: " << linenum << std::endl;
-  //int dev_id = get_device_id();
-  //std::cout << "device_id: " << dev_id << std::endl; 
 
-  object_outfile << varname << ",";
-  object_outfile << filename << ",";
-  object_outfile << linenum << std::endl;;
+  allocation_site_t* temp = get_allocation_site();
+  while(temp) {
+	  cout << "," << temp->get_pc();
+	  temp = temp->get_parent();
+  }
+  cout << endl;
 }
 
 ADM_VISIBILITY
