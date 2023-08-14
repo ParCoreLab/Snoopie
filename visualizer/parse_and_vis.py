@@ -223,7 +223,10 @@ def read_data(file):
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data[operation] = temp_data.get(operation, 0) + 1
                 temp_data[device] = temp_data.get(device, 0) + 1
-                temp_data['line_' + str(linenum)] = temp_data.get('line_' + str(linenum), 0) + 1
+                
+                temp_data['line_' + str(linenum)] = temp_data.get('line_' + str(linenum), {})
+                temp_data['line_' + str(linenum)][operation] = temp_data['line_' + str(linenum)].get(operation, 0) + 1
+
                 temp_lines = temp_data.get('lines', set())
                 temp_lines.add('line_' + str(linenum))
                 temp_data['lines'] = temp_lines
