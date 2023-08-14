@@ -233,7 +233,7 @@ def read_data(file):
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data['totalbytes'] = temp_data.get('totalbytes', 0) + mem_range
                 temp_data[operation] = temp_data.get(operation, 0) + 1
-                temp_data[operation+"bytes"] = temp_data.get(operation, 0) + mem_range
+                temp_data[operation + "bytes"] = temp_data.get(operation + "bytes", 0) + mem_range
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
                 temp_data['line_' + str(linenum)] = temp_data.get('line_' + str(linenum), 0) + 1
                 temp_lines = temp_data.get('lines', set())
@@ -245,7 +245,7 @@ def read_data(file):
                 temp_data['totalbytes'] = temp_data.get('totalbytes', 0) + mem_range
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data[operation] = temp_data.get(operation, 0) + 1
-                temp_data[operation + "bytes"] = temp_data.get(operation, 0) + mem_range
+                temp_data[operation + "bytes"] = temp_data.get(operation + "bytes", 0) + mem_range
                 temp_data[owner] = temp_data.get(owner, 0) + 1
                 temp_data[owner+'bytes'] = temp_data.get(owner+'bytes', 0) + mem_range
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
@@ -569,12 +569,12 @@ def main():
             st.markdown(f"### Objects owned by **<span style='color:{pal[i]}'>GPU{i}</span>**", unsafe_allow_html=True)
             
             objects_owned_cols = st.columns([4,7])
-            other_gpus_selector = [s for s in cols_rows_name if s != f"GPU{i}"] + ["All Accesses"]
+            other_gpus_selector = ["All Accesses"] + [s for s in cols_rows_name if s != f"GPU{i}"]
             with objects_owned_cols[0]:
-                filter_chooser = st.selectbox("Filter accesses by GPU",other_gpus_selector, index = len(other_gpus_selector)-1)
+                filter_chooser = st.selectbox("Filter accesses by GPU",other_gpus_selector, index = 0)
 
             is_all_zeros = False
-            if filter_chooser != other_gpus_selector[-1]:
+            if filter_chooser != other_gpus_selector[0]:
                 object_view = get_object_view_data(filter_chooser)
                 is_all_zeros = True
                 for key in object_view[i].keys():
@@ -733,7 +733,8 @@ def main():
                             table_objs.insert(0, litem) 
                             # table_lines.insert(0, litem) 
                         elif '.E' in item[0]:
-                            table_instr.append(litem)                            
+                            if not item[0].endswith("bytes"):
+                                table_instr.append(litem)                            
                         elif item[0].startswith('line') or item[0].startswith('totalbytes'):
                             continue
                         else:
