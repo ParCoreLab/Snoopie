@@ -222,7 +222,9 @@ def read_data(file):
                 temp_data = data_by_address[address]
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data[operation] = temp_data.get(operation, 0) + 1
-                temp_data[device] = temp_data.get(device, 0) + 1
+
+                temp_data[device] = temp_data.get(device, {})
+                temp_data[device][operation] = temp_data[device].get(operation, 0) + 1
                 
                 temp_data['line_' + str(linenum)] = temp_data.get('line_' + str(linenum), {})
                 temp_data['line_' + str(linenum)][operation] = temp_data['line_' + str(linenum)].get(operation, 0) + 1
@@ -318,7 +320,22 @@ def scale_lightness(rgb, scale_l):
     return colorsys.hls_to_rgb(h, min(1, l * scale_l), s = min(0.85, s * 1.75) )
 
 
-def get_object_view_data(filter = None):
+def get_object_view_data(filter = None, allowed_ops = []):
+    
+    def check_filter(hex_addr) -> bool:
+        nonlocal filter, allowed_ops
+        if hex_addr not in data_by_address: return False
+        if filter == None:
+            # allow all gpus
+            for op in allowed_ops:
+                if op in data_by_address[hex_addr]: return True
+            return False
+        if filter not in data_by_address[hex_addr]: return False
+        for op in allowed_ops:
+            if op in data_by_address[hex_addr][filter]: return True
+        return False
+
+
     cols_rows_name = ['GPU%d' % i for i in range(gpu_num)]
     object_view = []
     for dev in range(gpu_num):
@@ -341,7 +358,7 @@ def get_object_view_data(filter = None):
             #     obj.append([])
             #     object_map.append([])
             hex_addr = str.format('0x{:016x}', offset+i)
-            if hex_addr in data_by_address.keys() and (filter == None or filter in data_by_address[hex_addr]):
+            if check_filter(hex_addr):
                 dict_details = data_by_address[hex_addr]
                 html_details = "<br>"
                 for dev in cols_rows_name:
@@ -359,7 +376,14 @@ def get_object_view_data(filter = None):
                     temp_data["objects_updated"] = temp_data.get("objects_updated", dict())
                     temp_data["objects_updated"][data_by_obj[key]["var_name"]] = temp_data["objects_updated"].get(data_by_obj[key]["var_name"], 0) + dict_details['total']
                 obj[-1].append([hex_addr, html_details])
-                object_map[-1].append(dict_details['total'])
+                temp_total = 0
+                if filter == None:
+                    for op in allowed_ops:
+                        temp_total += dict_details.get(op,0)
+                else:
+                    for op in allowed_ops:
+                        temp_total += dict_details.get(filter,{}).get(op,0)
+                object_map[-1].append(temp_total)
             else:
                 obj[-1].append([hex_addr, ""])
                 object_map[-1].append(0)
@@ -477,7 +501,6 @@ def main():
                 for op in ops_to_display:
                     if op in data_by_device[pair]:
                         width += data_by_device[pair][op + label_bytes]*sampling_period
-            print(pair,width)
             widths[i].append(width)
             if width > max_val:
                 max_val = width
@@ -564,7 +587,7 @@ def main():
     selected_rows = None
 
 
-    object_view = get_object_view_data(filter = None)
+    object_view = get_object_view_data(filter = None, allowed_ops = ops_to_display)
     
 
     for i in range(gpu_num):
@@ -578,7 +601,7 @@ def main():
 
             is_all_zeros = False
             if filter_chooser != other_gpus_selector[0]:
-                object_view = get_object_view_data(filter_chooser)
+                object_view = get_object_view_data(filter_chooser, allowed_ops = ops_to_display)
                 is_all_zeros = True
                 for key in object_view[i].keys():
                     obj_data = object_view[i][key]
