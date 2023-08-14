@@ -31,9 +31,10 @@ chosen_line = None
 
 #####################################
 #     CHANGE THESE WHEN NEEDED!     #
-gpu_num = 8                         #
-src_code_file = "jacobi.cu"         #
+gpu_num = -1                         #
+# st.session_state.src_code_file = "" #
 sampling_period = 10                #
+# st.session_state.logfile = None     #
 #                                   #
 #####################################
 
@@ -127,20 +128,56 @@ def isInt_try(v):
     return True
 
 
+def detect_gpu_count(f):
+    global gpu_num
+
+    skip = True
+    count = set()
+    for line in f:
+        if skip:
+            skip = False; continue
+        if line.startswith("offset") or line.startswith("code_line_index"):
+            break
+        keys = line.split(",")
+        running_dev = int(keys[3])
+        mem_dev = int(keys[4])
+        if running_dev >= 0:
+            count.add(running_dev)
+        if mem_dev >= 0:
+            count.add(mem_dev)
+    gpu_num = len(count)
+    print("gpu num detected as:", gpu_num)
+    f.seek(0)
+    
+
 @st.cache_data
 def read_data(file):
     global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops
-    f = open(file, "r")
 
-    if file.endswith(".zst"):
-        f = open(file, "rb")
-        dctx = zstd.ZstdDecompressor()
-        reader = dctx.stream_reader(f)
-        f = io.TextIOWrapper(reader, encoding='utf-8')
+    if type(file) == str:
+        filename = file
+        f = open(file, "r")
 
-    if f is None:
-        print("File not found")
-        exit(0)
+        if f is None:
+            print("File not found")
+            exit(0)
+
+        if filename.endswith(".zst"):
+            f = open(file, "rb")
+            dctx = zstd.ZstdDecompressor()
+            reader = dctx.stream_reader(f)
+            f = io.TextIOWrapper(reader, encoding='utf-8')
+    else:
+        filename = file.name
+        if filename.endswith(".zst"):
+            dctx = zstd.ZstdDecompressor()
+            reader = dctx.stream_reader(file)
+            f = io.TextIOWrapper(reader, encoding='utf-8')
+        else:
+            tmp_stream = io.BytesIO(file.read())
+            f = io.TextIOWrapper(tmp_stream, encoding="utf-8")
+
+    detect_gpu_count(f)
 
     addrs = set()
     
@@ -148,7 +185,7 @@ def read_data(file):
     graph_name = ""
     pickle_file = None
             
-    pickle_filename = ''.join(file.split(".")[:-1]) + '.pkl'
+    pickle_filename = ''.join(filename.split(".")[:-1]) + '.pkl'
     if os.path.isfile(pickle_filename):
         with open(pickle_filename, 'rb') as f:
             pickle_file = pickle.load(f)
@@ -914,6 +951,7 @@ def show_sidebar():
 
 def read_code(f):
     global src_lines
+    f.seek(0)
     src_lines = f.readlines()
 
 
@@ -1008,31 +1046,84 @@ def show_code():
             st.session_state[ckey] = chosen_line
 
 
-if __name__ == "__main__":
-    st.set_page_config(layout="wide")
+def filepicker_page():
+    uploaded_logfile = st.file_uploader("Log File",accept_multiple_files=False)
+    uploaded_sourcecode = st.file_uploader("Source Code File",accept_multiple_files=False)
+    num_gpus = st.number_input("Number of GPU's",-1,16,-1, help="Leave -1 for automatic detection")
+    sample_period = st.number_input("Sampling Period",0,100,sampling_period)
+    accept_btn = st.button("Start")
 
-    args = argumentparser.parse()
-    gpu_num = args.gpu_num                      
-    src_code_file = args.src_code_file         
-    sampling_period = args.sampling_period   
-    logfile = args.logfile
+    if accept_btn:
+        if uploaded_logfile != None and uploaded_sourcecode != None:
+            st.session_state.logfile = uploaded_logfile
+            st.session_state.gpu_num = num_gpus
+            st.session_state.sampling_period = sample_period
 
-    if (logfile == None):
-        print("Provide an input file")
-    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = read_data(logfile)
+            tmp_content = io.BytesIO(uploaded_sourcecode.read())
+            st.session_state.src_code_file = io.TextIOWrapper(tmp_content, encoding="utf-8")
 
-    f = None
-    if os.path.exists(src_code_file):
-        f = open(src_code_file, "r")
 
-    if f is None:
-        print("Source code file not found")
-        exit(0)
+            st.session_state.show_filepicker = False
+            accept_btn = False
+            st.experimental_rerun()
+            # continue_main()
+        else:
+            st.write("Please upload files")
 
-    read_code(f)
+def continue_main():
+    global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops
+    
+    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = read_data(st.session_state.logfile)
+
+    read_code(st.session_state.src_code_file)
     main()
 
     st.markdown("""---""")
 
     show_code()
+
+
+if __name__ == "__main__":
+    st.set_page_config(layout="wide")
+
+    if "first_run" not in st.session_state:
+        args = argumentparser.parse()
+        st.session_state.gpu_num = args.gpu_num                      
+        src_code_file = args.src_code_file         
+        sampling_period = args.sampling_period   
+        st.session_state.logfile = args.logfile
+        st.session_state.first_run = False
+        st.session_state.show_filepicker = False
+
+        if src_code_file != "":
+            f = None
+            if os.path.exists(src_code_file):
+                f = open(src_code_file, "r")
+
+            if f == None:
+                st.write("Source code file not found")
+                st.session_state.show_filepicker = True
+                st.session_state.src_code_file = ""
+            else:
+                st.session_state.src_code_file = f
+
+    if (st.session_state.logfile == ""):
+        st.session_state.show_filepicker = True
+
+    if "sampling_period" in st.session_state:
+        sampling_period = st.session_state.sampling_period
+    
+    if "gpu_num" in st.session_state:
+        gpu_num = st.session_state.gpu_num
+
+    if not st.session_state.show_filepicker:
+        start_newfile = st.button("Profile another file")
+        if start_newfile:
+            st.session_state.show_filepicker = True
+
+
+    if st.session_state.show_filepicker:
+        filepicker_page()
+    else:
+        continue_main()
     # print(clicked_src)
