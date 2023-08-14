@@ -233,6 +233,7 @@ def read_data(file):
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data['totalbytes'] = temp_data.get('totalbytes', 0) + mem_range
                 temp_data[operation] = temp_data.get(operation, 0) + 1
+                temp_data[operation+"bytes"] = temp_data.get(operation, 0) + mem_range
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
                 temp_data['line_' + str(linenum)] = temp_data.get('line_' + str(linenum), 0) + 1
                 temp_lines = temp_data.get('lines', set())
@@ -244,6 +245,7 @@ def read_data(file):
                 temp_data['totalbytes'] = temp_data.get('totalbytes', 0) + mem_range
                 temp_data['total'] = temp_data.get('total', 0) + 1
                 temp_data[operation] = temp_data.get(operation, 0) + 1
+                temp_data[operation + "bytes"] = temp_data.get(operation, 0) + mem_range
                 temp_data[owner] = temp_data.get(owner, 0) + 1
                 temp_data[owner+'bytes'] = temp_data.get(owner+'bytes', 0) + mem_range
                 temp_data[obj_name] = temp_data.get(obj_name, 0) + 1
@@ -365,12 +367,18 @@ def get_object_view_data(filter = None):
 def main():
     global data_by_address, data_by_device, gpu_num, ops, chosen_line
 
-    st.radio(
-        "Communication units",
-        ["Data transfers", "Bytes"],
-        key="units",
-        horizontal=True
-    )
+    top_cols = st.columns([5,5])
+
+    with top_cols[0]:
+        st.radio(
+            "Communication units",
+            ["Data transfers", "Bytes"],
+            key="units",
+            horizontal=True
+        )
+    with top_cols[1]:
+        ops_to_display = st.multiselect("Operations to display", options = ops, default = ops)
+
 
     nodes = []
     edges = []
@@ -439,10 +447,12 @@ def main():
 
         size = 0.0
         if (label in data_by_device):
-            size = data_by_device[label]['total' + label_bytes]
+            for optype in ops_to_display:
+                size += data_by_device[label][optype + label_bytes]
         sizes.append(size)
     
     norm_ratio = max(sizes)/max_size
+    if norm_ratio == 0: norm_ratio = 1
 
     for i in range(gpu_num):
         label = "GPU"+str(i)
@@ -457,15 +467,19 @@ def main():
         src_label = "GPU"+str(i)
         widths.append([])
         for j in range(gpu_num):
-            target_label = "GPU"+str(j)+label_bytes
+            target_label = "GPU"+str(j)
+            pair = src_label + "-" + target_label
             width = 0.0
-            if (src_label in data_by_device and target_label in data_by_device[src_label]):
-                width = data_by_device[src_label][target_label]*sampling_period
+            if (pair in data_by_device):
+                for op in ops_to_display:
+                    if op in data_by_device[pair]:
+                        width += data_by_device[pair][op + label_bytes]*sampling_period
+            print(pair,width)
             widths[i].append(width)
             if width > max_val:
                 max_val = width
-    
     norm_ratio = max(max(widths))/max_width
+    if norm_ratio == 0: norm_ratio = 1
     drawn = [[False] * gpu_num] * gpu_num
 
     for i in range(gpu_num):
