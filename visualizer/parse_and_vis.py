@@ -38,6 +38,7 @@ sampling_period = 10                #
 #####################################
 
 ops = set()
+ops_to_display = []
 
 GRAPH_SHAPES = {"square": 0, "polygon": 1, "rectangle": 2}
 MIN_TABLE_HEIGHT = 50
@@ -373,8 +374,12 @@ def get_object_view_data(filter = None, allowed_ops = []):
                     data_by_line[intline] = data_by_line.get(intline, {})
                     temp_data = data_by_line[intline]
                     # calculate how many times each object is updated in that line
+                    temp_line_total = 0
+                    for op in allowed_ops:
+                        temp_line_total += dict_details.get(line, {}).get(op, 0)
+
                     temp_data["objects_updated"] = temp_data.get("objects_updated", dict())
-                    temp_data["objects_updated"][data_by_obj[key]["var_name"]] = temp_data["objects_updated"].get(data_by_obj[key]["var_name"], 0) + dict_details['total']
+                    temp_data["objects_updated"][data_by_obj[key]["var_name"]] = temp_data["objects_updated"].get(data_by_obj[key]["var_name"], 0) + temp_line_total
                 obj[-1].append([hex_addr, html_details])
                 temp_total = 0
                 if filter == None:
@@ -392,7 +397,7 @@ def get_object_view_data(filter = None, allowed_ops = []):
     return object_view
 
 def main():
-    global data_by_address, data_by_device, gpu_num, ops, chosen_line
+    global data_by_address, data_by_device, gpu_num, ops, chosen_line, ops_to_display
 
     top_cols = st.columns([5,5])
 
@@ -858,6 +863,7 @@ def show_sidebar():
                 unsafe_allow_html=True,)
             st.markdown("### Total transfers: " + str(linedata['total']))
             st.markdown("#### Objects updated: ")
+            print(linedata)
             for key in linedata['objects_updated'].keys():
                 st.markdown("###### " + key + ": "  + str(linedata['objects_updated'][key]))
 
@@ -912,7 +918,7 @@ def read_code(f):
 
 
 def show_code():
-    global src_lines, chosen_line
+    global src_lines, chosen_line, ops_to_display
     content_head = """<head>
         <style>
             .percentage {
@@ -932,12 +938,18 @@ def show_code():
 
     max_line_comm = 0
     total_comm = 0
+    filtered_comm = {}
 
     for line_index in data_by_line.keys():
-        total_comm += data_by_line[line_index]['total']
-        if (data_by_line[line_index]['total'] > max_line_comm):
-            max_line_comm = data_by_line[line_index]['total']
+        ftotal = 0
+        for op in ops_to_display:
+            ftotal += data_by_line[line_index].get(op, 0)
+        filtered_comm[line_index] = ftotal
+        total_comm += ftotal
+        if (ftotal > max_line_comm):
+            max_line_comm = ftotal
 
+    if total_comm == 0: total_comm = 1 # division by zero
     # https://colorkit.co/palette/413344-614c65-806485-936397-a662a8-664972-463c57-6e8da9-
     # 91bcdd-567d99-395e77-305662-264d4d-315c45-8a9a65-b6b975-b65d54-b60033-98062d-800022/
     pal_base_lines = sns.blend_palette(pal_base[:-3], n_colors=32)
@@ -957,7 +969,7 @@ def show_code():
         #                 style='width:90%;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
         comm_percentage = 0.0
         if data_by_line.get(line_index, None) is not None:
-            comm_percentage = float(data_by_line[line_index]['total'])/float(total_comm)*100
+            comm_percentage = float(filtered_comm[line_index])/float(total_comm)*100
         div_inject = "<div class='percentage' style='background-color:" + pal[int(comm_percentage)%len(pal)] + ";opacity:0.4;width:" + str(comm_percentage) + "%'></div>"
         
         str_percentage = f"{comm_percentage:2.2f}%"
