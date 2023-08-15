@@ -371,10 +371,11 @@ void adm_range_t::print(std::ofstream& object_outfile) const noexcept
   object_outfile << HEX(a) << ",";
   object_outfile << z << ",";
   object_outfile << obj_id << ",";
-  object_outfile << dev_id << ",";
+  object_outfile << dev_id << "\n";
+  //object_outfile << var_name << "\n";
 
-  adm_object_t* obj = object_table->find(p);
-  obj->print(object_outfile);
+  //adm_object_t* obj = object_table->find(p);
+  //obj->print(object_outfile);
 #if 0
   uint64_t p = get_allocation_pc();
   std::cout << "allocation_pc: " << p << std::endl; 
@@ -393,13 +394,18 @@ void adm_object_t::print(std::ofstream& object_outfile) const noexcept
 
   int obj_id = get_object_id();
   std::string varname = get_var_name();
-
+ 
+  object_outfile << obj_id << ",";
+  object_outfile << varname << ",";
+  
   allocation_site_t* temp = get_allocation_site();
   while(temp) {
-	  cout << "," << temp->get_pc();
+	  object_outfile << temp->get_pc();
 	  temp = temp->get_parent();
+	  if(temp)
+		object_outfile << "<";
   }
-  cout << endl;
+  object_outfile << "\n";
 }
 
 ADM_VISIBILITY

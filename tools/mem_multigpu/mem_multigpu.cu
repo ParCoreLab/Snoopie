@@ -1357,6 +1357,24 @@ void nvbit_at_term()
         adm_ranges_print();
     adm_line_table_print();
   }
+  vector<bool> flag(100, true);
+  cout << "Tree of data objects\n";
+  printNTree(root, flag);
+  //cout << "Code locations of data objects\n";
+  ofstream object_outfile;
+  string object_str("data_object_log_");
+  string txt_str(".txt"); 
+  string object_log_str = object_str + to_string(getpid()) + txt_str;
+  object_outfile.open(object_log_str);
+  object_outfile << "pc,func_name,file_name,line_no\n";
+  allocation_line_table->print(object_outfile);
+  object_outfile << "offset,size,obj_id,dev_id\n";
+  for(auto i : range_nodes)
+	i->print(object_outfile);
+  object_outfile << "obj_id,var_name,call_stack\n";
+  for(auto i : object_nodes)
+	i->print(object_outfile);
+  object_outfile.close();
   delete allocation_line_table;
   delete root;
   // memop_outfile.close();

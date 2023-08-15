@@ -357,7 +357,7 @@ public:
         return nullptr;
     }
 
-    void print()
+    void print(std::ofstream& object_outfile)
     {
         // find the key in (index)th list
         list <allocation_line_t*> :: iterator i;
@@ -365,7 +365,7 @@ public:
 		if(table[j].empty())
                 	continue;	
         	for (i = table[j].begin(); i != table[j].end(); i++) {
-                	(*i)->print();
+                	(*i)->print(object_outfile);
         	}
 	}
     }

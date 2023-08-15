@@ -266,8 +266,8 @@ class allocation_line_t
     std::string get_func_name() { return func_name; };
     std::string get_file_name() { return file_name; };
     uint32_t get_line_num() { return line_num; };
-    void print() {
-	    std::cout << pc << "," << func_name << "," << file_name << "," << line_num << "\n";
+    void print(std::ofstream& object_outfile) {
+	    object_outfile << pc << "," << func_name << "," << file_name << "," << line_num << "\n";
     }
 };
 //after
