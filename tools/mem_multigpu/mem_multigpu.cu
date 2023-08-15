@@ -1026,7 +1026,14 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		parent = allocation_site;
 		allocation_site = allocation_site->get_first_child();
         }
-	parent = parent->get_parent();
+	//parent = parent->get_parent();
+	std::string str1("cudaMalloc");
+        while(parent && allocation_line_table->find(parent->get_pc())->get_func_name().find(str1) == string::npos) {
+		parent = parent->get_parent();	
+	}
+	while(parent && allocation_line_table->find(parent->get_pc())->get_func_name().find(str1) != string::npos) {
+		parent = parent->get_parent();
+	}
 	if(parent->get_object_id() == 0) {
 		parent->set_object_id(++object_counter);
 		object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
