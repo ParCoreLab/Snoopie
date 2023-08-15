@@ -13,7 +13,7 @@ NVBIT_PATH=../../core
 INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include -I$(CPPTRACE_HOME)/include/cpptrace
 
 #LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib
-LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib -L$(CPPTRACE_HOME)/lib -lcpptrace -g#-L$(NVSHMEM_HOME)/lib -lnvshmem_host
+LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib -L$(CPPTRACE_HOME)/lib64 -lcpptrace -g#-L$(NVSHMEM_HOME)/lib -lnvshmem_host
 NVCC_PATH=-L $(subst bin/nvcc,lib64,$(shell which nvcc | tr -s /))
 
 SOURCES=mem_multigpu.cu inject_funcs.cu obj_database.cu
