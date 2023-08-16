@@ -1,0 +1,9 @@
+seaborn
+pandas
+plotly
+streamlit
+streamlit_agraph
+streamlit-aggrid
+extra_streamlit_components
+streamlit_plotly_events
+/home/emrgncr/drepos/snoopie/visualizer/st-click-detector-0.1.3/
