@@ -1,4 +1,11 @@
-from .parse_and_vis import *
+# DO NOT RUN THIS FILE, THIS IS ELECTRON ENTRY POINT
+
+
+from includes import electron_checker
+
+electron_checker.is_electron = True
+
+from parse_and_vis import *
 
 if __name__ == "__main__":
     st.set_page_config(layout="wide")

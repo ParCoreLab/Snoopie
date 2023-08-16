@@ -13,6 +13,7 @@ def filepicker_page():
     accept_btn = st.button("Start")
 
     if accept_btn:
+        print("clicked", logfile, src_code_file)
         if logfile != None and src_code_file != None:
             st.session_state.logfile = file_from_upload_check(logfile)
             st.session_state.logfile_name = logfile.name
@@ -24,6 +25,7 @@ def filepicker_page():
             st.session_state.show_filepicker = False
             accept_btn = False
             setup_globals()
+            print(st.session_state.show_filepicker)
             st.experimental_rerun()
         else:
             st.write("Please upload log file and source code files")

@@ -6,4 +6,5 @@ streamlit_agraph
 streamlit-aggrid
 extra_streamlit_components
 streamlit_plotly_events
-0.0.0.0:8000/st_click_detector-0.1.3-py3-none-any.whl
+st_click_detector==0.1.3
+matplotlib
