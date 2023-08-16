@@ -18,7 +18,9 @@ import plotly.graph_objects as go
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
 import zstandard as zstd
 import io
-import argumentparser
+from includes import argumentparser, filepicker_page
+from includes.streamlit_globals import *
+
 
 
 data_by_address = {}
@@ -29,14 +31,6 @@ src_lines = []
 chosen_line = None
 # addr_obj_map = {}
 
-#####################################
-#     CHANGE THESE WHEN NEEDED!     #
-gpu_num = -1                         #
-# st.session_state.src_code_file = "" #
-sampling_period = 10                #
-# st.session_state.logfile = None     #
-#                                   #
-#####################################
 
 ops = set()
 ops_to_display = []
@@ -151,33 +145,13 @@ def detect_gpu_count(f):
     
 
 @st.cache_data
-def read_data(file):
+def read_data(_file, filename):
+    if _file == None or filename == None:
+        st.experimental_rerun() # this shouldn't be here need to fix the problem soon
     global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops
-
-    if type(file) == str:
-        filename = file
-        f = open(file, "r")
-
-        if f is None:
-            print("File not found")
-            exit(0)
-
-        if filename.endswith(".zst"):
-            f = open(file, "rb")
-            dctx = zstd.ZstdDecompressor()
-            reader = dctx.stream_reader(f)
-            f = io.TextIOWrapper(reader, encoding='utf-8')
-    else:
-        filename = file.name
-        if filename.endswith(".zst"):
-            dctx = zstd.ZstdDecompressor()
-            reader = dctx.stream_reader(file)
-            f = io.TextIOWrapper(reader, encoding='utf-8')
-        else:
-            tmp_stream = io.BytesIO(file.read())
-            f = io.TextIOWrapper(tmp_stream, encoding="utf-8")
-
-    detect_gpu_count(f)
+    file = _file
+    if gpu_num <= 0:
+        detect_gpu_count(file)
 
     addrs = set()
     
@@ -194,8 +168,9 @@ def read_data(file):
                 new_pickle_file.append(pickle_file[6])
                 pickle_file = new_pickle_file
             for item in pickle_file:
-                print(item)
-                print()
+                pass
+                # print(item)
+                # print()
             print("Data loaded from " + pickle_filename)
 
     reading_data = 0
@@ -205,7 +180,7 @@ def read_data(file):
 
     if (pickle_file is None):    
         
-        for line in f:
+        for line in file:
             counter+=1
             if counter%100000 == 0:
                 print(counter)
@@ -316,7 +291,7 @@ def read_data(file):
                 #     objkeys = line.split(', ')
                 #     reading_data = 2
 
-        for line in f:
+        for line in file:
             if reading_data:
                 data = {}
                 vals = line.strip().split(',')
@@ -1046,36 +1021,13 @@ def show_code():
             st.session_state[ckey] = chosen_line
 
 
-def filepicker_page():
-    uploaded_logfile = st.file_uploader("Log File",accept_multiple_files=False)
-    uploaded_sourcecode = st.file_uploader("Source Code File",accept_multiple_files=False)
-    num_gpus = st.number_input("Number of GPU's",-1,16,-1, help="Leave -1 for automatic detection")
-    sample_period = st.number_input("Sampling Period",0,100,sampling_period)
-    accept_btn = st.button("Start")
-
-    if accept_btn:
-        if uploaded_logfile != None and uploaded_sourcecode != None:
-            st.session_state.logfile = uploaded_logfile
-            st.session_state.gpu_num = num_gpus
-            st.session_state.sampling_period = sample_period
-
-            tmp_content = io.BytesIO(uploaded_sourcecode.read())
-            st.session_state.src_code_file = io.TextIOWrapper(tmp_content, encoding="utf-8")
-
-
-            st.session_state.show_filepicker = False
-            accept_btn = False
-            st.experimental_rerun()
-            # continue_main()
-        else:
-            st.write("Please upload files")
 
 def continue_main():
     global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops
-    
-    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = read_data(st.session_state.logfile)
 
-    read_code(st.session_state.src_code_file)
+    data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = read_data(logfile, logfile_name)
+
+    read_code(src_code_file)
     main()
 
     st.markdown("""---""")
@@ -1086,44 +1038,15 @@ def continue_main():
 if __name__ == "__main__":
     st.set_page_config(layout="wide")
 
-    if "first_run" not in st.session_state:
-        args = argumentparser.parse()
-        st.session_state.gpu_num = args.gpu_num                      
-        src_code_file = args.src_code_file         
-        sampling_period = args.sampling_period   
-        st.session_state.logfile = args.logfile
-        st.session_state.first_run = False
-        st.session_state.show_filepicker = False
-
-        if src_code_file != "":
-            f = None
-            if os.path.exists(src_code_file):
-                f = open(src_code_file, "r")
-
-            if f == None:
-                st.write("Source code file not found")
-                st.session_state.show_filepicker = True
-                st.session_state.src_code_file = ""
-            else:
-                st.session_state.src_code_file = f
-
-    if (st.session_state.logfile == ""):
-        st.session_state.show_filepicker = True
-
-    if "sampling_period" in st.session_state:
-        sampling_period = st.session_state.sampling_period
-    
-    if "gpu_num" in st.session_state:
-        gpu_num = st.session_state.gpu_num
-
+    argumentparser.parse()
+    setup_globals()
     if not st.session_state.show_filepicker:
         start_newfile = st.button("Profile another file")
         if start_newfile:
             st.session_state.show_filepicker = True
 
-
     if st.session_state.show_filepicker:
-        filepicker_page()
+        filepicker_page.filepicker_page()
     else:
         continue_main()
     # print(clicked_src)
