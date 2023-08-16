@@ -1046,7 +1046,8 @@ if __name__ == "__main__":
             st.session_state.show_filepicker = True
 
     if st.session_state.show_filepicker:
-        filepicker_page.filepicker_page()
+        if filepicker_page.filepicker_page() == False:
+            continue_main()
     else:
         continue_main()
     # print(clicked_src)
