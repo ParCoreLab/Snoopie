@@ -24,6 +24,7 @@ def filepicker_page():
     gpu_num = st.number_input(
         "Number of GPU's", -1, 16, -1, help="Leave -1 for automatic detection"
     )
+
     _sampling_period = st.number_input(
         "Sampling Period", 0, 100, streamlit_globals.sampling_period
     )

@@ -1,14 +1,15 @@
 import streamlit as st
 
 #####################################
-gpu_num = -1  
+gpu_num = -1
 sampling_period = 10
 
 # these two variables should be open files or None
-src_code_file = None            
+src_code_file = None
 logfile = None
 logfile_name = None
 #####################################
+
 
 def setup_globals():
     global gpu_num, src_code_file, sampling_period, logfile, logfile_name
@@ -18,7 +19,7 @@ def setup_globals():
 
     if "src_code_file" in st.session_state:
         src_code_file = st.session_state.src_code_file
-    
+
     if "sampling_period" in st.session_state:
         sampling_period = st.session_state.sampling_period
 

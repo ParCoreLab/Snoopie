@@ -16,7 +16,6 @@ from plotly.subplots import make_subplots
 from streamlit_plotly_events import plotly_events
 import plotly.graph_objects as go
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
-import zstandard as zstd
 import io
 from includes import argumentparser, filepicker_page
 from includes.streamlit_globals import *
