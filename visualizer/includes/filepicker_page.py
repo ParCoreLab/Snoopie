@@ -4,10 +4,12 @@ from .streamlit_globals import *
 
 
 def filepicker_page():
-    logfile = st.file_uploader("Log File",accept_multiple_files=False)
-    src_code_file = st.file_uploader("Source Code File",accept_multiple_files=False)
-    gpu_num = st.number_input("Number of GPU's",-1,16,-1, help="Leave -1 for automatic detection")
-    _sampling_period = st.number_input("Sampling Period",0,100,sampling_period)
+    logfile = st.file_uploader("Log File", accept_multiple_files=False)
+    src_code_file = st.file_uploader("Source Code File", accept_multiple_files=False)
+    gpu_num = st.number_input(
+        "Number of GPU's", -1, 16, -1, help="Leave -1 for automatic detection"
+    )
+    _sampling_period = st.number_input("Sampling Period", 0, 100, sampling_period)
     accept_btn = st.button("Start")
 
     if accept_btn:
