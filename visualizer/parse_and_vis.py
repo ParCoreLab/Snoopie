@@ -1022,15 +1022,14 @@ def show_code():
 
 
 def continue_main():
-    global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops
-
+    global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops, logfile, logfile_name
+    
     data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops = read_data(logfile, logfile_name)
 
     read_code(src_code_file)
     main()
 
     st.markdown("""---""")
-
     show_code()
 
 
