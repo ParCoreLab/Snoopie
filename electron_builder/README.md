@@ -33,7 +33,7 @@ rm build/streamlit_app
 ln -s ../../visualizer build/streamlit_app
 ```
 
-7. Run `npm run serve`, make sure everything works.
+7. Run `npm run serve`, make sure everything works. If you get an error saying `build/stlite-manifest.json is missing`, just create it with text `{"embed":true}` 
 
 8. Run `npm run dist`. Your build should be in `dist` folder.
 
