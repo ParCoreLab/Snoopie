@@ -78,3 +78,7 @@ options:
 ```
 
 Running without options will display a GUI for uploading files and setting parameters.
+
+### Electron Build
+
+See [here](./electron_builder) for electron build instructions.
