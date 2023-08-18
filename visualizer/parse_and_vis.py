@@ -17,7 +17,7 @@ from streamlit_plotly_events import plotly_events
 import plotly.graph_objects as go
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
 import io
-from includes import argumentparser, filepicker_page
+from includes import argumentparser, filepicker_page, electron_checker, filepath_handler
 from includes.streamlit_globals import *
 
 
@@ -140,7 +140,13 @@ def detect_gpu_count(f):
             count.add(mem_dev)
     gpu_num = len(count)
     print("gpu num detected as:", gpu_num)
-    f.seek(0)
+    try:
+        f.seek(0)
+        return f
+    except:
+        # zstd file cannot be seeked
+        # f.close()
+        return None
     
 
 @st.cache_data
@@ -150,7 +156,10 @@ def read_data(_file, filename):
     global data_by_address, data_by_device, data_by_obj, data_by_line, gpu_num, ops
     file = _file
     if gpu_num <= 0:
-        detect_gpu_count(file)
+        file = detect_gpu_count(file)
+    if file == None:
+        logfile_base.seek(0)
+        file, _ = filepath_handler.file_from_upload_check(logfile_base)
 
     addrs = set()
     
@@ -409,6 +418,16 @@ def get_object_view_data(filter = None, allowed_ops = []):
 
 def main():
     global data_by_address, data_by_device, gpu_num, ops, chosen_line, ops_to_display
+
+    if electron_checker.is_debug:
+        st.write("data_by_adresses")
+        st.json(data_by_address, expanded=False)
+        st.write("data_by_device")
+        st.json(data_by_device, expanded=False)
+        st.write("data_by_obj")
+        st.json(data_by_obj, expanded=False)
+        st.write("data_by_line")
+        st.json(data_by_line, expanded=False)
 
     top_cols = st.columns([5,5])
 
@@ -791,46 +810,49 @@ def main():
                     }
                 }
                     
-            
-            cols[0].markdown(f"##### Objects", unsafe_allow_html=True)
-            df = pd.DataFrame.from_dict(table_objs)
-            df.columns = ['object', 'count', 'destination']
-            table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
-            with cols[0]:
-                AgGrid(df, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
-                                        columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
+            if len(table_objs) > 0:
+                cols[0].markdown(f"##### Objects", unsafe_allow_html=True)
+                df = pd.DataFrame.from_dict(table_objs)
+                df.columns = ['object', 'count', 'destination']
+                table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
+                with cols[0]:
+                    AgGrid(df, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
+                                            columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
 
-            cols[1].markdown(f"##### Instructions", unsafe_allow_html=True)
-            df = pd.DataFrame.from_dict(table_instr)
-            df.columns = ['instruction', 'count', 'destination']
-            table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
-            with cols[1]:
-                AgGrid(df, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
-                                        columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
+                cols[1].markdown(f"##### Instructions", unsafe_allow_html=True)
+                df = pd.DataFrame.from_dict(table_instr)
+                df.columns = ['instruction', 'count', 'destination']
+                table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
+                with cols[1]:
+                    AgGrid(df, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
+                                            columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
 
-            cols[2].markdown(f"##### Code lines", unsafe_allow_html=True)
-            df = pd.DataFrame.from_dict(table_lines)
-            df.columns = ['code line', 'count', 'destination']
-            table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
-            with cols[2]:
-                gb = GridOptionsBuilder.from_dataframe(df)
-                gb.configure_selection('single', use_checkbox=False, pre_selected_rows=None)
-                gridOptions = gb.build()
-                grid_response = AgGrid(df, gridOptions, height=table_height, fit_columns_on_grid_load=True,
-                                        update_mode = GridUpdateMode.SELECTION_CHANGED, custom_css=ag_custom_css,
-                                        columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
-                selected_rows = grid_response['selected_rows']
-                if (len(selected_rows) > 0):
-                    if (selected_rows[0]['code line'] != 'total'):
-                        chosen_line = int(selected_rows[0]['code line'])
-                        tkey = 'table_select' + str(peer_gpu)
-                        if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
-                            show_sidebar()
-                            st.session_state[tkey] = chosen_line
-                        # show_sidebar(int(selected_rows['code line']))
-                        # .scrollTop = ''' + str(graph_height + i/100) + ''';
-            components.html(scroll_js(graph_height + margin + i*0.0001), height=0)
-            break
+                cols[2].markdown(f"##### Code lines", unsafe_allow_html=True)
+                df = pd.DataFrame.from_dict(table_lines)
+                df.columns = ['code line', 'count', 'destination']
+                table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
+                with cols[2]:
+                    gb = GridOptionsBuilder.from_dataframe(df)
+                    gb.configure_selection('single', use_checkbox=False, pre_selected_rows=None)
+                    gridOptions = gb.build()
+                    grid_response = AgGrid(df, gridOptions, height=table_height, fit_columns_on_grid_load=True,
+                                            update_mode = GridUpdateMode.SELECTION_CHANGED, custom_css=ag_custom_css,
+                                            columns_auto_size_mode = ColumnsAutoSizeMode.FIT_CONTENTS)
+                    selected_rows = grid_response['selected_rows']
+                    if (len(selected_rows) > 0):
+                        if (selected_rows[0]['code line'] != 'total'):
+                            chosen_line = int(selected_rows[0]['code line'])
+                            tkey = 'table_select' + str(peer_gpu)
+                            if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
+                                show_sidebar()
+                                st.session_state[tkey] = chosen_line
+                            # show_sidebar(int(selected_rows['code line']))
+                            # .scrollTop = ''' + str(graph_height + i/100) + ''';
+                components.html(scroll_js(graph_height + margin + i*0.0001), height=0)
+                break
+            else:
+                st.write("This gpu issued no communication")
+                break
 
 
 def show_sidebar():
@@ -942,8 +964,10 @@ def show_code():
             }
         </style>
         <link rel="stylesheet"
-            href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">""" + \
+            ( f"<script>{electron_checker.electron_load_highlight()}</script>" if electron_checker.is_electron  else """
         <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+        """ )+ """
         <script>hljs.highlightAll();</script>
         </head><body><pre>"""
     content_end = """</pre></body>"""

@@ -8,11 +8,12 @@ sampling_period = 10
 src_code_file = None
 logfile = None
 logfile_name = None
+logfile_base = None # base uploadad file
 #####################################
 
 
 def setup_globals():
-    global gpu_num, src_code_file, sampling_period, logfile, logfile_name
+    global gpu_num, src_code_file, sampling_period, logfile, logfile_name, logfile_base
 
     if "gpu_num" in st.session_state:
         gpu_num = st.session_state.gpu_num
@@ -28,3 +29,6 @@ def setup_globals():
 
     if "logfile_name" in st.session_state:
         logfile_name = st.session_state.logfile_name
+    
+    if "logfile_base" in st.session_state:
+        logfile_base = st.session_state.logfile_base
