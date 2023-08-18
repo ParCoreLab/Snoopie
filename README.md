@@ -79,6 +79,8 @@ options:
 
 Running without options will display a GUI for uploading files and setting parameters.
 
+By default, the file upload limit is 200MB, to change it set the `STREAMLIT_SERVER_MAX_UPLOAD_SIZE` environment variable.
+
 ### Electron Build
 
 See [here](./electron_builder) for electron build instructions.
