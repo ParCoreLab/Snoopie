@@ -714,6 +714,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
 
+  MemoryAllocation ma;
   if (!is_exit && cbid == API_CUDA_cuLaunchKernel_ptsz ||
       cbid == API_CUDA_cuLaunchKernel)
   {
@@ -838,7 +839,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     cudaGetDevice(&deviceID);
     assert(cudaGetLastError() == cudaSuccess);
 
-    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
     for (const auto & ctx_map_pair : ctx_state_map) {
@@ -861,7 +865,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     uint64_t bytesize = p->bytesize;
     assert(cudaGetLastError() == cudaSuccess);
 
-    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
     for (const auto & ctx_map_pair : ctx_state_map) {
@@ -882,7 +889,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     uint64_t bytesize = p->bytesize;	
     assert(cudaGetLastError() == cudaSuccess);
 
-    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
     for (const auto & ctx_map_pair : ctx_state_map) {
@@ -901,7 +911,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     uint64_t bytesize = p->bytesize;
     assert(cudaGetLastError() == cudaSuccess);
 
-    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
     for (const auto & ctx_map_pair : ctx_state_map) {
@@ -1038,7 +1051,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		parent->set_object_id(++object_counter);
 		object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
 	}
-	range_nodes.push_back(new adm_range_t(0x4, 100, parent->get_object_id()));
+        adm_range_t* range = adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(), ma.deviceID, "", ADM_STATE_ALLOC);
+	range_nodes.push_back(new adm_range_t(ma.pointer, ma.bytesize, parent->get_object_id(), ma.deviceID));
 	cout << "Identified object id " << parent->get_object_id();
 	cout << ", callstack ";
 	while(parent) {
@@ -1060,8 +1074,9 @@ cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_nam
     }
     uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
     std::string vname = var_name;
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, -1, vname, ADM_STATE_ALLOC);
-
+    //adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, -1, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_find(reinterpret_cast<uint64_t>(*devPtr));
+    range->set_var_name(vname);
     if(range) {
       adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
       if(obj) {
@@ -1084,7 +1099,9 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
     std::string vname = var_name;
     int dev_id = -1;
     cudaGetDevice(&dev_id);
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    //adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_find(reinterpret_cast<uint64_t>(*devPtr));
+    range->set_var_name(vname);
 
     if(range) {
       adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
@@ -1110,7 +1127,9 @@ void * nvshmem_mallocWrap ( size_t size, const char *var_name, const uint32_t el
     std::string vname = var_name;
     int dev_id = -1;
     cudaGetDevice(&dev_id);
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    //adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_find(reinterpret_cast<uint64_t>(allocated_memory));
+    range->set_var_name(vname);
 
     if(range) {
       adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
@@ -1135,7 +1154,9 @@ void * nvshmem_alignWrap ( size_t alignment, size_t size, const char *var_name, 
     std::string vname = var_name;
     int dev_id = -1;
     cudaGetDevice(&dev_id);
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    //adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_find(reinterpret_cast<uint64_t>(allocated_memory));
+    range->set_var_name(vname);
 
     if(range) {
       adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
@@ -1245,7 +1266,7 @@ void *recv_thread_fun(void *args)
           uint32_t index_in_object = 0;
           uint32_t index_in_malloc = 0;
 
-          if (object_attribution) {
+          //if (object_attribution) {
             range = adm_range_find(ma->addrs[i]);
 	    if(range != nullptr) {
             	allocation_pc = range->get_allocation_pc();
@@ -1261,7 +1282,7 @@ void *recv_thread_fun(void *args)
             	index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
             	offset_address_range = range->get_address();
 	    }
-          }
+          //}
 
           if (silent) continue;
 

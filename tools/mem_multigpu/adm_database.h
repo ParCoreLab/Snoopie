@@ -62,7 +62,7 @@ class adm_range_t
 
     adm_meta_t meta;
 
-    adm_range_t(uint64_t address1, uint64_t size1, int object_id1): size(size1), address(address1), object_id(object_id1) {}
+    adm_range_t(uint64_t address1, uint64_t size1, int object_id1, int device_id1): size(size1), address(address1), object_id(object_id1), device_id(device_id1) {}
 
     adm_range_t(): size(0), address(0), allocation_pc(0), index_in_object(999), device_id(0) {}
 
