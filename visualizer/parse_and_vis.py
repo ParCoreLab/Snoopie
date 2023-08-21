@@ -160,6 +160,8 @@ def read_data(_file, filename):
     if file == None:
         logfile_base.seek(0)
         file, _ = filepath_handler.file_from_upload_check(logfile_base)
+        global logfile
+        logfile = file
 
     addrs = set()
     
