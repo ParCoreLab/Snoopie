@@ -10,10 +10,10 @@ endif
 
 NVBIT_PATH=../../core
 #INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include
-INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include
+INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include -I$(CPPTRACE_HOME)/include/cpptrace
 
 #LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib
-LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib #-L$(NVSHMEM_HOME)/lib -lnvshmem_host
+LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib -L$(CPPTRACE_HOME)/lib64 -lcpptrace -g#-L$(NVSHMEM_HOME)/lib -lnvshmem_host
 NVCC_PATH=-L $(subst bin/nvcc,lib64,$(shell which nvcc | tr -s /))
 
 SOURCES=mem_multigpu.cu inject_funcs.cu obj_database.cu
@@ -29,10 +29,10 @@ NVBIT_TOOL=$(current_dir).so
 all: $(NVBIT_TOOL)
 
 $(NVBIT_TOOL): $(OBJECTS) $(NVBIT_PATH)/libnvbit.a
-	$(NVCC) -arch=sm_$(ARCH) -O3 $(OBJECTS) $(LIBS) $(NVCC_PATH) -lzstd -lcuda -lcudart_static -shared -o $@
+	$(NVCC) -arch=sm_$(ARCH) -O3 $(OBJECTS) $(LIBS) $(NVCC_PATH) -lzstd -lcuda -lcudart_static -shared -g -o $@
 
 mem_multigpu.o: mem_multigpu.cu
-	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -Wall -allow-unsupported-compiler -arch=sm_$(ARCH) -O3 -Xcompiler -fPIC $< -o $@
+	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -Wall -allow-unsupported-compiler -arch=sm_$(ARCH) -g -O3 -Xcompiler -fPIC $< -o $@
 
 inject_funcs.o: inject_funcs.cu
 	$(NVCC) $(INCLUDES) -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -allow-unsupported-compiler -c $< -o $@

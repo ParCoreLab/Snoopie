@@ -40,6 +40,8 @@
 #include <adm_splay.h>
 #include <adm_memory.h>
 #include <adm_database.h>
+#include <cpptrace.hpp>
+#include <iostream>
 
 /* every tool needs to include this once */
 #include "nvbit_tool.h"
@@ -74,13 +76,28 @@
 
 // ofstream memop_outfile;
 
+using namespace cpptrace;
 using namespace adamant;
+using namespace std;
+
+#define CHILD 1
+#define SIBLING 2
+
+int object_counter = 0;
 
 //static adm_splay_tree_t* tree = nullptr;
 static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 static int global_index = 0;
+
+static allocation_site_t* root = NULL;
+
+static allocation_line_hash_table_t* allocation_line_table;
+
+std::vector<adm_range_t*> range_nodes; 
+
+std::vector<adm_object_t*> object_nodes;
 
 Logger logger("snoopie-log-" + std::to_string(getpid()) + ".zst");
 
@@ -195,7 +212,13 @@ int64_t find_nvshmem_dev_of_ptr(int mype,uint64_t mem_addr, int nvshmem_ngpus,
   return -1;
 }
 
+allocation_site_t* search_at_level(allocation_site_t* allocation_site, uint64_t pc)
+{
+    if (allocation_site == NULL || allocation_site->get_pc() == pc)
+        return allocation_site;
 
+    return search_at_level(allocation_site->get_next_sibling(), pc); 
+}
 
 int64_t find_dev_of_ptr(uint64_t ptr)
 {
@@ -330,6 +353,87 @@ std::string find_recorded_kernel(const std::string& curr_kernel)
 	return chosen_key;
 }
 
+// Function to print the
+// N-ary tree graphically
+void printNTree(allocation_site_t* x,
+    vector<bool> flag,
+    int depth = 0, bool isLast = false)
+{
+    //cout << "in the beginning\n";
+    // Condition when allocation_site is None
+    if (x == NULL)
+        return;
+     //cout << "depth " << depth << "\n";
+    // Loop to print the depths of the
+    // current allocation_site
+    for (int i = 1; i < depth; ++i) {
+         
+        // Condition when the depth
+        // is exploring
+        if (flag[i] == true) {
+            cout << "| "
+                << " "
+                << " "
+                << " ";
+        }
+         
+        // Otherwise print
+        // the blank spaces
+        else {
+            cout << " "
+                << " "
+                << " "
+                << " ";
+        }
+    }
+    //cout << "depth " << depth << "\n";    
+    // Condition when the current
+    // allocation_site is the root allocation_site
+    uint64_t pc = x->get_pc();
+    int obj_id = x->get_object_id();
+    if (depth == 0) {
+        cout << pc << endl;
+	//cout << "here depth is 0\n";
+    // Condition when the allocation_site is
+    // the last allocation_site of
+    // the exploring depth
+    } else if (isLast) {
+        cout << "+--- " << pc;
+//#if 0
+	if (obj_id > 0)
+		cout << " " << obj_id;
+//#endif         
+	cout << endl;
+        // No more childrens turn it
+        // to the non-exploring depth
+	//cout << "here 2\n";
+        flag[depth] = false;
+	//cout << "here 2 1\n";
+    }
+    else {
+	//cout << "before\n";
+        cout << "+--- " << pc;
+//#if 0
+	if (obj_id > 0)
+		cout << " " << obj_id;
+	cout << endl;
+//#endif
+	//cout << "here 1\n";
+    }
+    //cout << "after value is printed\n";
+    int it = 0;
+    x = x->get_first_child();
+        // Recursive call for the
+        // children allocation_sites
+    //cout << "before while\n";
+    while(x != NULL) {
+        printNTree(x, flag, depth + 1,
+            x->get_next_sibling() == NULL);
+	x = x->get_next_sibling();
+    } //while(x != NULL);
+    flag[depth] = true;
+}
+
 
 void nvbit_at_init()
 {
@@ -357,6 +461,7 @@ void nvbit_at_init()
   }
   // read the file with line info here
   initialize_object_table(100);
+  allocation_line_table = new allocation_line_hash_table_t(100);
   initialize_line_table(100);
   //std::cerr << "code_attribution: " << code_attribution << std::endl;
   if(code_attribution) {
@@ -609,6 +714,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
 
+  MemoryAllocation ma;
   if (!is_exit && cbid == API_CUDA_cuLaunchKernel_ptsz ||
       cbid == API_CUDA_cuLaunchKernel)
   {
@@ -733,7 +839,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     cudaGetDevice(&deviceID);
     assert(cudaGetLastError() == cudaSuccess);
 
-    MemoryAllocation ma = {deviceID, pointer, bytesize};
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
     for (const auto & ctx_map_pair : ctx_state_map) {
@@ -742,6 +851,74 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     if (JSON) {
       std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
+    }
+  }
+  else if (cbid == API_CUDA_cuMemAllocHost)
+  { 
+    cuMemAllocHost_params *p = (cuMemAllocHost_params *)params;
+    std::stringstream ss;
+    ss << HEX(*p->pp);
+    std::stringstream ss2;
+    ss2 << HEX(*p->pp + p->bytesize);
+    int deviceID = -1;
+    uint64_t pointer = (uint64_t) *p->pp;
+    uint64_t bytesize = p->bytesize;
+    assert(cudaGetLastError() == cudaSuccess);
+
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
+    mem_allocs.push_back(ma);
+
+    for (const auto & ctx_map_pair : ctx_state_map) {
+      ctx_map_pair.second->channel_dev->add_malloc(ma);
+    }
+  } 
+  else if (cbid == API_CUDA_cuMemAllocHost_v2)
+  {
+    print_trace();
+    std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
+    cuMemAllocHost_v2_params *p = (cuMemAllocHost_v2_params *)params;
+    std::stringstream ss;
+    ss << HEX(*p->pp);
+    std::stringstream ss2;
+    ss2 << HEX(*p->pp + p->bytesize);
+    int deviceID = -1;
+    uint64_t pointer = (uint64_t) *p->pp;
+    uint64_t bytesize = p->bytesize;	
+    assert(cudaGetLastError() == cudaSuccess);
+
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
+    mem_allocs.push_back(ma);
+
+    for (const auto & ctx_map_pair : ctx_state_map) {
+      ctx_map_pair.second->channel_dev->add_malloc(ma);
+    }
+  }
+  else if (cbid == API_CUDA_cuMemHostAlloc)
+  {   
+    cuMemHostAlloc_params *p = (cuMemHostAlloc_params *)params;
+    std::stringstream ss;
+    ss << HEX(*p->pp);
+    std::stringstream ss2;
+    ss2 << HEX(*p->pp + p->bytesize);
+    int deviceID = -1;
+    uint64_t pointer = (uint64_t) *p->pp;
+    uint64_t bytesize = p->bytesize;
+    assert(cudaGetLastError() == cudaSuccess);
+
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
+    mem_allocs.push_back(ma);
+
+    for (const auto & ctx_map_pair : ctx_state_map) {
+      ctx_map_pair.second->channel_dev->add_malloc(ma);
     }
   }
   else if (is_exit && cbid == API_CUDA_cuMemcpyDtoDAsync_v2)
@@ -821,6 +998,70 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     logger.log(ss.str());
   }
 
+  if(is_exit && (cbid == API_CUDA_cuMemAlloc_v2 || cbid == API_CUDA_cuMemAllocHost || cbid == API_CUDA_cuMemAllocHost_v2 || cbid == API_CUDA_cuMemHostAlloc)) {
+	std::cout << "captured malloc\n";
+        std::vector<stacktrace_frame> trace = generate_trace();
+	allocation_site_t* allocation_site = root;
+	allocation_site_t* parent = NULL;
+	for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr) {
+                std::cout << "pc " << itr->address << ", function " << itr->symbol << ", file " << itr->filename << ", line " << itr->line << "\n";
+		allocation_line_t* line = allocation_line_table->find(itr->address);
+        	if(line == NULL) {
+                	allocation_line_table->insert(new allocation_line_t(itr->address, itr->symbol, itr->filename, itr->line));
+        	}	
+		if(root == NULL) {
+			root = new allocation_site_t (itr->address);
+			allocation_site = root;
+			//cout << "allocation_site->pc " << allocation_site->pc << "\n"; 
+			parent = allocation_site;
+                	allocation_site = allocation_site->get_first_child();
+			continue;
+		}
+		allocation_site_t* temp = allocation_site;
+		allocation_site = search_at_level(allocation_site, itr->address);
+		if(allocation_site == NULL) {
+			if(temp != NULL) {
+				//struct allocation_site* oldest_sibling = temp;
+				while(temp->get_next_sibling() != NULL)
+					temp = temp->get_next_sibling();
+				temp->set_next_sibling(new allocation_site_t(itr->address));
+				//cout << "oldest sibling is " << oldest_sibling->pc << " parent is " << parent->pc << " pc " << temp->next_sibling->pc << " is created" << endl;
+				allocation_site = temp->get_next_sibling();
+				allocation_site->set_parent(temp->get_parent());
+			} else {
+				//cout << "parent->pc " << parent->pc << "\n";
+				parent->set_first_child(new allocation_site_t(itr->address));
+				//cout << "the parent is " << parent->pc << " new allocation_site pc " << parent->first_child->pc << " is created" << endl;
+				allocation_site = parent->get_first_child();
+				allocation_site->set_parent(parent);
+			}
+		}
+		parent = allocation_site;
+		allocation_site = allocation_site->get_first_child();
+        }
+	//parent = parent->get_parent();
+	std::string str1("cudaMalloc");
+        while(parent && allocation_line_table->find(parent->get_pc())->get_func_name().find(str1) == string::npos) {
+		parent = parent->get_parent();	
+	}
+	while(parent && allocation_line_table->find(parent->get_pc())->get_func_name().find(str1) != string::npos) {
+		parent = parent->get_parent();
+	}
+	if(parent->get_object_id() == 0) {
+		parent->set_object_id(++object_counter);
+		object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+	}
+        adm_range_t* range = adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(), ma.deviceID, "", ADM_STATE_ALLOC);
+	range_nodes.push_back(new adm_range_t(ma.pointer, ma.bytesize, parent->get_object_id(), ma.deviceID));
+	cout << "Identified object id " << parent->get_object_id();
+	cout << ", callstack ";
+	while(parent) {
+		cout << parent->get_pc() << " ";
+		parent = parent->get_parent();
+	}	
+	cout << endl;	  
+  }
+
   skip_callback_flag = false;
   pthread_mutex_unlock(&mutex1);
 }
@@ -833,8 +1074,9 @@ cudaError_t cudaMallocHostWrap ( void** devPtr, size_t size, const char *var_nam
     }
     uint64_t allocation_pc = (uint64_t) __builtin_extract_return_addr (__builtin_return_address (0));
     std::string vname = var_name;
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, -1, vname, ADM_STATE_ALLOC);
-
+    //adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, -1, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_find(reinterpret_cast<uint64_t>(*devPtr));
+    range->set_var_name(vname);
     if(range) {
       adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
       if(obj) {
@@ -857,7 +1099,9 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
     std::string vname = var_name;
     int dev_id = -1;
     cudaGetDevice(&dev_id);
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    //adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(*devPtr), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_find(reinterpret_cast<uint64_t>(*devPtr));
+    range->set_var_name(vname);
 
     if(range) {
       adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
@@ -883,7 +1127,9 @@ void * nvshmem_mallocWrap ( size_t size, const char *var_name, const uint32_t el
     std::string vname = var_name;
     int dev_id = -1;
     cudaGetDevice(&dev_id);
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    //adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_find(reinterpret_cast<uint64_t>(allocated_memory));
+    range->set_var_name(vname);
 
     if(range) {
       adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
@@ -908,7 +1154,9 @@ void * nvshmem_alignWrap ( size_t alignment, size_t size, const char *var_name, 
     std::string vname = var_name;
     int dev_id = -1;
     cudaGetDevice(&dev_id);
-    adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    //adm_range_t* range = adm_range_insert(reinterpret_cast<uint64_t>(allocated_memory), size, allocation_pc, dev_id, vname, ADM_STATE_ALLOC);
+    adm_range_t* range = adm_range_find(reinterpret_cast<uint64_t>(allocated_memory));
+    range->set_var_name(vname);
 
     if(range) {
       adm_object_t* obj = adm_object_insert(allocation_pc, var_name, element_size, fname, fxname, lineno, ADM_STATE_ALLOC);
@@ -1018,7 +1266,7 @@ void *recv_thread_fun(void *args)
           uint32_t index_in_object = 0;
           uint32_t index_in_malloc = 0;
 
-          if (object_attribution) {
+          //if (object_attribution) {
             range = adm_range_find(ma->addrs[i]);
 	    if(range != nullptr) {
             	allocation_pc = range->get_allocation_pc();
@@ -1034,7 +1282,7 @@ void *recv_thread_fun(void *args)
             	index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
             	offset_address_range = range->get_address();
 	    }
-          }
+          //}
 
           if (silent) continue;
 
@@ -1137,6 +1385,26 @@ void nvbit_at_term()
         adm_ranges_print();
     adm_line_table_print();
   }
+  vector<bool> flag(100, true);
+  cout << "Tree of data objects\n";
+  printNTree(root, flag);
+  //cout << "Code locations of data objects\n";
+  ofstream object_outfile;
+  string object_str("data_object_log_");
+  string txt_str(".txt"); 
+  string object_log_str = object_str + to_string(getpid()) + txt_str;
+  object_outfile.open(object_log_str);
+  object_outfile << "pc,func_name,file_name,line_no\n";
+  allocation_line_table->print(object_outfile);
+  object_outfile << "offset,size,obj_id,dev_id\n";
+  for(auto i : range_nodes)
+	i->print(object_outfile);
+  object_outfile << "obj_id,var_name,call_stack\n";
+  for(auto i : object_nodes)
+	i->print(object_outfile);
+  object_outfile.close();
+  delete allocation_line_table;
+  delete root;
   // memop_outfile.close();
   // TODO: Print the below agian at some point
   // adm_line_table_print();
