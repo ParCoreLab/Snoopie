@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
 
   int *g2 = NULL;
 
-  cudaSetDevice(gpuid[2]);
+  cudaSetDevice(gpuid[1]);
   gpuErrchk(cudaMalloc(&g2, buf_size));
   cudaSetDevice(gpuid[0]);
 
