@@ -20,6 +20,7 @@ import io
 from includes import argumentparser, filepicker_page, electron_checker, filepath_handler
 from includes.streamlit_globals import *
 from includes.parser import *
+from includes.tables import *
 
 
 
@@ -319,15 +320,13 @@ def main():
     if (st.session_state.units == "Bytes"):
         label_bytes = "bytes"
 
-
+    all_devices = [i for i in range(gpu_num)]
     for i in range(gpu_num):
         label = "GPU"+str(i)
 
-        size = 0.0
-        if (label in data_by_device):
-            for optype in ops_to_display:
-                size += data_by_device[label][optype + label_bytes]
-        sizes.append(size)
+        filtered_ops = OpInfoRow.filter_by_device_and_ops(ops_to_display,[i],all_devices)
+        accesses = OpInfoRow.get_total_accesses(filtered_ops,label_bytes == "bytes")
+        sizes.append(accesses)
     
     norm_ratio = max(sizes)/max_size
     if norm_ratio == 0: norm_ratio = 1
@@ -348,10 +347,9 @@ def main():
             target_label = "GPU"+str(j)
             pair = src_label + "-" + target_label
             width = 0.0
-            if (pair in data_by_device):
-                for op in ops_to_display:
-                    if op in data_by_device[pair]:
-                        width += data_by_device[pair][op + label_bytes]*sampling_period
+            filtered_ops = OpInfoRow.filter_by_device_and_ops(ops_to_display,[i],[j])
+            filtered_accesses = OpInfoRow.get_total_accesses(filtered_ops, label_bytes == "bytess")
+            width += filtered_accesses * sampling_period
             widths[i].append(width)
             if width > max_val:
                 max_val = width

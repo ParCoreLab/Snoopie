@@ -64,10 +64,18 @@ class OpInfoRow(Table):
         return [
             i
             for i in OpInfoRow._table
-            if i.op_code in allowed_ops
+            if (i.op_code in allowed_ops
             and i.running_dev_id in allowed_running_devs
-            and i.mem_dev_id in allowed_mem_devs
+            and i.mem_dev_id in allowed_mem_devs)
         ]
+    
+    @staticmethod
+    def get_total_accesses(ops: List[Table], memrange: bool) -> int:
+        sum = 0
+        for op in ops:
+            mult = 1 if not memrange else op.mem_range
+            sum += mult
+        return sum
 
     def get_codeline_info(self):
         return CodeLineInfoRow.by_cd_index.get(self.code_line_index)
