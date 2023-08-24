@@ -195,7 +195,41 @@ int64_t find_nvshmem_dev_of_ptr(int mype,uint64_t mem_addr, int nvshmem_ngpus,
   return -1;
 }
 
+//#if 0
+uint64_t normalise_nvshmem_ptr(uint64_t mem_addr) {
+  return mem_addr & 0x0000F0FFFFFFFFF;
+}
+//#endif
 
+#if 0
+uint64_t normalise_nvshmem_ptr(uint64_t mem_addr) {
+  int size = 15;
+
+  int region = -1;
+
+  // 0x000012020000000 is nvshmem's first address for a remote peer
+  uint64_t start = 0x000012020000000;
+
+  // 0x000010020000000 is nvshmem's address for the peer itself
+  uint64_t incrmnt = (uint64_t)0x000012020000000 - (uint64_t)0x000010020000000;
+
+  for (int i = 1; i <= size; i++) {
+    uint64_t bottom = (uint64_t)start + (i - 1) * incrmnt;
+    uint64_t top = (uint64_t)start + i * incrmnt;
+    if ((uint64_t)bottom <= (uint64_t)mem_addr &&
+        (uint64_t)mem_addr < (uint64_t)top) {
+      region = i - 1;
+      break;
+    }
+  }
+ 
+  if (region == -1) {
+    return -1;
+  }
+  fprintf(stderr, "normalise_nvshmem_ptr is called\n");
+  return (uint64_t)mem_addr - region * incrmnt;
+}
+#endif
 
 int64_t find_dev_of_ptr(uint64_t ptr)
 {
@@ -262,7 +296,7 @@ void memop_to_line () {
                         kern_name = word;
 			//std::cerr << "identified kern_name: " << kern_name << "\n";
                 }
-                if(word == "line") {
+                if(word == "line" && prev_word.find(".cu") != std::string::npos) {
 			full_path = trim(prev_word);
                         std::getline(input1, word, ' ');
                         curr_line = std::stoi(word);
@@ -766,9 +800,15 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     // Log this operation
 
+    uint64_t addr1;
+          if (p->dstDevice >= 0x0000010020000000) {
+             addr1 = normalise_nvshmem_ptr(p->dstDevice);
+          } else { 
+             addr1 = p->dstDevice;                       
+          }
     std::stringstream ss;
     ss << find_cbid_name(cbid) << ","
-      << HEX(p->dstDevice) << ","
+      << 	HEX(addr1) << ","
       << -1  << ","
       << srcDeviceID       << ","
       << dstDeviceID       << ","
@@ -952,7 +992,6 @@ void *recv_thread_fun(void *args)
     logger.log(ss.str());
   }
 
-
   bool done = false;
   while (!done)
   {
@@ -1039,10 +1078,16 @@ void *recv_thread_fun(void *args)
           if (silent) continue;
 
           std::stringstream ss;
+	  uint64_t addr1;
+	  if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000)) {
+             addr1 = normalise_nvshmem_ptr(ma->addrs[i]);
+          } else {
+	     addr1 = ma->addrs[i];  
+	  }
           if (JSON) {
             ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
               << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
-              << "\"addr\": \"" << HEX(ma->addrs[i]) << "\","
+              << "\"addr\": \"" << HEX(addr1) << "\","
               << "\"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", "
               << "\"object_variable_name\": \"" << varname << "\", "
               << "\"malloc_index_in_object\": " << index_in_object << ", "
@@ -1063,7 +1108,7 @@ void *recv_thread_fun(void *args)
               << "}" << std::endl;
           } else {
             ss << id_to_opcode_map[ma->opcode_id] << ","
-              << HEX(ma->addrs[i]) << ","
+              << HEX(addr1) << ","
               << ma->thread_index  << ","
               << ma->dev_id        << ","
               << mem_device_id     << ","
