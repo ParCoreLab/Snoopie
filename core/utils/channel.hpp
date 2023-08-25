@@ -77,11 +77,14 @@ class ChannelDev {
     uint8_t* volatile buff_write_tail_ptr;
 
     MemoryAllocation* mallocs_record;
+    bool on_dev_filtering = true;
+    
 
     uint64_t no_mallocs = 0;
 
   public:
-    ChannelDev() {}
+    ChannelDev() {
+    }
 
     __device__ __forceinline__ void push(void* packet, uint32_t nbytes, int this_device) {
         assert(nbytes != 0);
@@ -95,7 +98,7 @@ class ChannelDev {
 
          bool found_remote = false;
 
-         if (mc->lane_id != -1) {
+         if (mc->lane_id != -1 && on_dev_filtering) {
            for (int i = 0; i < 32; i++) {
              uint64_t ptr = mc->addrs[i];
 
@@ -189,7 +192,8 @@ class ChannelDev {
 
   private:
     /* called by the ChannelHost init */
-    void init(int id, int* h_doorbell, int buff_size) {
+    void init(int id, int* h_doorbell, int buff_size, bool on_dev_filtering) {
+	this->on_dev_filtering = on_dev_filtering;
         CUDA_SAFECALL(
             cudaHostGetDevicePointer((void**)&doorbell, (void*)h_doorbell, 0));
 
@@ -233,7 +237,7 @@ class ChannelHost {
     ChannelHost() {}
 
     void init(int id, int buff_size, ChannelDev* ch_dev,
-              void* (*thread_fun)(void*), void* args = NULL) {
+              void* (*thread_fun)(void*), bool on_dev_filtering, void* args = NULL) {
         this->buff_size = buff_size;
         this->id = id;
         /* get device properties */
@@ -261,7 +265,7 @@ class ChannelHost {
 
         /* initialize device channel */
         this->ch_dev = ch_dev;
-        ch_dev->init(id, (int*)doorbell, buff_size);
+        ch_dev->init(id, (int*)doorbell, buff_size, on_dev_filtering);
 
         dev_buff = ch_dev->buff;
         dev_buff_read_head = dev_buff;

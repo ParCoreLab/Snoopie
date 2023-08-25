@@ -2,3 +2,6 @@
 *.zst
 *.o
 *.so
+*.cubin
+codeline*.txt
+*.swp
