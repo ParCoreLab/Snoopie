@@ -11,6 +11,7 @@ class Table(ABC):
     def table():
         pass
 
+
 def generic_filter(table: Table, criteria: dict):
     filtered = []
     for row in table.table():
@@ -22,6 +23,7 @@ def generic_filter(table: Table, criteria: dict):
         if match:
             filtered.append(row)
     return filtered
+
 
 class OpInfoRow(Table):
     _table: List[Table] = []
@@ -65,10 +67,10 @@ class OpInfoRow(Table):
             i
             for i in OpInfoRow.table()
             if (i.op_code in allowed_ops
-            and i.running_dev_id in allowed_running_devs
-            and i.mem_dev_id in allowed_mem_devs)
+                and i.running_dev_id in allowed_running_devs
+                and i.mem_dev_id in allowed_mem_devs)
         ]
-    
+
     @staticmethod
     def get_total_accesses(ops: List[Table], memrange: bool) -> int:
         sum = 0
@@ -79,16 +81,20 @@ class OpInfoRow(Table):
 
     def get_codeline_info(self):
         return CodeLineInfoRow.by_cd_index.get(self.code_line_index)
-    
+
     def get_obj_info(self):
-        obj_id_info : ObjIdRow | None = ObjIdRow.by_offset.get(self.obj_offset)
-        if obj_id_info == None: return None, None
-        obj_name_info : ObjNameRow | None = ObjNameRow.by_obj_id.get(obj_id_info.obj_id)
+        obj_id_info: ObjIdRow | None = ObjIdRow.search(self.mem_dev_id, self.obj_offset)
+        if obj_id_info == None:
+            return None, None
+        obj_name_info: ObjNameRow | None = ObjNameRow.by_obj_id.get(obj_id_info.obj_id)
         return obj_id_info, obj_name_info
-    def get_line_info(self):
-        obj_id_info, obj_name_info = self.get_obj_info()
+
+    def get_line_info(self, obj_id_info=None, obj_name_info=None):
+        if obj_id_info == None or obj_name_info == None:
+            obj_id_info, obj_name_info = self.get_obj_info()
         codeline_info = CodeLineInfoRow.by_cd_index[self.code_line_index]
         return LineInfo(obj_name_info, obj_id_info, codeline_info)
+
 
 class FunctionInfoRow(Table):
     by_pc: Dict[int, Table] = {}
@@ -112,7 +118,8 @@ class FunctionInfoRow(Table):
 
 
 class ObjIdRow(Table):
-    by_offset: Dict[str, Table] = {}
+    by_dev_offset: Dict[int, Dict[str, Table]] = {}
+    by_dev_id: Dict[int, Dict[str, Table]] = {}
 
     def __init__(self, offset: str, size: int, obj_id: int, dev_id: int):
         self.offset = offset
@@ -120,10 +127,30 @@ class ObjIdRow(Table):
         self.obj_id = obj_id
         self.dev_id = dev_id
 
-        ObjIdRow.by_offset[self.offset] = self
+        temp = ObjIdRow.by_dev_offset.get(self.dev_id)
+        if temp == None:
+            ObjIdRow.by_dev_offset[self.dev_id] = {}
+        ObjIdRow.by_dev_offset[self.dev_id][self.offset] = self
+
+        temp = ObjIdRow.by_dev_id.get(self.dev_id)
+        if temp == None:
+            ObjIdRow.by_dev_id[self.dev_id] = {}
+        ObjIdRow.by_dev_id[self.dev_id][self.obj_id] = self
+
+        print("?????", ObjIdRow.by_dev_id, ObjIdRow.by_dev_offset)
 
     def table():
-        return list(ObjIdRow.by_offset.values())
+        ret: List[ObjIdRow] = []
+        for key, value in ObjIdRow.by_dev_offset.items():
+            ret.extend(value.items())
+        return ret
+
+    @staticmethod
+    def search(mem_dev: int, offset: str) -> None | Table:
+        temp = ObjIdRow.by_dev_offset.get(mem_dev)
+        if temp == None:
+            return None
+        return temp.get(offset)
 
 
 class CallStack:
@@ -138,7 +165,7 @@ class CallStack:
         return split
 
     def get_parsed_stack(self):
-        return [FunctionInfoRow.search_by_pc(pc) for pc in self.stack]
+        return [FunctionInfoRow.search_by_pc(pc) for pc in reversed(self.stack)]
 
 
 class ObjNameRow(Table):
@@ -157,6 +184,7 @@ class ObjNameRow(Table):
 
 class CodeLineInfoRow(Table):
     by_cd_index: Dict[int, Table] = {}
+    inferred_home_dir: str = None
 
     def __init__(
         self,
@@ -177,21 +205,40 @@ class CodeLineInfoRow(Table):
     def table():
         return list(CodeLineInfoRow.by_cd_index.values())
 
+    @staticmethod
+    def infer_home_dir(rows: List[Table]) -> str:
+        dirpaths: List[List[str]] = [(i.dir_path).split("/") for i in rows]
+        index = 0
+        for i in range(min([len(i) for i in dirpaths])):
+            index = i
+            to_check = [j[index] for j in dirpaths]
+            check = all(j == to_check[0] for j in to_check)
+            if not check:  # some are different, the last split should be the home directory
+                index -= 1
+                break
+        home_dir_path = "/".join(dirpaths[0][:index + 1])
+        return home_dir_path
+
+
 class LineInfo():
     def __init__(self, obj_name_info: ObjNameRow, obj_id_info: ObjIdRow, codeline_info: CodeLineInfoRow):
         self.obj_name_info = obj_name_info
         self.obj_id_info = obj_id_info
         self.codeline_info = codeline_info
-        self.call_stack : List[FunctionInfoRow] = self.obj_name_info.call_stack.get_parsed_stack()
+        self.call_stack: List[FunctionInfoRow] = self.obj_name_info.call_stack.get_parsed_stack()
+
     def __repr__(self) -> str:
         ret = ""
         for i in self.call_stack:
             ret += i.func_name + " -> "
         ret += self.obj_name_info.var_name
         return ret
+
     def __str__(self) -> str:
         return self.__repr__()
+
     def __eq__(self, __value: object) -> bool:
         return hash(self) == hash(__value)
+
     def __hash__(self) -> int:
         return hash("LineInfo:" + str(self))

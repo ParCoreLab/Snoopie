@@ -3,7 +3,7 @@ from .tables import *
 from copy import deepcopy
 from .streamlit_globals import setup_globals
 import os
-import pickle 
+import pickle
 
 tables = {}
 
@@ -48,6 +48,7 @@ def parse_codeline_info(line: str, gbs: tuple):
     _, ops = gbs
     change_table(line)
     if current_table != "codeline_info":
+        CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(CodeLineInfoRow.table())
         return
     data = {}
     vals = line.strip().split(",")  # change this later
@@ -118,9 +119,9 @@ def parse_func_info(line: str, gbs: tuple):
         sep[2] = i2
     split_data = (
         line[: sep[0]].strip(),
-        line[sep[0] + 1 : sep[1]].strip(),
-        line[sep[1] + 1 : sep[2]].strip(),
-        line[sep[2] + 1 :].strip(),
+        line[sep[0] + 1: sep[1]].strip(),
+        line[sep[1] + 1: sep[2]].strip(),
+        line[sep[2] + 1:].strip(),
     )
     FunctionInfoRow(
         int(split_data[0]), split_data[1], split_data[2], int(split_data[3])
@@ -221,7 +222,8 @@ def read_data(file, filename, gbs):
         all_data = [
             OpInfoRow._table,
             FunctionInfoRow.by_pc,
-            ObjIdRow.by_offset,
+            ObjIdRow.by_dev_offset,
+            ObjIdRow.by_dev_id,
             ObjNameRow.by_obj_id,
             CodeLineInfoRow.by_cd_index,
             gpu_num,
@@ -235,7 +237,8 @@ def read_data(file, filename, gbs):
         (
             OpInfoRow._table,
             FunctionInfoRow.by_pc,
-            ObjIdRow.by_offset,
+            ObjIdRow.by_dev_offset,
+            ObjIdRow.by_dev_id,
             ObjNameRow.by_obj_id,
             CodeLineInfoRow.by_cd_index,
             gpu_num,
