@@ -63,7 +63,7 @@ class OpInfoRow(Table):
     ):
         return [
             i
-            for i in OpInfoRow._table
+            for i in OpInfoRow.table()
             if (i.op_code in allowed_ops
             and i.running_dev_id in allowed_running_devs
             and i.mem_dev_id in allowed_mem_devs)
@@ -82,9 +82,13 @@ class OpInfoRow(Table):
     
     def get_obj_info(self):
         obj_id_info : ObjIdRow | None = ObjIdRow.by_offset.get(self.obj_offset)
-        if obj_id_info == None: return None
+        if obj_id_info == None: return None, None
         obj_name_info : ObjNameRow | None = ObjNameRow.by_obj_id.get(obj_id_info.obj_id)
         return obj_id_info, obj_name_info
+    def get_line_info(self):
+        obj_id_info, obj_name_info = self.get_obj_info()
+        codeline_info = CodeLineInfoRow.by_cd_index[self.code_line_index]
+        return LineInfo(obj_name_info, obj_id_info, codeline_info)
 
 class FunctionInfoRow(Table):
     by_pc: Dict[int, Table] = {}
@@ -172,3 +176,22 @@ class CodeLineInfoRow(Table):
 
     def table():
         return list(CodeLineInfoRow.by_cd_index.values())
+
+class LineInfo():
+    def __init__(self, obj_name_info: ObjNameRow, obj_id_info: ObjIdRow, codeline_info: CodeLineInfoRow):
+        self.obj_name_info = obj_name_info
+        self.obj_id_info = obj_id_info
+        self.codeline_info = codeline_info
+        self.call_stack : List[FunctionInfoRow] = self.obj_name_info.call_stack.get_parsed_stack()
+    def __repr__(self) -> str:
+        ret = ""
+        for i in self.call_stack:
+            ret += i.func_name + " -> "
+        ret += self.obj_name_info.var_name
+        return ret
+    def __str__(self) -> str:
+        return self.__repr__()
+    def __eq__(self, __value: object) -> bool:
+        return hash(self) == hash(__value)
+    def __hash__(self) -> int:
+        return hash("LineInfo:" + str(self))

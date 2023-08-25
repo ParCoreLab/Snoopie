@@ -158,20 +158,13 @@ def scale_lightness(rgb, scale_l):
     return colorsys.hls_to_rgb(h, min(1, l * scale_l), s = min(0.85, s * 1.75) )
 
 
-def get_object_view_data(filter = None, allowed_ops = []):
-    
-    def check_filter(hex_addr) -> bool:
-        nonlocal filter, allowed_ops
-        if hex_addr not in data_by_address: return False
-        if filter == None:
-            # allow all gpus
-            for op in allowed_ops:
-                if op in data_by_address[hex_addr]: return True
-            return False
-        if filter not in data_by_address[hex_addr]: return False
-        for op in allowed_ops:
-            if op in data_by_address[hex_addr][filter]: return True
-        return False
+def get_object_view_data(gpu_filter = None, allowed_ops = []):
+    if gpu_filter == None:
+        gpu_filter = [i for i in range(gpu_num)]
+
+    def check_filter(hex_addr, filtered_ops: List[OpInfoRow]) -> List[OpInfoRow]:
+        filtered_addrs = [i for i in filtered_ops if i.addr == hex_addr]
+        return filtered_addrs
 
 
     cols_rows_name = ['GPU%d' % i for i in range(gpu_num)]
@@ -179,58 +172,61 @@ def get_object_view_data(filter = None, allowed_ops = []):
     for dev in range(gpu_num):
         object_view.append({})
 
-    for key in data_by_obj.keys():
-        offset = int(data_by_obj[key]['offset'], 16)
+    all_ops : List[OpInfoRow] = OpInfoRow.table()
+
+    filtered_ops : List[OpInfoRow] = [i for i in OpInfoRow.table() if (
+            i.running_dev_id in gpu_filter and
+            i.op_code in allowed_ops
+    )]
+
+    for op_row in all_ops:
+        obj_id_data, obj_name_data = op_row.get_obj_info()
+        if obj_id_data == None or obj_name_data == None:
+            print("ERROR THIS SHOULD NOT HAPPEN:", op_row)
+            continue
+        offset = op_row.obj_offset
         obj = [[]]
         object_map = [[]]
-        obj_size = int(data_by_obj[key]['size']/ADDR_DIST)
+        obj_size = int(obj_id_data.size/ADDR_DIST)
         step = ADDR_DIST
         if obj_size > GRAPH_SIZE_LIMIT:
             step *= int(obj_size/GRAPH_SIZE_LIMIT)
         cols = int(math.sqrt(obj_size))*4
-        ycounter = cols
-        # set up the data to be displayed in the objectview on hover
-        for i in range(0, int(data_by_obj[key]['size']), step):
-            # if i >= ycounter:
-            #     ycounter += cols
-            #     obj.append([])
-            #     object_map.append([])
-            hex_addr = str.format('0x{:016x}', offset+i)
-            if check_filter(hex_addr):
-                dict_details = data_by_address[hex_addr]
-                html_details = "<br>"
-                for dev in cols_rows_name:
-                    if dev in dict_details:
-                        html_details += " "*8 + str(dev) + ": " + str(dict_details[dev]) + "<br>"
-                for op in ops:
-                    if op in dict_details:
-                        html_details += " "*8 + str(op) + ": " + str(dict_details[op]) + "<br>"
-                for line in dict_details['lines']:
-                    intline = int(line[5:])
-                    html_details += " "*8 + str(line) + ": " + str(dict_details[line]) + "<br>"
-                    data_by_line[intline] = data_by_line.get(intline, {})
-                    temp_data = data_by_line[intline]
-                    # calculate how many times each object is updated in that line
-                    temp_line_total = 0
-                    for op in allowed_ops:
-                        temp_line_total += dict_details.get(line, {}).get(op, 0)
+        for i in range(0, int(obj_id_data.size), step):
+            hex_addr = str.format('0x{:016x}', int(offset,16)+i)
+            filtered_addrs = check_filter(hex_addr, filtered_ops)
+            if len(filtered_addrs) > 0:
+                
+                dict_details = {"by_dev":{},"by_op":{},"by_line":{},"combined":{}}
+                for i in filtered_addrs:
+                    dev = f"GPU{i.running_dev_id}"
+                    op = i.op_code
+                    line_info = i.get_line_info()
+                    tmp = dict_details["by_dev"].get(dev,0)
+                    dict_details["by_dev"][dev] = tmp + 1
+                    tmp = dict_details["by_op"].get(op,0)
+                    dict_details["by_op"][op] = tmp + 1
+                    tmp = dict_details["by_line"].get(line_info, 0)
+                    dict_details["by_line"][line_info] = tmp + 1
+                    combined_info = f"{dev}, {op}, {str(line_info)}"
+                    tmp = dict_details["combined"].get(combined_info, 0)
+                    dict_details["combined"][combined_info] = tmp + 1
 
-                    temp_data["objects_updated"] = temp_data.get("objects_updated", dict())
-                    temp_data["objects_updated"][data_by_obj[key]["var_name"]] = temp_data["objects_updated"].get(data_by_obj[key]["var_name"], 0) + temp_line_total
-                obj[-1].append([hex_addr, html_details])
-                temp_total = 0
-                if filter == None:
-                    for op in allowed_ops:
-                        temp_total += dict_details.get(op,0)
-                else:
-                    for op in allowed_ops:
-                        temp_total += dict_details.get(filter,{}).get(op,0)
-                object_map[-1].append(temp_total)
+                html_details = "<br>"
+                for key, value in dict_details["combined"].items():
+                    html_details += " "*8 + str(key) + ": " + str(value) + "<br>"
+                for key, value in dict_details["by_line"].items():
+                    # TODO ADD TEMP DATA STUFF FOR LINE VIEW
+                    pass
+
+                obj[-1].append((hex_addr, html_details))
+                object_map[-1].append(len(filtered_addrs))
             else:
-                obj[-1].append([hex_addr, ""])
+                obj[-1].append((hex_addr, ""))
                 object_map[-1].append(0)
-        if (data_by_obj[key]['device_id'] >= 0):
-            object_view[data_by_obj[key]['device_id']][data_by_obj[key]['var_name']] = [obj, object_map]
+        if op_row.running_dev_id > -1:
+            object_view[op_row.running_dev_id][obj_name_data.var_name] = [obj, object_map]
+    print("xd:",object_view)
     return object_view
 
 def main():
@@ -256,6 +252,7 @@ def main():
             horizontal=True
         )
     with top_cols[1]:
+        print("ops:",ops)
         ops_to_display = st.multiselect("Operations to display", options = ops, default = ops)
 
 
@@ -346,10 +343,9 @@ def main():
         for j in range(gpu_num):
             target_label = "GPU"+str(j)
             pair = src_label + "-" + target_label
-            width = 0.0
             filtered_ops = OpInfoRow.filter_by_device_and_ops(ops_to_display,[i],[j])
-            filtered_accesses = OpInfoRow.get_total_accesses(filtered_ops, label_bytes == "bytess")
-            width += filtered_accesses * sampling_period
+            filtered_accesses = OpInfoRow.get_total_accesses(filtered_ops, label_bytes == "bytes")
+            width = filtered_accesses * sampling_period
             widths[i].append(width)
             if width > max_val:
                 max_val = width
@@ -436,7 +432,7 @@ def main():
     selected_rows = None
 
 
-    object_view = get_object_view_data(filter = None, allowed_ops = ops_to_display)
+    object_view = get_object_view_data(gpu_filter = None, allowed_ops = ops_to_display)
     
 
     for i in range(gpu_num):
