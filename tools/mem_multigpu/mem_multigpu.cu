@@ -34,6 +34,7 @@
 #include <string>
 #include <unordered_set>
 #include <unordered_map>
+#include <iostream>
 
 #include <adm_config.h>
 #include <adm_common.h>
@@ -83,6 +84,7 @@ pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
 static int global_index = 0;
 
 Logger logger("snoopie-log-" + std::to_string(getpid()) + ".zst");
+
 
 //static std::pair<std::vector<int>, std::vector<int>> line_tracking;
 std::map<std::string, std::tuple<std::string, std::vector<int>, std::vector<int>>> line_tracking;
@@ -134,6 +136,8 @@ bool skip_callback_flag = false;
 uint32_t instr_begin_interval = 0;
 uint32_t instr_end_interval = UINT32_MAX;
 std::string kernel_name;
+int on_dev_filtering = 1;
+int time_log = 0;
 int verbose = 0;
 std::string nvshmem_version = "2.8";
 int nvshmem_ngpus = 10;
@@ -145,6 +149,16 @@ int sample_size;
 std::map<std::string, int> opcode_to_id_map;
 std::map<int, std::string> id_to_opcode_map;
 std::vector<MemoryAllocation> mem_allocs;
+
+void log_time(string msg) {
+  if (!time_log) return;
+
+  std::cout << msg << ": " << std::chrono::time_point_cast<std::chrono::microseconds>(
+              std::chrono::steady_clock::now())
+              .time_since_epoch()
+              .count()
+       << std::endl;
+}
 
 int64_t find_nvshmem_dev_of_ptr(int mype,uint64_t mem_addr, int nvshmem_ngpus,
     std::string version) {
@@ -375,6 +389,8 @@ void nvbit_at_init()
       instr_end_interval, "INSTR_END", UINT32_MAX,
       "End of the instruction interval where to apply instrumentation");
   GET_VAR_INT(verbose, "TOOL_VERBOSE", 0, "Enable verbosity inside the tool");
+  GET_VAR_INT(time_log, "TIME_LOG", 0, "Enable time logging inside the tool");
+  GET_VAR_INT(on_dev_filtering, "ON_DEVICE_FILTERING", 1, "Enables on device filtering instead of on host fitering instead ");
   GET_VAR_INT(silent,  "SILENT",       0, "Silence long output of the tool");
 
   GET_VAR_STR(nvshmem_version, "NVSHMEM_VERSION", "Specify the nvshmem version to use the correct memory mapping");
@@ -398,18 +414,13 @@ void nvbit_at_init()
   }
   adm_db_init();
   /* set mutex as recursive */
-  string memop_str("memop_log_");
   string txt_str(".txt");
-  // string memop_log_str = memop_str + to_string(getpid()) + txt_str;
-  // memop_outfile.open(memop_log_str);
-  // if (!silent /*&& ((int)ctx_state_map.size() - 1 == 0)*/) {
-    // memop_outfile << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, code_linenum, code_line_index, code_line_estimated_status, obj_offset, mem_range" << std::endl;
-  // }
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
-  //std::cerr << "nvbit_at_init is called\n";
+
+  log_time("Bgn Snoopie");
 
 }
 
@@ -419,11 +430,15 @@ std::unordered_map<int, std::string> instrumented_functions;
 
 void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 {
+ std::string main_func_name(nvbit_get_func_name(ctx, func));
+
+  log_time("Bgn Instrumentation of func: " + main_func_name);
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
 
   if (already_instrumented.count(func))
   {
+    log_time("End Instrumentation of func: " + main_func_name);
     return;
   }
 
@@ -613,6 +628,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       cnt++;
     }
   }
+
+  log_time("End Instrumentation of func: " + main_func_name);
 }
 
 __global__ void flush_channel(ChannelDev *ch_dev)
@@ -630,11 +647,13 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     const char *name, void *params, CUresult *pStatus)
 {
   pthread_mutex_lock(&mutex1);
+  log_time(std::string("Bgn Cuda Event ") + (is_exit ? "Exit" : "Enter") +  find_cbid_name(cbid));
 
   /* we prevent re-entry on this callback when issuing CUDA functions inside
    * this function */
   if (skip_callback_flag)
   {
+    log_time(std::string("End Cuda Event ") + (is_exit ? "Exit" : "Enter") +  find_cbid_name(cbid));
     pthread_mutex_unlock(&mutex1);
     return;
   }
@@ -862,6 +881,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   }
 
   skip_callback_flag = false;
+  log_time(std::string("End Cuda Event ") + (is_exit ? "Exit" : "Enter") +  find_cbid_name(cbid));
   pthread_mutex_unlock(&mutex1);
 }
 
@@ -978,6 +998,8 @@ void *recv_thread_fun(void *args)
   int dev_id = -1;
   cudaGetDevice(&dev_id);
 
+  log_time(std::string("Bgn Recv Thread " + to_string(dev_id)));
+
   ChannelHost *ch_host = &ctx_state->channel_host;
 
 
@@ -993,14 +1015,23 @@ void *recv_thread_fun(void *args)
   }
 
   bool done = false;
+  bool waiting = false;
   while (!done)
   {
+
+    if (!waiting) {
+      log_time(std::string("Bgn Waiting Recv Thread " + to_string(dev_id)));
+      waiting = true;
+    }
 
     /* receive buffer from channel */
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
 
     if (num_recv_bytes > 0)
     {
+      log_time(std::string("End Waiting Recv Thread " + to_string(dev_id)));
+      waiting = false;
+      log_time(std::string("Bgn Processing Recv Thread " + to_string(dev_id)));
       uint32_t num_processed_bytes = 0;
       while (num_processed_bytes < num_recv_bytes)
       {
@@ -1124,15 +1155,22 @@ void *recv_thread_fun(void *args)
         }
         num_processed_bytes += sizeof(mem_access_t);
       }
+
+      log_time(std::string("End Processing Recv Thread " + to_string(dev_id)));
     }
   }
 
+  log_time(std::string("End Recv Thread " + to_string(dev_id)));
   return NULL;
 }
 
 void nvbit_at_ctx_init(CUcontext ctx)
 {
   pthread_mutex_lock(&mutex1);
+  int dev_id = -1;
+  cudaGetDevice(&dev_id);
+  
+  log_time("Bgn Context" + to_string(dev_id));
   if (verbose)
   {
     printf("MEMTRACE: STARTING CONTEXT %p\n", ctx);
@@ -1143,7 +1181,7 @@ void nvbit_at_ctx_init(CUcontext ctx)
   cudaMallocManaged(&ctx_state->channel_dev, sizeof(ChannelDev));
 
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
-      ctx_state->channel_dev, recv_thread_fun, ctx);
+      ctx_state->channel_dev, recv_thread_fun, on_dev_filtering, ctx);
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
 }
@@ -1151,6 +1189,10 @@ void nvbit_at_ctx_init(CUcontext ctx)
 void nvbit_at_ctx_term(CUcontext ctx)
 {
   pthread_mutex_lock(&mutex1);
+  int dev_id = -1;
+  cudaGetDevice(&dev_id);
+  log_time("End Context" + to_string(dev_id));
+
   skip_callback_flag = true;
   if (verbose)
   {
@@ -1182,8 +1224,10 @@ void nvbit_at_term()
         adm_ranges_print();
     adm_line_table_print();
   }
+  log_time("End Snoopie");
   // memop_outfile.close();
   // TODO: Print the below agian at some point
   // adm_line_table_print();
   adm_db_fini();
 }
+
