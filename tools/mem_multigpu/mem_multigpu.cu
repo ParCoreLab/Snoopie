@@ -1043,7 +1043,9 @@ void *recv_thread_fun(void *args)
 
           // nvshmem heap_base = 0x10020000000
           // ignore operations on memory locations not allocated by cudaMalloc on the host
+          bool nvshmem_flag = false;
           if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000)) {
+	    nvshmem_flag = true;
             mem_device_id = find_nvshmem_dev_of_ptr(ma->dev_id, ma->addrs[i], nvshmem_ngpus, nvshmem_version);
           }
 
@@ -1079,7 +1081,7 @@ void *recv_thread_fun(void *args)
 
           std::stringstream ss;
 	  uint64_t addr1;
-	  if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000)) {
+	  if (nvshmem_flag) {
              addr1 = normalise_nvshmem_ptr(ma->addrs[i]);
           } else {
 	     addr1 = ma->addrs[i];  
