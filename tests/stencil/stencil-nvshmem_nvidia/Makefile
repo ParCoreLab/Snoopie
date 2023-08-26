@@ -37,7 +37,7 @@ run: jacobi
 	$(MPIRUN) -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -np $(NP) ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 
 run_main: jacobi
-	$(MPIRUN) -x KERNEL_NAME="void jacobi_kernel<32, 32>" -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" -x CODE_ATTRIBUTION=1 -np $(NP) ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
+	$(MPIRUN) --oversubscribe -x NVSHMEM_NGPUS=4 -x KERNEL_NAME="void jacobi_kernel<32, 32>" -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" -x CODE_ATTRIBUTION=1 -np $(NP) ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 
 clean:
-	rm -f *.so *.o jacobi *txt *cubin
+	rm -f *.so *.o jacobi *txt *cubin *zst
