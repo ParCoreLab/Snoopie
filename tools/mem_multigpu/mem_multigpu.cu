@@ -1495,19 +1495,31 @@ void nvbit_at_term()
   printNTree(root, flag);
   //cout << "Code locations of data objects\n";
   ofstream object_outfile;
-  string object_str("data_object_log_");
+  string object_str("mem_alloc_site_log_");
   string txt_str(".txt"); 
   string object_log_str = object_str + to_string(getpid()) + txt_str;
   object_outfile.open(object_log_str);
   object_outfile << "pc,func_name,file_name,line_no\n";
   allocation_line_table->print(object_outfile);
-  object_outfile << "offset,size,obj_id,dev_id\n";
-  for(auto i : range_nodes)
-	i->print(object_outfile);
-  object_outfile << "obj_id,var_name,call_stack\n";
-  for(auto i : object_nodes)
-	i->print(object_outfile);
   object_outfile.close();
+  
+  ofstream object_outfile1;
+  string object_str1("address_range_log_");
+  string object_log_str1 = object_str1 + to_string(getpid()) + txt_str;
+  object_outfile1.open(object_log_str1);
+  object_outfile1 << "offset,size,obj_id,dev_id\n";
+  for(auto i : range_nodes)
+        i->print(object_outfile1); 
+  object_outfile1.close();
+
+  ofstream object_outfile2;
+  string object_str2("data_object_log_");
+  string object_log_str2 = object_str2 + to_string(getpid()) + txt_str;
+  object_outfile2.open(object_log_str2);
+  object_outfile2 << "obj_id,var_name,call_stack\n";
+  for(auto i : object_nodes)
+        i->print(object_outfile2); 
+  object_outfile2.close();
   delete allocation_line_table;
   delete root;
   log_time("End Snoopie");
