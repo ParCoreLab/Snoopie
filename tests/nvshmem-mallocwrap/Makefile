@@ -1,4 +1,4 @@
-NP ?= 2
+NP ?= 4
 NVCC ?= nvcc
 MPIRUN ?= mpirun
 MPICCX = mpic++
@@ -36,7 +36,7 @@ wrapper.o: wrapper.cpp
 	$(CXX) -g -c -Wall -Werror -fPIC $<  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o $@ -lineinfo
 
 run_main: main
-	mpirun -x KERNEL_NAME="void nvshmemi_transfer_rma_p<int>" -x CODE_ATTRIBUTION=1 -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" -np 2 ./main
+	mpirun --oversubscribe -x NVSHMEM_NGPUS=4 -x KERNEL_NAME="void nvshmemi_transfer_rma_p<int>" -x CODE_ATTRIBUTION=1 -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$(NVSHMEM_HOME)/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" -np 4 ./main
 
 clean:
-	rm -f *.so *.o main main.ptx *txt *cubin
+	rm -f *.so *.o main main.ptx *txt *cubin *zst
