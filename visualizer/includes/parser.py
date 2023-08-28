@@ -4,6 +4,8 @@ from copy import deepcopy
 from .streamlit_globals import setup_globals
 import os
 import pickle
+from io import TextIOWrapper
+from typing import List, Dict, Tuple
 
 tables = {}
 
@@ -12,6 +14,7 @@ current_table = None
 _counter = 0
 _table_keys = []
 _devices = set()
+_pid = -1
 
 
 def change_table(line: str):
@@ -50,6 +53,7 @@ def parse_codeline_info(line: str, gbs: tuple):
     if current_table != "codeline_info":
         return
     data = {}
+    data["pid"] = _pid
     vals = line.strip().split(",")  # change this later
     for index in range(len(_table_keys)):
         if isInt_try(vals[index]):
@@ -66,6 +70,7 @@ def parse_obj_info(line: str, gbs: tuple):
     if current_table != "obj_info":
         return
     data = {}
+    data["pid"] = _pid
     vals = line.strip().split(",")  # change this later
     for index in range(len(_table_keys)):
         if isInt_try(vals[index]):
@@ -82,6 +87,7 @@ def parse_offset_info(line: str, gbs: tuple):
     if current_table != "offset_info":
         return
     data = {}
+    data["pid"] = _pid
     vals = line.strip().split(",")  # change this later
     for index in range(len(_table_keys)):
         if isInt_try(vals[index]):
@@ -118,11 +124,11 @@ def parse_func_info(line: str, gbs: tuple):
         sep[2] = i2
     split_data = (
         line[: sep[0]].strip(),
-        line[sep[0] + 1: sep[1]].strip(),
-        line[sep[1] + 1: sep[2]].strip(),
-        line[sep[2] + 1:].strip(),
+        line[sep[0] + 1 : sep[1]].strip(),
+        line[sep[1] + 1 : sep[2]].strip(),
+        line[sep[2] + 1 :].strip(),
     )
-    FunctionInfoRow(
+    FunctionInfoRow(_pid,
         int(split_data[0]), split_data[1], split_data[2], int(split_data[3])
     )
 
@@ -134,6 +140,7 @@ def parse_op_info(line: str, gbs: tuple):
         return
 
     data = {}
+    data["pid"] = _pid
     vals = line.strip().split(",")  # change this later
     for index in range(len(_table_keys)):
         if isInt_try(vals[index]):
@@ -177,18 +184,46 @@ tables = {
 }
 
 
+def get_pid(filename: str) -> int:
+    global _pid
+    if filename.endswith(".txt"):
+        # one of address_range_log_pid.txt, codeline_log_pid.txt, data_object_log_pid.txt, mem_alloc_site_log_pid.txt
+        beforepid = filename.rfind("_")
+        slice = filename[beforepid + 1 : -4]
+        return int(slice)
+    else:
+        # snoopie-log-pid or snoopie-log-pid.zstd
+        last = -4 if filename.endswith(".zst") else -1
+        beforepid = filename.rfind("-")
+        return int(filename[beforepid + 1 : last])
+
 
 # @st.cache_data
-def read_data(file, filename, gbs):
+def read_data(
+    file: TextIOWrapper | List[TextIOWrapper], filename: str | List[str], gbs
+):
+    global _pid
     if file == None or filename == None:
         st.experimental_rerun()  # this shouldn't be here need to fix the problem soon
+    
+    all_pids = []
+
+    
+    
     devices, ops = gbs
 
     # prints all files
     graph_name = ""
     pickle_file = None
+    pickle_filename = ""
 
-    pickle_filename = "".join(filename.split(".")[:-1]) + ".pkl"
+    if isinstance(filename, list):
+        all_pids = [get_pid(i) for i in filename]
+        all_pids.sort()
+        pickle_filename = "-".join([str(i) for i in all_pids]) + ".pkl"
+    else:
+        pickle_filename = "".join(filename.split(".")[:-1]) + ".pkl"
+
     if os.path.isfile(pickle_filename):
         with open(pickle_filename, "rb") as f:
             pickle_file = pickle.load(f)
@@ -208,9 +243,17 @@ def read_data(file, filename, gbs):
     counter = 0
 
     if pickle_file is None:
-        for line in file:
-            parse_line(line, gbs)
-        CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(CodeLineInfoRow.table())
+        if isinstance(file, list):
+            for f, fn in zip(file, filename):
+                _pid = get_pid(fn)
+                for line in f:
+                    parse_line(line, gbs)
+        else:
+            for line in file:
+                parse_line(line, gbs)
+        CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(
+            CodeLineInfoRow.table()
+        )
 
         tempdev = deepcopy(_devices)
         if -1 in tempdev:

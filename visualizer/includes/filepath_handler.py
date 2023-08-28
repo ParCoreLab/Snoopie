@@ -1,6 +1,7 @@
 import os
 import io
 from .electron_checker import is_electron
+from typing import List
 
 if not is_electron:
     import zstandard as zstd
@@ -54,3 +55,10 @@ def file_from_upload_check(file):
         return file_from_upload_compressed(file)
     else:
         return file_from_upload(file)
+    
+def multi_file_frop_upload_check(file: List[str]):
+    tmp = [file_from_upload_check(i) for i in file]
+    ret = [(),()]
+    ret[0] = [i[0] for i in tmp]
+    ret[1] = [i[1] for i in tmp]
+    return ret

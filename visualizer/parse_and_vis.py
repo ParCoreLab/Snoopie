@@ -1037,8 +1037,8 @@ if __name__ == "__main__":
     if not st.session_state.show_filepicker:
         start_newfile = st.button("Profile another file")
         if start_newfile:
-            pickle_filename = "".join(logfile_name.split(".")[:-1]) + ".pkl"
-            os.remove(pickle_filename)
+            # pickle_filename = "".join(logfile_name.split(".")[:-1]) + ".pkl"
+            # os.remove(pickle_filename)
             st.session_state.show_filepicker = True
 
     if st.session_state.show_filepicker:
