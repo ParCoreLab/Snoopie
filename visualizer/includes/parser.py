@@ -28,7 +28,7 @@ def parse_line(line: str, gbs: tuple):
 
     _counter += 1
     if _counter % 100000 == 0:
-        print("reading data, line:", counter)
+        print("reading data, line:", _counter)
 
     if current_table == None:
         change_table(line)
@@ -48,7 +48,6 @@ def parse_codeline_info(line: str, gbs: tuple):
     _, ops = gbs
     change_table(line)
     if current_table != "codeline_info":
-        CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(CodeLineInfoRow.table())
         return
     data = {}
     vals = line.strip().split(",")  # change this later
@@ -178,6 +177,7 @@ tables = {
 }
 
 
+
 # @st.cache_data
 def read_data(file, filename, gbs):
     if file == None or filename == None:
@@ -210,6 +210,7 @@ def read_data(file, filename, gbs):
     if pickle_file is None:
         for line in file:
             parse_line(line, gbs)
+        CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(CodeLineInfoRow.table())
 
         tempdev = deepcopy(_devices)
         if -1 in tempdev:
@@ -226,6 +227,7 @@ def read_data(file, filename, gbs):
             ObjIdRow.by_dev_id,
             ObjNameRow.by_obj_id,
             CodeLineInfoRow.by_cd_index,
+            CodeLineInfoRow.inferred_home_dir,
             gpu_num,
             ops,
         ]
@@ -241,6 +243,7 @@ def read_data(file, filename, gbs):
             ObjIdRow.by_dev_id,
             ObjNameRow.by_obj_id,
             CodeLineInfoRow.by_cd_index,
+            CodeLineInfoRow.inferred_home_dir,
             gpu_num,
             ops,
         ) = pickle_file

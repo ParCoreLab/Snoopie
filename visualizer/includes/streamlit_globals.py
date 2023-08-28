@@ -8,12 +8,14 @@ sampling_period = 10
 src_code_file = None
 logfile = None
 logfile_name = None
-logfile_base = None # base uploadad file
+logfile_base = None  # base uploadad file
+home_folder = None
+current_folder: None | str = None
 #####################################
 
 
 def setup_globals():
-    global gpu_num, src_code_file, sampling_period, logfile, logfile_name, logfile_base
+    global gpu_num, src_code_file, sampling_period, logfile, logfile_name, logfile_base, home_folder, current_folder
 
     if "gpu_num" in st.session_state:
         gpu_num = st.session_state.gpu_num
@@ -29,6 +31,12 @@ def setup_globals():
 
     if "logfile_name" in st.session_state:
         logfile_name = st.session_state.logfile_name
-    
+
     if "logfile_base" in st.session_state:
         logfile_base = st.session_state.logfile_base
+
+    if "home_folder" in st.session_state:
+        home_folder = st.session_state.home_folder.strip()
+    
+    if "current_folder" in st.session_state:
+        current_folder = st.session_state.current_folder

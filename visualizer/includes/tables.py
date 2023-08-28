@@ -1,5 +1,6 @@
 from typing import List, Dict
 from abc import ABC, abstractmethod
+import os
 
 
 
@@ -54,6 +55,7 @@ class OpInfoRow(Table):
 
         OpInfoRow._table.append(self)
 
+    @staticmethod
     def table():
         return OpInfoRow._table
 
@@ -93,7 +95,7 @@ class OpInfoRow(Table):
         if obj_id_info == None or obj_name_info == None:
             obj_id_info, obj_name_info = self.get_obj_info()
         codeline_info = CodeLineInfoRow.by_cd_index[self.code_line_index]
-        return LineInfo(obj_name_info, obj_id_info, codeline_info)
+        return LineInfo(self, obj_name_info, obj_id_info, codeline_info)
 
 
 class FunctionInfoRow(Table):
@@ -113,6 +115,7 @@ class FunctionInfoRow(Table):
         search_result = FunctionInfoRow.by_pc.get(pc)
         return search_result
 
+    @staticmethod
     def table():
         return list(FunctionInfoRow.by_pc.values())
 
@@ -139,6 +142,7 @@ class ObjIdRow(Table):
 
         print("?????", ObjIdRow.by_dev_id, ObjIdRow.by_dev_offset)
 
+    @staticmethod
     def table():
         ret: List[ObjIdRow] = []
         for key, value in ObjIdRow.by_dev_offset.items():
@@ -178,6 +182,7 @@ class ObjNameRow(Table):
 
         ObjNameRow.by_obj_id[self.obj_id] = self
 
+    @staticmethod
     def table():
         return list(ObjNameRow.by_obj_id.values())
 
@@ -202,8 +207,25 @@ class CodeLineInfoRow(Table):
 
         CodeLineInfoRow.by_cd_index[self.code_line_index] = self
 
+    @staticmethod
     def table():
         return list(CodeLineInfoRow.by_cd_index.values())
+
+    def combined_filepath(self) -> str:
+        return os.path.join(self.dir_path, self.file)
+
+    def trimmed_path(self) -> str:
+        return self.dir_path[len(CodeLineInfoRow.inferred_home_dir):]
+
+    def relative_file_path(self) -> str:
+        trimmed_f_path = self.trimmed_path()
+        joined = os.path.join(trimmed_f_path, self.file)
+        if joined[-1] == "/":
+            joined = joined[:-1]
+        if joined[0] == "/": 
+            joined = joined[1:]
+        return joined
+        
 
     @staticmethod
     def infer_home_dir(rows: List[Table]) -> str:
@@ -221,7 +243,8 @@ class CodeLineInfoRow(Table):
 
 
 class LineInfo():
-    def __init__(self, obj_name_info: ObjNameRow, obj_id_info: ObjIdRow, codeline_info: CodeLineInfoRow):
+    def __init__(self, op_info: OpInfoRow, obj_name_info: ObjNameRow, obj_id_info: ObjIdRow, codeline_info: CodeLineInfoRow):
+        self.op_info = op_info
         self.obj_name_info = obj_name_info
         self.obj_id_info = obj_id_info
         self.codeline_info = codeline_info
@@ -232,13 +255,18 @@ class LineInfo():
         for i in self.call_stack:
             ret += i.func_name + " -> "
         ret += self.obj_name_info.var_name
+        ret += " : " + self.codeline_info.file + ":" + str(self.codeline_info.code_linenum)
         return ret
 
     def __str__(self) -> str:
         return self.__repr__()
 
     def __eq__(self, __value: object) -> bool:
-        return hash(self) == hash(__value)
+        return isinstance(__value, LineInfo) and hash(self) == hash(__value)
 
     def __hash__(self) -> int:
         return hash("LineInfo:" + str(self))
+    
+    def check_correct_line(self,file: str, line: int) -> bool:
+        return file == self.codeline_info.combined_filepath() \
+                and line == self.codeline_info.code_linenum

@@ -52,10 +52,10 @@ $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" SAMPL
 
 Language: python 3.7+
 > Required streamlit python libraries: streamlit, streamlit_agraph, streamlit-aggrid,
->                                      extra_streamlit_components, streamlit_plotly_events
+>                                      extra_streamlit_components, streamlit_plotly_events, st-clickable-images
 > Other required libraries: seaborn, pandas, plotly, zstandard
 ```
-pip install seaborn pandas plotly streamlit streamlit_agraph streamlit-aggrid extra_streamlit_components streamlit_plotly_events zstandard
+pip install seaborn pandas plotly streamlit streamlit_agraph streamlit-aggrid extra_streamlit_components streamlit_plotly_events zstandard st-clickable-images
 cd visualizer; pip install st-click-detector-0.1.3/
 ```
 

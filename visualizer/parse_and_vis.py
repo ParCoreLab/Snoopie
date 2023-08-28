@@ -21,13 +21,19 @@ from includes import argumentparser, filepicker_page, electron_checker, filepath
 from includes.streamlit_globals import *
 from includes.parser import *
 from includes.tables import *
+from st_clickable_images import clickable_images
+from includes.load_images import load_image
 
 
 
 data_by_line = {}
 reverse_table_lineinfo = {}
-src_lines = []
-chosen_line = None
+src_lines = {}
+chosen_line: None | str = None
+file_to_vis: None | str = None
+existing_src_code_files = {}
+ops_by_line_info: Dict[str, Dict[int | str, int]] = {
+    "by_line_index" : {}, "by_file": {}, "total": 0, "by_file_linenum": {}}
 # addr_obj_map = {}
 
 ops = set()
@@ -114,41 +120,28 @@ def rectangle_coord(height, width, n):
     return result
 
 
-def isInt_try(v):
-    try:
-        i = int(v)
-    except:
-        return False
-    return True
 
+def check_src_code_folder():
+    global home_folder, existing_src_code_files, ops_by_line_info
+    required_files: set(str) = {i.relative_file_path() for i in CodeLineInfoRow.table()}
 
-def detect_gpu_count(f):
-    global gpu_num
+    def check_if_exists(fp: str):
+        global home_folder
+        mod_path = os.path.join(home_folder, fp)
+        return os.path.exists(mod_path)
 
-    skip = True
-    count = set()
-    for line in f:
-        if skip:
-            skip = False
-            continue
-        if line.startswith("offset") or line.startswith("code_line_index"):
-            break
-        keys = line.split(",")
-        running_dev = int(keys[3])
-        mem_dev = int(keys[4])
-        if running_dev >= 0:
-            count.add(running_dev)
-        if mem_dev >= 0:
-            count.add(mem_dev)
-    gpu_num = len(count)
-    print("gpu num detected as:", gpu_num)
-    try:
-        f.seek(0)
-        return f
-    except:
-        # zstd file cannot be seeked
-        # f.close()
-        return None
+    path_status = {i: check_if_exists(i) for i in required_files}
+    for key, value in path_status.items():
+        if value is False:
+            st.write(Exception(f"The source code file for {os.path.join(home_folder,key)} cannot be found"))
+
+    existing_src_code_files = {
+        i.combined_filepath() : os.path.join(home_folder, i.relative_file_path())
+        for i in CodeLineInfoRow.table()
+        if path_status.get(i.relative_file_path()) is True
+        }
+           
+
 
 
 def scale_lightness(rgb, scale_l):
@@ -159,6 +152,7 @@ def scale_lightness(rgb, scale_l):
 
 
 def get_object_view_data(gpu_filter=None, allowed_ops=[]):
+    global ops_by_line_info
     if gpu_filter == None:
         gpu_filter = [i for i in range(gpu_num)]
 
@@ -206,16 +200,37 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
                         dict_details["by_dev"][dev] = tmp + 1
                         tmp = dict_details["by_op"].get(op, 0)
                         dict_details["by_op"][op] = tmp + 1
-                        tmp = dict_details["by_line"].get(line_info, 0)
-                        dict_details["by_line"][line_info] = tmp + 1
+
+                        # tmp = dict_details["by_line"].get(line_info, 0)
+                        # dict_details["by_line"][line_info] = tmp + 1
+
+                        tmp = line_info.codeline_info.code_line_index
+                        if tmp not in ops_by_line_info["by_line_index"]:
+                            ops_by_line_info["by_line_index"][tmp] = 0
+                        ops_by_line_info["by_line_index"][tmp] += 1
+
+                        tmp = line_info.codeline_info.combined_filepath()
+                        if tmp not in ops_by_line_info["by_file"]:
+                            ops_by_line_info["by_file"][tmp] = 0
+                        ops_by_line_info["by_file"][tmp] += 1
+
+                        tmp2 = line_info.codeline_info.code_linenum
+                        if tmp not in ops_by_line_info["by_file_linenum"]:
+                            ops_by_line_info["by_file_linenum"][tmp] = {}
+                        if tmp2 not in ops_by_line_info["by_file_linenum"][tmp]:
+                            ops_by_line_info["by_file_linenum"][tmp][tmp2] = []
+                        ops_by_line_info["by_file_linenum"][tmp][tmp2].append(line_info)
+
+                        ops_by_line_info["total"] += 1
+
                         combined_info = f"{dev}, {op}, {str(line_info)}"
                         tmp = dict_details["combined"].get(combined_info, 0)
                         dict_details["combined"][combined_info] = tmp + 1
                     html_details = "<br>"
                     for key, value in dict_details["combined"].items():
                         html_details += " " * 8 + str(key) + ": " + str(value) + "<br>"
-                    for key, value in dict_details["by_line"].items():
-                        # TODO ADD TEMP DATA STUFF FOR LINE VIEW
+                    for _key, value in dict_details["by_line"].items():
+                        
                         pass
                     obj[-1].append((hex_addr, html_details))
                     object_map[-1].append(len(filtered_addrs))
@@ -589,8 +604,8 @@ def main():
             table_instr = []
             table_lines = []
             to_filter = OpInfoRow.filter_by_device_and_ops(allowed_ops=ops_to_display, allowed_mem_devs=[i for i in range(gpu_num)], allowed_running_devs=[i])
-            table_instr.append(("total", len(to_filter)))
-            table_objs.append(("total", len(to_filter)))
+            table_instr.append(("total", len(to_filter), "-"))
+            table_objs.append(("total", len(to_filter), "-"))
             for peer_gpu in other_gpus:
                 ops_accessed: List[OpInfoRow] = [op for op in to_filter if op.mem_dev_id == peer_gpu]
 
@@ -653,6 +668,8 @@ def main():
                            columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS)
 
                 cols[2].markdown(f"##### Code lines", unsafe_allow_html=True)
+                if len(table_lines) == 0:
+                    table_lines = [("-","-","-")]
                 df = pd.DataFrame.from_dict(table_lines)
                 df.columns = ['code line', 'count', 'destination']
                 table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
@@ -681,12 +698,13 @@ def main():
 
 
 def show_sidebar():
-    global chosen_line
+    global chosen_line, file_to_vis, ops_by_line_info
     # print("CHOSEN LINE " + str(chosen_line))
+    if file_to_vis not in ops_by_line_info["by_file_linenum"]: return
     linenum = chosen_line
-    if (linenum in data_by_line):
+    if (linenum in ops_by_line_info["by_file_linenum"][file_to_vis]):
         with st.sidebar:
-            linedata = data_by_line[linenum]
+            linedata: List[LineInfo] = ops_by_line_info["by_file_linenum"][file_to_vis][chosen_line]
             st.markdown(
                 f'''
                 <style>
@@ -717,13 +735,24 @@ def show_sidebar():
                 unsafe_allow_html=True,
             )
             st.markdown("""<head><script>hljs.highlightAll();</script></head><body>
-                            <code class='hljs language-c'>""" + src_lines[linenum - 1] + """</code></body>""",
+                            <code class='hljs language-c'>""" + src_lines[file_to_vis][linenum - 1] + """</code></body>""",
                         unsafe_allow_html=True,)
-            st.markdown("### Total transfers: " + str(linedata['total']))
+            st.markdown("### Total transfers: " + str(len(linedata)))
             st.markdown("#### Objects updated: ")
             print(linedata)
-            for key in linedata['objects_updated'].keys():
-                st.markdown("###### " + key + ": " + str(linedata['objects_updated'][key]))
+            tmpcounter: Dict[LineInfo, int] = {}
+            for i in linedata:
+                tmpcounter[i] = 0
+            for i in linedata:
+                tmpcounter[i] += 1
+            for i in tmpcounter.keys():
+                var_name = i.obj_name_info.var_name
+                call_stack_str = ""
+                for fnc_call in i.call_stack:
+                    call_stack_str += fnc_call.func_name + " -> "
+                if var_name is None or var_name == "": var_name = "[unnamed object]"
+                call_stack_str += var_name
+                st.markdown("###### " + call_stack_str + ": " + str(tmpcounter[i]))
 
             # obj_str = "### Object(s) involved: \\"
             # for obj in linedata.get('objects', set()):
@@ -742,8 +771,13 @@ def show_sidebar():
                     target_label = "GPU" + str(j)
                     pair_label = src_label + "-" + target_label
                     width = 0.0
-                    if (pair_label in linedata):
-                        width = linedata[pair_label]
+                    #TODO we can also do the samething with linedata to get filtered result by gpu
+                    filtered_ops = [p for p in OpInfoRow.table()
+                                    if p.op_code in ops_to_display
+                                    and p.mem_dev_id == j
+                                    and p.running_dev_id == i
+                                    and (p.get_line_info()).check_correct_line(file_to_vis, linenum)]
+                    width = len(filtered_ops)
                     widths[i].append(width)
 
             df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype('int')
@@ -771,14 +805,117 @@ def show_sidebar():
             st.session_state.sidebar_state = 'expanded'
 
 
-def read_code(f):
-    global src_lines
-    f.seek(0)
-    src_lines = f.readlines()
+def read_code():
+    global src_lines, existing_src_code_files
+
+    iterate_set: set(str) = {i.combined_filepath() for i in CodeLineInfoRow.table()}
+
+    for i in iterate_set:
+        if i in existing_src_code_files:
+            filepath = existing_src_code_files[i]
+            if os.path.exists(filepath) and os.path.isfile(filepath):
+                with open(filepath, "r") as f:
+                    src_lines[i] = f.readlines() 
+    
+    print("src_lines:", {key: len(value) for key, value in src_lines.items()})
+
+def process_folderpath(folder: str):
+    if folder[-1] == "/": folder = folder[:-1]
+    return folder
+
+def choose_src_code_file():
+    global file_to_vis, existing_src_code_files, home_folder, current_folder, ops_by_line_info
+
+    files_to_show = set()
+    folders_to_show = set()
+
+    if current_folder == None:
+        current_folder = home_folder
+    
+    # setup files to show
+    for filepath in existing_src_code_files.values():
+        folder, file = os.path.split(filepath)
+        if process_folderpath(folder) == current_folder:
+            files_to_show.add(file)
+
+    # setup folders to show
+    for filepath in existing_src_code_files.values():
+        folder, file = os.path.split(filepath)
+        folder = process_folderpath(folder)
+        print(folder, current_folder, home_folder, CodeLineInfoRow.inferred_home_dir)
+        if folder == current_folder: continue
+        commonpath = os.path.commonpath((folder, current_folder))
+        if commonpath == current_folder:
+            folder_cut = folder[len(commonpath)+1:]
+            if folder_cut.count(os.path.sep) > 0:
+                continue
+            folders_to_show.add(folder_cut)
+
+    print("fsp", files_to_show, folders_to_show)
+
+    # display them
+
+    folder_icon, file_icon = ("https://icons.getbootstrap.com/assets/icons/folder.svg", "https://icons.getbootstrap.com/assets/icons/file-earmark.svg")
+    img_size = 32
+
+    temp = sorted(list(folders_to_show))
+    if current_folder != home_folder:
+        temp.insert(0, "..")
+    combined_list = temp  + sorted(list(files_to_show))
+    totallen = len(files_to_show) + len(temp)
+    folder_len = len(temp)
+    item_per_line = 8
+    idx = 0
+    st.write(f"current folder: {current_folder}")
+    while totallen > 0:
+        cols = st.columns([1 for i in range(item_per_line)])
+        for i in range(item_per_line):
+            totallen -= 1
+            if totallen < 0: break
+            name = combined_list[idx]
+            fake_item = os.path.join(CodeLineInfoRow.inferred_home_dir, current_folder[len(home_folder)+1:],name)
+            print(current_folder, name, fake_item)
+            with cols[i]:
+                if name == "..":
+                    # go back
+                    clicked = clickable_images([folder_icon],titles=[name], img_style={"width":f"{img_size}px","height":f"{img_size}px"})
+                    st.write(name)
+                    if clicked > -1:
+                        st.session_state.current_folder, _ = os.path.split(current_folder)
+                        setup_globals()
+                        st.experimental_rerun()
+                        break
+                elif idx < folder_len:
+                    #display folder
+                    print("display folder:", name)
+                    clicked = clickable_images([folder_icon],titles=[name], img_style={"width":f"{img_size}px","height":f"{img_size}px"})
+                    st.write(name)
+                    if clicked > -1:
+                        st.session_state.current_folder = os.path.join(current_folder, name)
+                        setup_globals()
+                        st.experimental_rerun()
+                        break
+                else:
+                    #display file
+                    print("display file:", name)
+                    num_accesses = ops_by_line_info["by_file"]
+
+                    clicked = clickable_images([file_icon],titles=[name], img_style={"width":f"{img_size}px","height":f"{img_size}px"})
+                    
+                    st.write(name)
+                    
+                    access_count = 0 if fake_item not in ops_by_line_info['by_file'] else ops_by_line_info['by_file'][fake_item]
+                    if ops_by_line_info['total'] == 0: ops_by_line_info['total'] = 1
+                    
+                    st.write(f"Accesses: {access_count}, %{100 * access_count /ops_by_line_info['total']}")
+
+                    if clicked > -1:
+                        file_to_vis = fake_item
+            idx += 1
 
 
 def show_code():
-    global src_lines, chosen_line, ops_to_display
+    global src_lines, chosen_line, ops_to_display, ops_by_line_info, current_folder, file_to_vis
     content_head = """<head>
         <style>
             .percentage {
@@ -799,15 +936,12 @@ def show_code():
     content_end = """</pre></body>"""
 
     max_line_comm = 0
-    total_comm = 0
+    total_comm = ops_by_line_info['total']
     filtered_comm = {}
 
-    for line_index in data_by_line.keys():
-        ftotal = 0
-        for op in ops_to_display:
-            ftotal += data_by_line[line_index].get(op, 0)
+    for line_index, linedata in ops_by_line_info["by_file_linenum"][file_to_vis].items():
+        ftotal = len(linedata)
         filtered_comm[line_index] = ftotal
-        total_comm += ftotal
         if (ftotal > max_line_comm):
             max_line_comm = ftotal
 
@@ -819,10 +953,10 @@ def show_code():
     pal = sns.color_palette([scale_lightness(color, 1.2) for color in pal_base_lines]).as_hex()
     pal.reverse()
 
-    total_lines = len(src_lines)
+    total_lines = len(src_lines[file_to_vis])
     index_chars = len(str(total_lines)) + 1
     line_index = 0
-    for line in src_lines:
+    for line in src_lines[file_to_vis]:
         line_index += 1
         ls = len(line) - len(line.lstrip())
         line = line.replace('<', '&lt')
@@ -831,7 +965,7 @@ def show_code():
         # content_head+="""<div style='display:flex;flex-direction:row;><code class='hljs language-c'
         #                 style='width:90%;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
         comm_percentage = 0.0
-        if data_by_line.get(line_index, None) is not None:
+        if line_index in ops_by_line_info["by_file_linenum"][file_to_vis]:
             comm_percentage = float(filtered_comm[line_index]) / float(total_comm) * 100
         div_inject = "<div class='percentage' style='background-color:" + pal[int(comm_percentage) % len(pal)] + ";opacity:0.4;width:" + str(comm_percentage) + "%'></div>"
 
@@ -865,6 +999,7 @@ def show_code():
 
     if clicked_src:
         chosen_line = int(clicked_src[4:])
+        print("chosen line: ", chosen_line)
         ckey = 'code_select'
         if (ckey not in st.session_state or st.session_state[ckey] != chosen_line):
             show_sidebar()
@@ -873,16 +1008,25 @@ def show_code():
 
 
 def continue_main():
-    global gpu_num, ops, logfile, logfile_name
+    global gpu_num, ops, logfile, logfile_name, file_to_vis
 
     gpu_num, ops = read_data(logfile, logfile_name, (gpu_num, ops))
     setup_globals()
 
-    read_code(src_code_file)
+    check_src_code_folder()
+    read_code()
+
     main()
 
     st.markdown("""---""")
-    show_code()
+    choose_src_code_file()
+    st.markdown("""---""")
+    if (file_to_vis is not None
+    and file_to_vis in ops_by_line_info["by_file"]
+    and file_to_vis in ops_by_line_info["by_file_linenum"]):
+        show_code()
+
+        
 
 
 if __name__ == "__main__":
@@ -893,6 +1037,8 @@ if __name__ == "__main__":
     if not st.session_state.show_filepicker:
         start_newfile = st.button("Profile another file")
         if start_newfile:
+            pickle_filename = "".join(logfile_name.split(".")[:-1]) + ".pkl"
+            os.remove(pickle_filename)
             st.session_state.show_filepicker = True
 
     if st.session_state.show_filepicker:
