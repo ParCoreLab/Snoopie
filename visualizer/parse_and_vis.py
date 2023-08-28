@@ -173,7 +173,7 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
         if owned_objs == None:
             continue
         for owned_obj in owned_objs.values():
-            obj_name_info: ObjNameRow = ObjNameRow.by_obj_id[owned_obj.obj_id]
+            obj_name_info: ObjNameRow = ObjNameRow.by_obj_id[owned_obj.pid][owned_obj.obj_id]
             related_accesses: List[OpInfoRow] = [i for i in all_ops
                                                  if i.mem_dev_id == source_dev_id
                                                  and i.obj_offset == owned_obj.offset

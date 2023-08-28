@@ -56,7 +56,7 @@ def file_from_upload_check(file):
     else:
         return file_from_upload(file)
     
-def multi_file_frop_upload_check(file: List[str]):
+def multi_file_from_upload_check(file: List[str]):
     tmp = [file_from_upload_check(i) for i in file]
     ret = [(),()]
     ret[0] = [i[0] for i in tmp]

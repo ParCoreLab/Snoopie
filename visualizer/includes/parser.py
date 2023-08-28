@@ -190,12 +190,17 @@ def get_pid(filename: str) -> int:
         # one of address_range_log_pid.txt, codeline_log_pid.txt, data_object_log_pid.txt, mem_alloc_site_log_pid.txt
         beforepid = filename.rfind("_")
         slice = filename[beforepid + 1 : -4]
+        if not slice.isdigit():
+            return -1
         return int(slice)
     else:
         # snoopie-log-pid or snoopie-log-pid.zstd
         last = -4 if filename.endswith(".zst") else -1
         beforepid = filename.rfind("-")
-        return int(filename[beforepid + 1 : last])
+        slice = filename[beforepid + 1 : last]
+        if not slice.isdigit():
+            return -1
+        return int(slice)
 
 
 # @st.cache_data
@@ -267,7 +272,7 @@ def read_data(
             OpInfoRow._table,
             FunctionInfoRow.by_pc,
             ObjIdRow.by_dev_offset,
-            ObjIdRow.by_dev_id,
+            ObjIdRow.by_pid_offset,
             ObjNameRow.by_obj_id,
             CodeLineInfoRow.by_cd_index,
             CodeLineInfoRow.inferred_home_dir,
@@ -283,7 +288,7 @@ def read_data(
             OpInfoRow._table,
             FunctionInfoRow.by_pc,
             ObjIdRow.by_dev_offset,
-            ObjIdRow.by_dev_id,
+            ObjIdRow.by_pid_offset,
             ObjNameRow.by_obj_id,
             CodeLineInfoRow.by_cd_index,
             CodeLineInfoRow.inferred_home_dir,

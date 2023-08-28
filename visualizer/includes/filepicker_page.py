@@ -70,8 +70,11 @@ def filepicker_page():
         (
             st.session_state.logfile,
             st.session_state.logfile_base,
-        ) = file_from_upload_check(_logfile)
-        st.session_state.logfile_name = _logfile.name
+        ) = multi_file_from_upload_check(_logfile)
+        if isinstance(_logfile, list):
+            st.session_state.logfile_name = [i.name for i in _logfile]
+        else:
+            st.session_state.logfile_name = _logfile.name
         # st.session_state.src_code_file, _ = file_from_upload(_src_code_file)
 
         st.session_state.sampling_period = _sampling_period
