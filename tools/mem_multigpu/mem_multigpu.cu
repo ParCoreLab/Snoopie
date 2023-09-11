@@ -908,6 +908,34 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
     }
   }
+  else if(is_exit && cbid == API_CUDA_cuMemAlloc)
+  {
+	cuMemAlloc_params *p = (cuMemAlloc_params *)params;
+    std::stringstream ss;
+    ss << HEX(*p->dptr);
+    std::stringstream ss2;
+    ss2 << HEX(*p->dptr + p->bytesize);
+    int deviceID = -1;
+    uint64_t pointer = *p->dptr;
+    uint64_t bytesize = p->bytesize;
+
+    cudaGetDevice(&deviceID);
+    assert(cudaGetLastError() == cudaSuccess);
+
+    //MemoryAllocation ma = {deviceID, pointer, bytesize};
+    ma.deviceID = deviceID;
+    ma.pointer = pointer;
+    ma.bytesize = bytesize;
+    mem_allocs.push_back(ma);
+
+    for (const auto & ctx_map_pair : ctx_state_map) {
+      ctx_map_pair.second->channel_dev->add_malloc(ma);
+    }
+
+    if (JSON) {
+      std::cout << "{\"op\": \"mem_alloc\", " << "\"dev_id\": " << deviceID << ", " << "\"bytesize\": " << p->bytesize << ", \"start\": \"" << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}" << std::endl;
+    }
+  }
   else if (cbid == API_CUDA_cuMemAllocHost)
   { 
     cuMemAllocHost_params *p = (cuMemAllocHost_params *)params;
@@ -1060,7 +1088,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   }
 
 //#if 0
-  if(is_exit && (cbid == API_CUDA_cuMemAlloc_v2 || cbid == API_CUDA_cuMemAllocHost || cbid == API_CUDA_cuMemAllocHost_v2 || cbid == API_CUDA_cuMemHostAlloc)) {
+  if(is_exit && (cbid == API_CUDA_cuMemAlloc ||  cbid == API_CUDA_cuMemAlloc_v2 || cbid == API_CUDA_cuMemAllocHost || cbid == API_CUDA_cuMemAllocHost_v2 || cbid == API_CUDA_cuMemHostAlloc)) {
 	//std::cerr << "captured malloc before generate_trace\n";
         std::vector<stacktrace_frame> trace = generate_trace();
 	//std::cerr << "after generate_trace\n";
@@ -1108,11 +1136,27 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 	//parent = parent->get_parent();
 	//std::string str1("cudaMalloc");
 //#if 0
-        while(parent && allocation_line_table->find(parent->get_pc())->get_func_name().find(/*str1*/"cudaMalloc") == string::npos) {
-		parent = parent->get_parent();	
+	string func_name;
+	if(parent) {
+		func_name = allocation_line_table->find(parent->get_pc())->get_func_name();
+        	while(func_name.find(/*str1*/"cudaMalloc") == string::npos && func_name.find(/*str1*/"nvshmem_malloc") == string::npos && func_name.find(/*str1*/"nvshmem_align") == string::npos) {
+			parent = parent->get_parent();
+			if(parent)	
+				func_name = allocation_line_table->find(parent->get_pc())->get_func_name();
+			else
+				break;
+		}
 	}
-	while(parent && allocation_line_table->find(parent->get_pc())->get_func_name().find(/*str1*/"cudaMalloc") != string::npos) {
-		parent = parent->get_parent();
+	if(parent && func_name.find(/*str1*/"nvshmem_malloc") != string::npos)
+		fprintf(stderr, "nvshmem_malloc is intercepted offset: %lx size: %ld\n", ma.pointer, ma.bytesize);
+	if(parent) {
+		while(func_name.find(/*str1*/"cudaMalloc") != string::npos || func_name.find(/*str1*/"nvshmem_malloc") != string::npos || func_name.find(/*str1*/"nvshmem_align") != string::npos) {
+			parent = parent->get_parent();
+			if (parent)
+				func_name = allocation_line_table->find(parent->get_pc())->get_func_name();
+			else
+				break;
+		}
 	}
 //#if 0
 	if(parent && parent->get_object_id() == 0) {
@@ -1355,6 +1399,7 @@ void *recv_thread_fun(void *args)
           uint32_t index_in_malloc = 0;
 
           //if (object_attribution) {
+#if 0
             range = adm_range_find(ma->addrs[i]);
 	    if(range != nullptr) {
             	allocation_pc = range->get_allocation_pc();
@@ -1371,7 +1416,7 @@ void *recv_thread_fun(void *args)
             	offset_address_range = range->get_address();
 	    }
           //}
-
+#endif
           if (silent) continue;
 
           std::stringstream ss;
@@ -1381,6 +1426,23 @@ void *recv_thread_fun(void *args)
           } else {
 	     addr1 = ma->addrs[i];  
 	  }
+
+	range = adm_range_find(addr1);
+            if(range != nullptr) {
+                allocation_pc = range->get_allocation_pc();
+                if(object_exists(allocation_pc)) {
+                        varname = get_object_var_name(allocation_pc);
+                        filename = get_object_file_name(allocation_pc);
+                        funcname = get_object_func_name(allocation_pc);
+                        linenum = get_object_line_num(allocation_pc);
+                        dev_id = range->get_device_id();
+                        data_type_size = get_object_data_type_size(allocation_pc);
+                        index_in_object = range->get_index_in_object();
+                }
+                index_in_malloc = (ma->addrs[i] - range->get_address())/data_type_size;
+                offset_address_range = range->get_address();
+            }	
+
           if (JSON) {
             ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id]  << "\", "
               << "\"kernel_name\": \"" << instrumented_functions[ma->func_id] << "\", "
