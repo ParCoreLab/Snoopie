@@ -65,11 +65,13 @@ class Logger {
   size_t buffOutSize;
   void *buffIn;
   void *buffOut;
+  bool off;
   std::mutex log_mutex;
   ZSTD_CStream *cs;
   public:
 
   Logger(std::string filename) {
+    off = false;
     cs = ZSTD_createCStream();
 
     // TODO: Try changing compression level to 3
@@ -98,9 +100,19 @@ class Logger {
   }
 
   void log(std::string msg) {
+    if (off) return;
+
     log_mutex.lock();
     write_to_stream(cs, msg, buffIn, buffOut, buffInSize, buffOutSize, fout);
     log_mutex.unlock();
+  }
+
+  void turnoff() {
+    off = true;
+  }
+
+  void turnon() {
+    off = false;
   }
 };
 
