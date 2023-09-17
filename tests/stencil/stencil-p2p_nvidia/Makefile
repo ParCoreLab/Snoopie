@@ -32,7 +32,7 @@ run: jacobi
 
 profile: jacobi
 	#NOBANNER=1 KERNEL_NAME="void jacobi_kernel<32, 32>" CODE_ATTRIBUTION=1 SAMPLE_SIZE=10 LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
-	NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 SAMPLE_SIZE=10 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
+	NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	# NOBANNER=1 SILENT=1 LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:. SILENT=0 KERNEL_NAME="void jacobi_kernel<32, 32>" LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	# NOBANNER=1 SILENT=0 LD_PRELOAD="../../tools/mem_trace/mem_trace.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	@# nsys profile --trace=cuda,nvtx -o jacobi ./jacobi -niter 10
