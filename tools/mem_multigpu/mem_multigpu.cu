@@ -1359,9 +1359,14 @@ void * nvshmem_malloc ( size_t size/*, const std::experimental::source_location&
         }
 //#if 0
         adm_range_t* range;
+	MemoryAllocation ma;
         if(parent) {
                 range = adm_range_insert((uint64_t) allocated_memory, size, parent->get_pc(), deviceID, "", ADM_STATE_ALLOC);
                 range_nodes.push_back(new adm_range_t((uint64_t) allocated_memory, size, parent->get_object_id(), deviceID));
+		ma.deviceID = deviceID;
+		ma.pointer = (uint64_t) allocated_memory;
+		ma.bytesize = size;
+		mem_allocs.push_back(ma);
         }
   return allocated_memory;
 }
