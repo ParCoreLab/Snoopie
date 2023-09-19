@@ -1,0 +1,11 @@
+seaborn
+pandas
+plotly
+streamlit
+streamlit_agraph
+streamlit-aggrid
+st-clickable-images
+extra_streamlit_components
+streamlit_plotly_events
+matplotlib
+st_click_detector==0.1.3
