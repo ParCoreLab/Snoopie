@@ -84,7 +84,7 @@ bool object_exists(uint64_t pc) {
         if(obj) {
                 return true;
         }
-	return false;	
+	return false;
 }
 
 std::string get_object_var_name(uint64_t pc) {
@@ -150,7 +150,7 @@ adm_range_t* adamant::adm_range_find(const uint64_t address) noexcept
   return nullptr;
 }
 
-ADM_VISIBILITY 
+ADM_VISIBILITY
 adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::string varname, const uint32_t element_size, std::string filename, std::string funcname, uint32_t linenum, const state_t state) noexcept
 {
 	adm_object_t* obj = object_table->find(allocation_pc);
@@ -166,7 +166,7 @@ adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::stri
 	}
 	if(obj->get_allocation_pc() == allocation_pc)
                 return obj;
-	return nullptr;	
+	return nullptr;
 }
 
 ADM_VISIBILITY
@@ -194,20 +194,20 @@ adm_range_t* adamant::adm_range_insert(const uint64_t address, const uint64_t si
   adm_splay_tree_t* obj = nullptr;
   adm_splay_tree_t* pos = nullptr;
 
-  //fprintf(stderr, "inside adm_range_insert before range_tree->find_with_parent\n");
+
   if(range_tree) range_tree->find_with_parent(address, pos, obj);
-  //fprintf(stderr, "inside adm_range_insert after range_tree->find_with_parent\n");
+
   if(obj==nullptr) {
-    //fprintf(stderr, "inside adm_range_insert before range_nodes->malloc\n");
+
     obj = range_nodes->malloc();
     if(obj==nullptr) return nullptr;
 
-    //fprintf(stderr, "inside adm_range_insert before ranges->malloc\n");
+
     obj->range = ranges->malloc();
     if(obj->range==nullptr) return nullptr;
 
     obj->start = address;
-    obj->range->set_address(address); 
+    obj->range->set_address(address);
     obj->end = obj->start+size;
     obj->range->set_size(size);
     obj->range->set_allocation_pc(allocation_pc);
@@ -215,19 +215,10 @@ adm_range_t* adamant::adm_range_insert(const uint64_t address, const uint64_t si
     obj->range->set_var_name(var_name);
     obj->range->set_state(state);
 
-// before
-#if 0
-    adm_object_t* data_obj = object_table->find(allocation_pc);
-    if(data_obj) {
-	obj->range->set_index_in_object(data_obj->get_range_count());
-	data_obj->inc_range_count();
-    }
-#endif
-// after    
     if(pos!=nullptr)
       pos->insert(obj);
     range_tree = obj->splay();
-    //fprintf(stderr, "range is inserted to the splay tree\n");
+
   }
   else {
     if(!(obj->range->get_state()&ADM_STATE_FREE)) {
@@ -246,7 +237,7 @@ adm_range_t* adamant::adm_range_insert(const uint64_t address, const uint64_t si
       if(obj->range==nullptr) return nullptr;
 
       obj->start = address;
-      obj->range->set_address(address); 
+      obj->range->set_address(address);
       obj->end = obj->start+size;
       obj->range->set_size(size);
       obj->range->set_allocation_pc(allocation_pc);
@@ -293,11 +284,7 @@ void adamant::adm_db_update_state(const uint64_t address, const state_t state) n
 ADM_VISIBILITY
 void adamant::adm_ranges_print() noexcept
 {
-
-  //bool all = adm_conf_string("+all", "1");
-  // std::cout << "List of captured address ranges along with their variable names and code locations:\n";
-
-  int first_iter = 1;  
+  int first_iter = 1;
   ofstream object_outfile;
 
   string object_str("data_object_log_");
@@ -319,7 +306,7 @@ void adamant::adm_ranges_print() noexcept
 ADM_VISIBILITY
 void adamant::adm_line_table_print() noexcept
 {
-  //bool all = adm_conf_string("+all", "1");
+
   ofstream codeline_outfile;
 
   string codeline_str("codeline_log_");
@@ -337,8 +324,7 @@ void adamant::adm_line_table_print() noexcept
   codeline_outfile.close();
 }
 
-//#if 0
-//ADM_VISIBILITY
+// ADM_VISIBILITY
 void adamant::adm_db_init()
 {
   range_nodes = new pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>;
@@ -346,58 +332,41 @@ void adamant::adm_db_init()
   objects = new pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>;
 }
 
-//ADM_VISIBILITY
+// ADM_VISIBILITY
 void adamant::adm_db_fini()
 {
   delete range_nodes;
   delete ranges;
   delete objects;
 }
-//#endif
 
 ADM_VISIBILITY
 void adm_range_t::print(std::ofstream& object_outfile) const noexcept
 {
-  //std::cout << "in adm_range_t::print\n";
   uint64_t a = get_address();
-  // std::cout << "offset: " << a << ", ";
   uint64_t z = get_size();
-  // std::cout << "size: " << z << ", ";
+
   int dev_id = get_device_id();
   int obj_id = get_object_id();
-  // std::cout << "device_id: " << dev_id << ", ";
   uint64_t p = get_allocation_pc();
 
   object_outfile << HEX(a) << ",";
   object_outfile << z << ",";
   object_outfile << obj_id << ",";
   object_outfile << dev_id << "\n";
-  //object_outfile << var_name << "\n";
-
-  //adm_object_t* obj = object_table->find(p);
-  //obj->print(object_outfile);
-#if 0
-  uint64_t p = get_allocation_pc();
-  std::cout << "allocation_pc: " << p << std::endl; 
-#endif
-  //std::string varname = get_var_name();
-  //std::cout << varname << std::endl;
 }
 
 ADM_VISIBILITY
 void adm_object_t::print(std::ofstream& object_outfile) const noexcept
 {
-  //std::cout << "in adm_object_t::print\n";
 
-  // uint64_t p = get_allocation_pc();
-  // std::cout << "allocation_pc: " << p << ", "; 
 
   int obj_id = get_object_id();
   std::string varname = get_var_name();
- 
+
   object_outfile << obj_id << ",";
   object_outfile << varname << ",";
-  
+
   allocation_site_t* temp = get_allocation_site();
   while(temp) {
 	  object_outfile << temp->get_pc();
@@ -412,5 +381,5 @@ ADM_VISIBILITY
 void adm_line_location_t::print(std::ofstream& codeline_outfile) const noexcept
 {
 	codeline_outfile << global_index << "," << dir_name << "," << file_name
-		<< "," << line_num << "," << estimated << "\n";	
+		<< "," << line_num << "," << estimated << "\n";
 }

@@ -12,16 +12,6 @@ namespace adamant
 //ADM_VISIBILITY extern unsigned char adm_tracing;
 ADM_VISIBILITY extern const char* adm_module;
 
-#if 0
-static inline
-unsigned char adm_set_tracing(unsigned char t)
-{
-  unsigned char pre = adm_tracing;
-  adm_tracing = t;
-  return pre;
-}
-#endif
-
 ADM_VISIBILITY
 void adm_out(const void* buffer, const unsigned int size);
 
