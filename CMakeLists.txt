@@ -25,12 +25,13 @@ set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
 enable_language(CUDA)
 
+set(NVSHMEM_DIR "./cmake/nvshmem")
 find_package(NVSHMEM REQUIRED)
 find_package(MPI REQUIRED)
 find_package(NVBIT REQUIRED)
 
+add_subdirectory(cpptrace)
 add_subdirectory(tools/mem_multigpu)
 add_subdirectory(tests)
 
 add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
-add_subdirectory(cpptrace)
