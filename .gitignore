@@ -1,7 +1,19 @@
-.vscode
+.idea/
+.vscode/
+
 *.zst
 *.o
+*.a
 *.so
 *.cubin
-codeline*.txt
 *.swp
+
+# Special files
+codeline_log_*.txt
+testfile.txt
+*.nsys-rep
+
+# cmake files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
