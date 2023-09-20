@@ -52,14 +52,35 @@ $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" SAMPL
 
 Language: python 3.7+
 > Required streamlit python libraries: streamlit, streamlit_agraph, streamlit-aggrid,
->                                      extra_streamlit_components, streamlit_plotly_events
+>                                      extra_streamlit_components, streamlit_plotly_events, st-clickable-images
 > Other required libraries: seaborn, pandas, plotly, zstandard
 ```
-pip install seaborn pandas plotly streamlit streamlit_agraph streamlit-aggrid extra_streamlit_components streamlit_plotly_events zstandard
+pip install seaborn pandas plotly streamlit streamlit_agraph streamlit-aggrid extra_streamlit_components streamlit_plotly_events zstandard st-clickable-images
 cd visualizer; pip install st-click-detector-0.1.3/
 ```
 
 ### Usage
 ```
-streamlit run visualizer/parse_and_vis.py <my_data_file.txt>
+streamlit run /path/to/parse_and_vis.py -- [options]
+
+options:
+  -h, --help            show this help message and exit
+  --logfile LOGFILE, -l LOGFILE
+                        Path to the snoopie log file. Either the compressed .zst file
+                        or the decompressed file.
+  --gpu-num GPU_NUM, -n GPU_NUM
+                        Number of gpus the code was run on.
+  --src-code-file SRC_CODE_FILE, -s SRC_CODE_FILE
+                        Source code file for code attribution.
+  --sampling-period SAMPLING_PERIOD, -p SAMPLING_PERIOD
+                        Sampling period
+
 ```
+
+Running without options will display a GUI for uploading files and setting parameters.
+
+By default, the file upload limit is 200MB, to change it set the `STREAMLIT_SERVER_MAX_UPLOAD_SIZE` environment variable.
+
+### Electron Build
+
+See [here](./electron_builder) for electron build instructions.

@@ -2,14 +2,11 @@ Metadata-Version: 2.1
 Name: st-click-detector
 Version: 0.1.3
 Summary: A Streamlit component to detect clicks
-Home-page: UNKNOWN
+Home-page: 
 Author: 
 Author-email: 
-License: UNKNOWN
-Platform: UNKNOWN
 Requires-Python: >=3.6
 Description-Content-Type: text/plain
 License-File: LICENSE
 
 A Streamlit component to display some HTML and detect which <a> tags are clicked
-
