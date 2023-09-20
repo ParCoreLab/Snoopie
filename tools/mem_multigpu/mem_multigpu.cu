@@ -59,9 +59,9 @@
 #include "common.h"
 #include "util.h"
 
-#include "mpi.h"
-#include "nvshmem.h"
-#include "nvshmemx.h"
+#include <mpi.h>
+#include <nvshmem.h>
+#include <nvshmemx.h>
 
 #define HEX(x)                                                          \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
