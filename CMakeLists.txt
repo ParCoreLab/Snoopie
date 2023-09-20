@@ -31,5 +31,6 @@ find_package(NVBIT REQUIRED)
 
 add_subdirectory(tools/mem_multigpu)
 add_subdirectory(tests)
-#add_subdirectory(tests/stencil/stencil-p2p_base)
+
 add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
+add_subdirectory(cpptrace)
