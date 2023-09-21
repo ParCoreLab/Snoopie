@@ -43,7 +43,7 @@
 #include <adm_splay.h>
 #include <adm_memory.h>
 #include <adm_database.h>
-#include <cpptrace.hpp>
+#include <cpptrace/cpptrace.hpp>
 #include <iostream>
 
 /* every tool needs to include this once */
