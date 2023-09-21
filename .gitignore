@@ -6,6 +6,7 @@
 *.a
 *.so
 *.cubin
+*.swp
 
 # Special files
 codeline_log_*.txt

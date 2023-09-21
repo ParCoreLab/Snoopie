@@ -1,4 +1,5 @@
 find_package(ZSTD REQUIRED)
+find_package(CPPTRACE REQUIRED)
 
 add_library(mem_multigpu SHARED
         mem_multigpu.cu
@@ -9,9 +10,9 @@ add_library(mem_multigpu SHARED
 
 target_link_libraries(mem_multigpu
         CUDA::cudart
-        nvshmem::nvshmem
-        MPI::MPI_CXX
+        cuda
         zstd
+        cpptrace::cpptrace
         nvbit::nvbit)
 
 target_include_directories(mem_multigpu SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")

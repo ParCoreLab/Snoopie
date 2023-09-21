@@ -59,10 +59,6 @@
 #include "common.h"
 #include "util.h"
 
-#include <mpi.h>
-#include <nvshmem.h>
-#include <nvshmemx.h>
-
 #define HEX(x)                                                          \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
   << std::dec
@@ -1267,7 +1263,8 @@ void * nvshmem_malloc ( size_t size) {
 }
 
 void * nvshmem_alignWrap ( size_t alignment, size_t size, const char *var_name, const uint32_t element_size, const char *fname, const char *fxname, int lineno/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
-  void * allocated_memory = nvshmem_align( alignment, size );
+  void *(*ori_nvshmem_align)(size_t, size_t) = (void *(*)(size_t, size_t)) dlsym(RTLD_NEXT, "nvshmem_malloc");
+  void * allocated_memory = ori_nvshmem_align( alignment, size );
   if(allocated_memory /*&& adm_set_tracing(0)*/) {
     if(!object_attribution) {
       object_attribution = true;
