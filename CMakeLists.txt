@@ -25,8 +25,6 @@ set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
-set(CPPTRACE_STATIC "On")
-
 include(FetchContent)
 FetchContent_Declare(
   cpptrace

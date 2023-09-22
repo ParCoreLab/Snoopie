@@ -717,7 +717,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   if (skip_callback_flag || nvshmem_malloc_handled)
   {
     log_time(std::string("End Cuda Event ") + (is_exit ? "Exit" : "Enter") +  find_cbid_name(cbid));
-    //fprintf(stderr, "returned here\n");
     pthread_mutex_unlock(&mutex1);
     return;
   }
@@ -839,7 +838,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   }
   else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2)
   {
-    fprintf(stderr, "a API_CUDA_cuMemAlloc_v2 is intercepted here\n");
     cuMemAlloc_v2_params *p = (cuMemAlloc_v2_params *)params;
     std::stringstream ss;
     ss << HEX(*p->dptr);
@@ -868,7 +866,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   }
   else if(is_exit && cbid == API_CUDA_cuMemAlloc)
   {
-	fprintf(stderr, "a API_CUDA_cuMemAlloc is intercepted here\n");
 	cuMemAlloc_params *p = (cuMemAlloc_params *)params;
     std::stringstream ss;
     ss << HEX(*p->dptr);
@@ -1103,7 +1100,6 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		}
 	}
 	if(parent && func_name.find(/*str1*/"nvshmem_malloc") != string::npos)
-		fprintf(stderr, "nvshmem_malloc is intercepted offset: %lx size: %ld\n", ma.pointer, ma.bytesize);
 	if(parent) {
 		while(func_name.find(/*str1*/"cudaMalloc") != string::npos || func_name.find(/*str1*/"nvshmem_malloc") != string::npos || func_name.find(/*str1*/"nvshmem_align") != string::npos) {
 			parent = parent->get_parent();
@@ -1180,7 +1176,6 @@ cudaError_t cudaMallocWrap ( void** devPtr, size_t size, const char *var_name, c
 }
 
 void * nvshmem_malloc ( size_t size) {
-  fprintf(stderr, "nvshmem_malloc is intercepted\n");
   void *(*ori_nvshmem_malloc)(size_t) = (void *(*)(size_t)) dlsym(RTLD_NEXT, "nvshmem_malloc");
   nvshmem_malloc_handled = true;
   void * allocated_memory = ori_nvshmem_malloc( size );
