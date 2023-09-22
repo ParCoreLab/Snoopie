@@ -1270,6 +1270,39 @@ void * nvshmem_mallocWrap ( size_t size, const char *var_name, const uint32_t el
 #endif
   return allocated_memory;
 }
+
+int nvshmemx_init_attr(unsigned int flags, nvshmemx_init_attr_t *attributes) {
+	int (*ori_nvshmemx_init_attr)(unsigned int, nvshmemx_init_attr_t *) = (int (*)(unsigned int, nvshmemx_init_attr_t *)) dlsym(RTLD_NEXT, "nvshmemx_init_attr");
+	nvshmem_malloc_handled = true;
+  	int ret = ori_nvshmemx_init_attr( flags, attributes );
+	nvshmem_malloc_handled = false;
+	return ret;
+}
+//#endif
+
+int nvshmem_team_my_pe(nvshmem_team_t team) {
+	int (*ori_nvshmem_team_my_pe)(nvshmem_team_t) = (int (*)(nvshmem_team_t)) dlsym(RTLD_NEXT, "nvshmem_team_my_pe");
+	nvshmem_malloc_handled = true;
+        int ret = ori_nvshmem_team_my_pe( team );
+        nvshmem_malloc_handled = false;
+        return ret;
+}
+#endif
+
+void nvshmem_free(void *ptr) {
+	void (*ori_nvshmem_free)(void *) = (void (*)(void *)) dlsym(RTLD_NEXT, "nvshmem_free");
+	nvshmem_malloc_handled = true;
+	ori_nvshmem_free(ptr);
+	nvshmem_malloc_handled = false;
+}
+
+#if 0
+void nvshmem_finalize(void) {
+	void (*ori_nvshmem_finalize)(void) = (void (*)(void)) dlsym(RTLD_NEXT, "nvshmem_finalize");
+	nvshmem_malloc_handled = true;
+	ori_nvshmem_finalize();
+	nvshmem_malloc_handled = false;
+}
 #endif
 
 void * nvshmem_malloc ( size_t size/*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
