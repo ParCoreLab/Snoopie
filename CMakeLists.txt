@@ -45,3 +45,13 @@ add_subdirectory(tools/mem_multigpu)
 add_subdirectory(tests)
 
 add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
+
+set(NP 4)
+set(SIZE 1024)
+set(NITER 5)
+set(MPIRUN mpirun)
+
+add_custom_target(stencil_nvshmem_nvidia_test
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
+  COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=4 -x KERNEL_NAME="void jacobi_kernel<32, 32>" -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:${NVSHMEM_HOME}/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" -np ${NP} ./stencil-cmake-nvidia -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+)
