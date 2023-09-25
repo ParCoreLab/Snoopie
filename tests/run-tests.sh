@@ -6,22 +6,23 @@ function run_diim() {
   (
    set -e
 
-   cd diim/ 
+   cd diim/
    (
      make clean
-     make 
+     make
    ) > /dev/null
 
    exp_size=64
+   SIZE=$exp_size make run
 
    # cut the csv header and count the number of operations
-   recv_size=$(SIZE=$exp_size make run && zstd -dc *.zst | sed '1d' | wc -l)
+   recv_size=$(zstd -dc *.zst | sed '1d' | wc -l)
 
    # count how many mem_dev_ids was for device 1
-   target_one=$(SIZE=$exp_size make run && zstd -dc *.zst | sed '1d' | cut -f 5 -d ',' | grep -c '1')
+   target_one=$(zstd -dc *.zst | sed '1d' | cut -f 5 -d ',' | grep -c '1')
 
    # count how many mem_dev_ids was for device 2
-   target_two=$(SIZE=$exp_size make run && zstd -dc *.zst | sed '1d' | cut -f 5 -d ',' | grep -c '2')
+   target_two=$(zstd -dc *.zst | sed '1d' | cut -f 5 -d ',' | grep -c '2')
 
    if (( recv_size != exp_size )); then
      echo "DIIM failed. Expected ${exp_size} direct access operations. Recieved ${recv_size}."
@@ -48,13 +49,13 @@ function run_nvshmem() {
   echo -n " "
 
   (
-   set -e 
+   set -e
    cd nvshmem/
    (
      make clean
      make
    ) > /dev/null
-    
+
    np=4
    exp_size=64
 
@@ -69,7 +70,7 @@ function run_nvshmem() {
    target_3=$(echo "$results" | cut -f 5 -d ',' | grep -c '3')
    target_4=$(echo "$results" | cut -f 5 -d ',' | grep -c '0')
 
-   
+
    if (( exp_size != recv_size )); then
      echo "NVSHMEM failed. Expected ${exp_size} direct access operations. Recieved ${recv_size}."
      exit 1
@@ -105,36 +106,39 @@ function run_hipa() {
   (
    set -e
 
-   cd hipa/ 
+   cd hipa/
    (
      make clean
-     make 
+     make
    ) > /dev/null
 
    exp_size=64
+   SIZE=$exp_size make run
 
    # cut the csv header and count the number of operations
-   recv_size=$(SIZE=$exp_size make run && zstd -dc *.zst | sed '1d' | cut -f 10 -d ',')
+   recv_size=$(zstd -dc *.zst | sed '1d' | cut -f 10 -d ',')
 
    # get the sender id
-   sender_id=$(SIZE=$exp_size make run && zstd -dc *.zst | sed '1d' | cut -f 4 -d ',' | grep -c '0')
+   sender_id=$(zstd -dc *.zst | sed '1d' | cut -f 4 -d ',' | grep -c '0')
 
    # get the receiver id
-   recv_id=$(SIZE=$exp_size make run && zstd -dc *.zst | sed '1d' | cut -f 5 -d ',' | grep -c '1')
+   recv_id=$(zstd -dc *.zst | sed '1d' | cut -f 5 -d ',' | grep -c '1')
 
    if (( exp_size * 4 != recv_size )); then
      echo "HIPA failed. Expected ${exp_size} direct access operations. Recieved ${recv_size}."
      exit 1
    fi
 
+   SIZE=$exp_size make run_async
+
    # cut the csv header and count the number of operations
-   recv_size=$(SIZE=$exp_size make run_async && zstd -dc *.zst | sed '1d' | cut -f 10 -d ',')
+   recv_size=$(zstd -dc *.zst | sed '1d' | cut -f 10 -d ',')
 
    # get the sender id
-   sender_id=$(SIZE=$exp_size make run_async && zstd -dc *.zst | sed '1d' | cut -f 4 -d ',' | grep -c '0')
+   sender_id=$(zstd -dc *.zst | sed '1d' | cut -f 4 -d ',' | grep -c '0')
 
    # get the receiver id
-   recv_id=$(SIZE=$exp_size make run_async && zstd -dc *.zst | sed '1d' | cut -f 5 -d ',' | grep -c '1')
+   recv_id=$(zstd -dc *.zst | sed '1d' | cut -f 5 -d ',' | grep -c '1')
 
    if (( exp_size * 4 != recv_size )); then
      echo "HIPA failed. Expected ${exp_size} direct access operations. Recieved ${recv_size}."

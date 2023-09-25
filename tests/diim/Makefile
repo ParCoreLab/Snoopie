@@ -12,4 +12,5 @@ clean:
 	rm -f diim diim.ptx *.zst *txt *cubin
 
 run:
-	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" CODE_ATTRIBUTION=1 ./diim -n $(SIZE)
+	@rm -f *.zst
+	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../tools/mem_multigpu/libmem_multigpu.so" CODE_ATTRIBUTION=1 ./diim -n $(SIZE)

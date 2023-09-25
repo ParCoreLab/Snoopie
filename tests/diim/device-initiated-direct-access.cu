@@ -20,7 +20,7 @@ __host__ __device__ int modify_cell(int a) {
 
 __global__ void simple_kernel(int size, int *src, int *dst1, int *dst2){
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= size) { 
+  if (idx >= size) {
     return;
   }
 
@@ -77,7 +77,7 @@ diim_args *default_args() {
   args->size = 32;
   args->verbose = 0;
   args->check = 0;
-  
+
   return args;
 }
 
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
 
   int *g2 = NULL;
 
-  cudaSetDevice(gpuid[1]);
+  cudaSetDevice(gpuid[2]);
   gpuErrchk(cudaMalloc(&g2, buf_size));
   cudaSetDevice(gpuid[0]);
 
@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  
+
   cudaFree(h0);
   cudaFree(h1);
   cudaFree(h2);
