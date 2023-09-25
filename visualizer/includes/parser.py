@@ -23,7 +23,8 @@ def change_table(line: str):
         if line.startswith(tables[key]["starts_with"]):
             current_table = key
             _table_keys = line.strip().split(",")
-            return
+            return True
+    return False
 
 
 def parse_line(line: str, gbs: tuple):
@@ -49,7 +50,8 @@ def isInt_try(v):
 
 def parse_codeline_info(line: str, gbs: tuple):
     _, ops = gbs
-    change_table(line)
+    if change_table(line):
+        return
     if current_table != "codeline_info":
         return
     data = {}
@@ -66,7 +68,8 @@ def parse_codeline_info(line: str, gbs: tuple):
 
 def parse_obj_info(line: str, gbs: tuple):
     _, ops = gbs
-    change_table(line)
+    if change_table(line):
+        return
     if current_table != "obj_info":
         return
     data = {}
@@ -83,7 +86,8 @@ def parse_obj_info(line: str, gbs: tuple):
 
 def parse_offset_info(line: str, gbs: tuple):
     _, ops = gbs
-    change_table(line)
+    if change_table(line):
+        return
     if current_table != "offset_info":
         return
     data = {}
@@ -101,7 +105,8 @@ def parse_offset_info(line: str, gbs: tuple):
 
 def parse_func_info(line: str, gbs: tuple):
     _, ops = gbs
-    change_table(line)
+    if change_table(line):
+        return
     if current_table != "func_info":
         return
     data = {}
@@ -128,14 +133,15 @@ def parse_func_info(line: str, gbs: tuple):
         line[sep[1] + 1 : sep[2]].strip(),
         line[sep[2] + 1 :].strip(),
     )
-    FunctionInfoRow(_pid,
-        int(split_data[0]), split_data[1], split_data[2], int(split_data[3])
+    FunctionInfoRow(
+        _pid, int(split_data[0]), split_data[1], split_data[2], int(split_data[3])
     )
 
 
 def parse_op_info(line: str, gbs: tuple):
     _, ops = gbs
-    change_table(line)
+    if change_table(line):
+        return
     if current_table != "op_info":
         return
 
@@ -210,11 +216,9 @@ def read_data(
     global _pid
     if file == None or filename == None:
         st.experimental_rerun()  # this shouldn't be here need to fix the problem soon
-    
+
     all_pids = []
 
-    
-    
     devices, ops = gbs
 
     # prints all files
@@ -228,6 +232,8 @@ def read_data(
         pickle_filename = "-".join([str(i) for i in all_pids]) + ".pkl"
     else:
         pickle_filename = "".join(filename.split(".")[:-1]) + ".pkl"
+
+    st.session_state.pickle_filename = pickle_filename
 
     if os.path.isfile(pickle_filename):
         with open(pickle_filename, "rb") as f:
@@ -259,17 +265,33 @@ def read_data(
         CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(
             CodeLineInfoRow.table()
         )
+        ts = set()
+        for op in OpInfoRow._table:
+            id, name = op.get_obj_info()
+            u: UniqueObject = op.get_unique_obj()
+            if u is None:
+                continue
+            if u not in SnoopieObject.all_objects:
+                tmp = SnoopieObject(
+                    name.var_name, id.obj_id, name.call_stack
+                )
+                SnoopieObject.all_objects[u] = tmp
+            so: SnoopieObject = SnoopieObject.all_objects[u]
+            so.add_op(op)
+            so.add_addres_range(id)
+            op.related_object = so
 
         tempdev = deepcopy(_devices)
         if -1 in tempdev:
             tempdev.remove(-1)
-
+        print(tempdev)
         st.session_state.gpu_num = max(max(tempdev) + 1, len(tempdev))
         gpu_num = max(max(tempdev) + 1, len(tempdev))
         print("Reading complete")
 
         all_data = [
             OpInfoRow._table,
+            SnoopieObject.all_objects,
             FunctionInfoRow.by_pc,
             ObjIdRow.by_dev_offset,
             ObjIdRow.by_pid_offset,
@@ -286,6 +308,7 @@ def read_data(
     else:
         (
             OpInfoRow._table,
+            SnoopieObject.all_objects,
             FunctionInfoRow.by_pc,
             ObjIdRow.by_dev_offset,
             ObjIdRow.by_pid_offset,

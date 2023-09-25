@@ -22,7 +22,6 @@ from includes.streamlit_globals import *
 from includes.parser import *
 from includes.tables import *
 from st_clickable_images import clickable_images
-from includes.load_images import load_image
 
 
 
@@ -134,11 +133,17 @@ def check_src_code_folder():
     for key, value in path_status.items():
         if value is False:
             st.write(Exception(f"The source code file for {os.path.join(home_folder,key)} cannot be found"))
+    st.write(CodeLineInfoRow.inferred_home_dir)
+    st.json([
+            (i.dir_path)
+            for i in CodeLineInfoRow.table()
+            if len(i.file) > 0 or len(i.dir_path) > 0
+        ])
 
     existing_src_code_files = {
         i.combined_filepath() : os.path.join(home_folder, i.relative_file_path())
         for i in CodeLineInfoRow.table()
-        if path_status.get(i.relative_file_path()) is True
+        if len(i.file) > 0 and path_status.get(i.relative_file_path()) is True
         }
            
 
@@ -156,6 +161,8 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
     if gpu_filter == None:
         gpu_filter = [i for i in range(gpu_num)]
 
+    st.json(gpu_filter)
+
     def check_filter(hex_addr, filtered_ops: List[OpInfoRow]) -> List[OpInfoRow]:
         filtered_addrs = [i for i in filtered_ops if i.addr == hex_addr]
         return filtered_addrs
@@ -167,29 +174,46 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
         object_view.append({})
 
     all_ops: List[OpInfoRow] = OpInfoRow.table()
-
+    print("OWD 1")
     for source_dev_id in range(gpu_num):
-        owned_objs: Dict[str, ObjIdRow] = ObjIdRow.by_dev_offset.get(source_dev_id)
+        owned_objs: List[SnoopieObject] = [
+            i for i in SnoopieObject.all_objects.values()
+            if source_dev_id in {j.dev_id for j in i.addres_ranges.keys()}
+            ]
         if owned_objs == None:
             continue
-        for owned_obj in owned_objs.values():
-            obj_name_info: ObjNameRow = ObjNameRow.by_obj_id[owned_obj.pid][owned_obj.obj_id]
-            related_accesses: List[OpInfoRow] = [i for i in all_ops
-                                                 if i.mem_dev_id == source_dev_id
-                                                 and i.obj_offset == owned_obj.offset
-                                                 and i.running_dev_id in gpu_filter
-                                                 and i.op_code in allowed_ops]
-            offset = owned_obj.offset
+        for owned_obj in owned_objs:
+            related_accesses: List[OpInfoRow] = [
+                i for i in owned_obj.ops 
+                if i.running_dev_id in gpu_filter 
+                and i.mem_dev_id == source_dev_id
+                and i.op_code in allowed_ops ]
+    
+            if len(related_accesses) == 0:
+                break
+
+            related_dict: Dict[str, List[OpInfoRow]] = {}
+            for i in related_accesses:
+                if i.addr not in related_dict:
+                    related_dict[i.addr] = []
+                related_dict[i.addr].append(i)
+
+            # get object informations here
+            id_info, name_info = related_accesses[0].get_obj_info()
+            offset = id_info.offset
             obj = [[]]
             object_map = [[]]
-            obj_size = int(owned_obj.size / ADDR_DIST)
+            obj_size = int(id_info.size / ADDR_DIST)
             step = ADDR_DIST
             if obj_size > GRAPH_SIZE_LIMIT:
                 step *= int(obj_size / GRAPH_SIZE_LIMIT)
             cols = int(math.sqrt(obj_size)) * 4
-            for i in range(0, int(owned_obj.size), step):
+            print(related_dict)
+            for i in range(0, int(id_info.size), step):
                 hex_addr = str.format('0x{:016x}', int(offset, 16) + i)
-                filtered_addrs: List[OpInfoRow] = [j for j in related_accesses if j.addr == hex_addr]
+                # st.write(f"{hex_addr}, {hex_addr in related_dict}")
+                if hex_addr not in related_dict: continue
+                filtered_addrs: List[OpInfoRow] = related_dict[hex_addr]
                 if len(filtered_addrs) > 0:
                     dict_details = {"by_dev": {}, "by_op": {}, "by_line": {}, "combined": {}}
                     for j in filtered_addrs:
@@ -237,13 +261,13 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
                 else:
                     obj[-1].append((hex_addr, ""))
                     object_map[-1].append(0)
-            object_view[source_dev_id][f"{owned_obj.obj_id}:{obj_name_info.var_name}"] = [obj, object_map]
+            object_view[source_dev_id][owned_obj] = [obj, object_map]
     # st.json(object_view)
     return object_view
 
 
 def main():
-    global gpu_num, ops, chosen_line, ops_to_display, data_by_line, reverse_table_lineinfo
+    global gpu_num, ops, chosen_line, ops_to_display, data_by_line, reverse_table_lineinfo, file_to_vis
 
     top_cols = st.columns([5, 5])
 
@@ -430,18 +454,18 @@ def main():
     chosen_id_tab = stx.tab_bar(data=[
         stx.TabBarItemData(id=str(i), title="GPU" + str(i), description="") for i in range(gpu_num)], default=0)
 
-    object_view = []
-    for dev in range(gpu_num):
-        object_view.append({})
+    # object_view = []
+    # for dev in range(gpu_num):
+    #     object_view.append({})
 
     selected_rows = None
 
-
-    object_view = get_object_view_data(gpu_filter=None, allowed_ops=ops_to_display)
-
-
+    print("TEST 3 ASDASD")
+    # object_view = get_object_view_data(gpu_filter=None, allowed_ops=ops_to_display)
+    # print(object_view)
+    print("TEST 2 ASDASD")
     for i in range(gpu_num):
-        if len(object_view[i]) > 0 and chosen_id_tab == str(i):
+        if chosen_id_tab == str(i):
             st.markdown(f"### Objects owned by **<span style='color:{pal[i]}'>GPU{i}</span>**", unsafe_allow_html=True)
 
             objects_owned_cols = st.columns([4, 7])
@@ -450,152 +474,154 @@ def main():
                 filter_chooser = st.multiselect("Filter accesses by GPU", other_gpus_selector, default=other_gpus_selector)
 
             object_view = get_object_view_data([int(i[3:]) for i in filter_chooser], allowed_ops=ops_to_display)
-            is_all_zeros = True
-            for key in object_view[i].keys():
-                obj_data = object_view[i][key]
-                for arr in obj_data[1]:
-                    for elem in arr:
-                        if elem != 0:
-                            is_all_zeros = False
+            if len(object_view[i]) <= 0:
+                st.write("No accesses was made with the current filters")
+            else:
+                is_all_zeros = True
+                for key in object_view[i].keys():
+                    obj_data = object_view[i][key]
+                    for arr in obj_data[1]:
+                        for elem in arr:
+                            if elem != 0:
+                                is_all_zeros = False
+                            if not is_all_zeros:
+                                break
                         if not is_all_zeros:
                             break
                     if not is_all_zeros:
                         break
-                if not is_all_zeros:
-                    break
-            print("all zeros:", is_all_zeros)
+                print("all zeros:", is_all_zeros)
 
-            obj_fig = make_subplots(rows=len(object_view[i]),
-                                    shared_xaxes=True, cols=1, vertical_spacing=0.05)
-            index = 1
-            obj_names = []
-            for key in object_view[i].keys():
-                obj_data = object_view[i][key]
-                obj_names.append(key)
-                obj_fig.add_trace(go.Heatmap(z=obj_data[1], coloraxis="coloraxis", name=key,
-                                             customdata=obj_data[0],
-                                             # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
-                                             #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
-                                             hovertemplate="<br>".join([
-                                                 "Offset: %{x}",
-                                                 "Instructions: %{z}",
-                                                 "Address: %{customdata[0]}",
-                                                 "Details: %{customdata[1]}"
-                                             ])), row=index, col=1)
-                if index > 1:
-                    # obj_fig.update_coloraxes(showscale=False, row=index, col=1)
-                    obj_fig['layout']['yaxis' + str(index)].update(dict(tickvals=[0], ticktext=[key + '']))
-                else:
-                    obj_fig['layout']['yaxis' + str(index)].update(dict(tickvals=[0], ticktext=[key + '']))
+                obj_fig = make_subplots(rows=len(object_view[i]),
+                                        shared_xaxes=True, cols=1, vertical_spacing=0.05)
+                index = 1
+                obj_names = []
+                for key in object_view[i].keys():
+                    obj_data = object_view[i][key]
+                    print(obj_data)
+                    obj_names.append(key)
+                    obj_fig.add_trace(go.Heatmap(z=obj_data[1], coloraxis="coloraxis", name=str(key),
+                                                customdata=obj_data[0],
+                                                # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
+                                                #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
+                                                hovertemplate="<br>".join([
+                                                    "Offset: %{x}",
+                                                    "Instructions: %{z}",
+                                                    "Address: %{customdata[0]}",
+                                                    "Details: %{customdata[1]}"
+                                                ])), row=index, col=1)
+                    if index > 1:
+                        # obj_fig.update_coloraxes(showscale=False, row=index, col=1)
+                        obj_fig['layout']['yaxis' + str(index)].update(dict(tickvals=[0], ticktext=[str(key) + '']))
+                    else:
+                        obj_fig['layout']['yaxis' + str(index)].update(dict(tickvals=[0], ticktext=[str(key) + '']))
 
-                obj_fig.update_layout(coloraxis_colorbar=dict(title="Data transfer<br>count"))
-                index += 1
-
-            if is_all_zeros:
-                obj_fig.update_layout(
-                    {
-                        "coloraxis_cmin": 0,
-                        "coloraxis_cmax": 10,
-                    }
-                )
-
-            obj_fig.update_layout(coloraxis=dict(colorscale=colorscale), showlegend=False)
-            obj_fig.update_layout(
-                margin=dict(l=120, r=120, t=20, b=60),
-                font_family="Open Sans, sans-serif",
-                # font_color="#fafafa",
-                # paper_bgcolor="#0e1117",
-                # paper_bgcolor="#e6e6e6"
-                font_color="#1a1a1a",
-                paper_bgcolor="#ffffff",
-                width=graph_width * (3 / 2)
-            )
-            obj_fig['layout']['xaxis' + str(index - 1)].update(dict(title="Offset", title_standoff=8))
-
-            chosen_addr = plotly_events(obj_fig)
-
-            st.markdown("""---""")
-
-            if 'ydim' not in st.session_state:
-                st.session_state['ydim'] = 1
-
-            def calc_dim_y():
-                st.session_state.ydim = int(len(object_view[i][obj_option][1][0]) / st.session_state.xdim)
-
-            obj_2d_cols = st.columns([4, 2, 1])
-            obj_option = None
-
-            with obj_2d_cols[0]:
-                obj_option = st.selectbox('Choose an object to view in 2D', obj_names)
-                st.write('You selected:', obj_option)
-
-            if 'xdim' not in st.session_state:
-                st.session_state['xdim'] = len(object_view[i][obj_option][1][0])
-
-            with obj_2d_cols[1]:
-                xdim = st.number_input('X-dimension', min_value=1, on_change=calc_dim_y(), key='xdim')
-                dim_cols = st.columns([1, 1])
-                with dim_cols[0]:
-                    st.write('X-dimension is ', xdim)
-                with dim_cols[1]:
-                    st.write('Y-dimension is ', st.session_state.ydim)
-            with obj_2d_cols[2]:
-                st.write(' ')
-                st.write(' ')
-                obj_2d_button = st.button('Show in 2D')
-            if obj_2d_button:
-                if obj_option is not None:
-                    obj_data = object_view[i][obj_option]
-                    reshaped_data = []
-                    reshaped_details = []
-                    ind_x = 0
-                    ind_y = 0
-                    # reshape both the data and the additional information to be shown on hover
-                    for item in obj_data[1][0]:
-                        if (ind_x == 0):
-                            reshaped_data.append([])
-                            reshaped_details.append(obj_data[0][0][ind_y * xdim:(ind_y * xdim) + xdim])
-
-                        reshaped_data[-1].append(item)
-                        ind_x += 1
-                        if (ind_x == xdim):
-                            ind_x = 0
-                            ind_y += 1
-
-                    fig = go.Figure(data=go.Heatmap(z=reshaped_data, coloraxis="coloraxis", name=key,
-                                    customdata=reshaped_details,
-                                    xgap=2, ygap=2,
-                                    # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
-                                                    #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
-                                                    hovertemplate="<br>".join(["X-offset: %{x}", "Y-offset: %{y}", "Instructions: %{z}",
-                                                                               "Address: %{customdata[0]}",
-                                                                               "Details: %{customdata[1]}"
-                                                                               ])))
-                    fig.update_layout(coloraxis_colorbar=dict(title="Data transfer<br>count"))
+                    obj_fig.update_layout(coloraxis_colorbar=dict(title="Data transfer<br>count"))
                     index += 1
 
-                    fig.update_layout(coloraxis=dict(colorscale=colorscale), showlegend=False)
-                    fig.update_layout(
-                        margin=dict(l=120, r=120, t=20, b=60),
-                        font_family="Open Sans, sans-serif",
-                        # font_color="#fafafa",
-                        # paper_bgcolor="#0e1117",
-                        # plot_bgcolor="#0e1117",
-                        font_color="#1a1a1a",
-                        # paper_bgcolor="#e6e6e6",
-                        # plot_bgcolor="#e6e6e6",
-                        paper_bgcolor="#ffffff",
-                        plot_bgcolor="#ffffff",
-                        yaxis=dict(autorange="reversed", zeroline=False),
-                        xaxis=dict(visible=False),
-                        width=graph_width
+                if is_all_zeros:
+                    obj_fig.update_layout(
+                        {
+                            "coloraxis_cmin": 0,
+                            "coloraxis_cmax": 10,
+                        }
                     )
-                    chosen_cell = plotly_events(fig)
+
+                obj_fig.update_layout(coloraxis=dict(colorscale=colorscale), showlegend=False)
+                obj_fig.update_layout(
+                    margin=dict(l=120, r=120, t=20, b=60),
+                    font_family="Open Sans, sans-serif",
+                    # font_color="#fafafa",
+                    # paper_bgcolor="#0e1117",
+                    # paper_bgcolor="#e6e6e6"
+                    font_color="#1a1a1a",
+                    paper_bgcolor="#ffffff",
+                    width=graph_width * (3 / 2)
+                )
+                obj_fig['layout']['xaxis' + str(index - 1)].update(dict(title="Offset", title_standoff=8))
+
+                chosen_addr = plotly_events(obj_fig)
+
+                st.markdown("""---""")
+
+                if 'ydim' not in st.session_state:
+                    st.session_state['ydim'] = 1
+
+                def calc_dim_y():
+                    st.session_state.ydim = int(len(object_view[i][obj_option][1][0]) / st.session_state.xdim)
+
+                obj_2d_cols = st.columns([4, 2, 1])
+                obj_option = None
+
+                with obj_2d_cols[0]:
+                    obj_option = st.selectbox('Choose an object to view in 2D', obj_names)
+                    st.write('You selected:', str(obj_option))
+
+                if 'xdim' not in st.session_state:
+                    st.session_state['xdim'] = len(object_view[i][obj_option][1][0])
+
+                with obj_2d_cols[1]:
+                    xdim = st.number_input('X-dimension', min_value=1, on_change=calc_dim_y(), key='xdim')
+                    dim_cols = st.columns([1, 1])
+                    with dim_cols[0]:
+                        st.write('X-dimension is ', xdim)
+                    with dim_cols[1]:
+                        st.write('Y-dimension is ', st.session_state.ydim)
+                with obj_2d_cols[2]:
+                    st.write(' ')
+                    st.write(' ')
+                    obj_2d_button = st.button('Show in 2D')
+                if obj_2d_button:
+                    if obj_option is not None:
+                        obj_data = object_view[i][obj_option]
+                        reshaped_data = []
+                        reshaped_details = []
+                        ind_x = 0
+                        ind_y = 0
+                        # reshape both the data and the additional information to be shown on hover
+                        for item in obj_data[1][0]:
+                            if (ind_x == 0):
+                                reshaped_data.append([])
+                                reshaped_details.append(obj_data[0][0][ind_y * xdim:(ind_y * xdim) + xdim])
+
+                            reshaped_data[-1].append(item)
+                            ind_x += 1
+                            if (ind_x == xdim):
+                                ind_x = 0
+                                ind_y += 1
+
+                        fig = go.Figure(data=go.Heatmap(z=reshaped_data, coloraxis="coloraxis", name=str(key),
+                                        customdata=reshaped_details,
+                                        xgap=2, ygap=2,
+                                        # hovertemplate="Object=%s<br>Offset=%%{x}<br>Instructions=%%{z}<br> \
+                                                        #  Custom=%{customdata[0]}<extra></extra>"% key), row=index, col=1)
+                                                        hovertemplate="<br>".join(["X-offset: %{x}", "Y-offset: %{y}", "Instructions: %{z}",
+                                                                                "Address: %{customdata[0]}",
+                                                                                "Details: %{customdata[1]}"
+                                                                                ])))
+                        fig.update_layout(coloraxis_colorbar=dict(title="Data transfer<br>count"))
+                        index += 1
+
+                        fig.update_layout(coloraxis=dict(colorscale=colorscale), showlegend=False)
+                        fig.update_layout(
+                            margin=dict(l=120, r=120, t=20, b=60),
+                            font_family="Open Sans, sans-serif",
+                            # font_color="#fafafa",
+                            # paper_bgcolor="#0e1117",
+                            # plot_bgcolor="#0e1117",
+                            font_color="#1a1a1a",
+                            # paper_bgcolor="#e6e6e6",
+                            # plot_bgcolor="#e6e6e6",
+                            paper_bgcolor="#ffffff",
+                            plot_bgcolor="#ffffff",
+                            yaxis=dict(autorange="reversed", zeroline=False),
+                            xaxis=dict(visible=False),
+                            width=graph_width
+                        )
+                        chosen_cell = plotly_events(fig)
 
             st.markdown("""---""")
             st.markdown(f"### Communication issued by **<span style='color:{pal[i]}'>GPU{i}</span>**", unsafe_allow_html=True)
-
-            line_display_type = st.radio("Display line information by", ("Line number", "Stack trace"))
 
             cols = st.columns([1 for i in range(3)])
             other_gpus = [i for i in range(gpu_num)]
@@ -603,44 +629,37 @@ def main():
             table_objs = []
             table_instr = []
             table_lines = []
+            by_var_name_onclick: List[LineInfo] = []
             to_filter = OpInfoRow.filter_by_device_and_ops(allowed_ops=ops_to_display, allowed_mem_devs=[i for i in range(gpu_num)], allowed_running_devs=[i])
             table_instr.append(("total", len(to_filter), "-"))
-            table_objs.append(("total", len(to_filter), "-"))
+            table_objs.append(("-","total", len(to_filter), "-"))
             for peer_gpu in other_gpus:
                 ops_accessed: List[OpInfoRow] = [op for op in to_filter if op.mem_dev_id == peer_gpu]
 
                 by_op_type = {}
-                by_var_name = {}
+                by_var_name: Dict[LineInfo, int] = {}
                 by_lines = {}
                 for op in ops_accessed:
                     if op.op_code not in by_op_type.keys():
                         by_op_type[op.op_code] = 0
                     by_op_type[op.op_code] = by_op_type[op.op_code] + 1
                     op_id_info, op_name_info = op.get_obj_info()
-                    var_name = f"{op_id_info.obj_id}:{op_name_info.var_name}"
-                    if var_name not in by_var_name.keys():
-                        by_var_name[var_name] = 0
-                    by_var_name[var_name] = by_var_name[var_name] + 1
                     line_info: LineInfo = op.get_line_info(op_id_info, op_name_info)
+                    if line_info not in by_var_name.keys():
+                        by_var_name[line_info] = 0
+                        by_var_name_onclick.append(line_info)
+                    by_var_name[line_info] = by_var_name[line_info] + 1
                     line_display_str = ""
-                    if line_display_type == "Line number":
-                        line_display_str = f"{line_info.codeline_info.file}: line{line_info.codeline_info.code_linenum}"
-                    elif line_display_type == "Stack trace":
-                        for fnc in line_info.call_stack:
-                            line_display_str += fnc.func_name + " -> "
-                        line_display_str += f"line: {line_info.call_stack[-1].line_no} ({line_info.call_stack[-1].file_name})"
-                    else:
-                        pass
+                    line_display_str = f"{line_info.codeline_info.file}: line{line_info.codeline_info.code_linenum}"
                     if line_display_str not in by_lines:
                         by_lines[line_display_str] = 0
                     by_lines[line_display_str] = by_lines[line_display_str] + 1
                     reverse_table_lineinfo[line_display_str] = line_info
 
-
                 for key, value in by_op_type.items():
                     table_instr.append((key, value, peer_gpu))
                 for key, value in by_var_name.items():
-                    table_objs.append((key, value, peer_gpu))
+                    table_objs.append((key.obj_id_info.obj_id,key.obj_name_info.var_name, value, peer_gpu))
                 for key, value in by_lines.items():
                     table_lines.append((key, value, peer_gpu))
 
@@ -650,15 +669,26 @@ def main():
                 }
             }
 
+            if "object_table_selected" not in st.session_state:
+                st.session_state.object_table_selected = None
+
             if len(table_objs) > 0:
                 cols[0].markdown("##### Objects", unsafe_allow_html=True)
                 df = pd.DataFrame.from_dict(table_objs)
-                df.columns = ['object', 'count', 'destination']
+                df.columns = ['object id', 'var name', 'count', 'destination']
                 table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
+                gb = GridOptionsBuilder.from_dataframe(df)
+                gb.configure_selection('single', use_checkbox=False, pre_selected_rows=None)
+                gridOptions = gb.build()
                 with cols[0]:
-                    AgGrid(df, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
-                           columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS)
-
+                    grid_response = AgGrid(df, gridOptions, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
+                           columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
+                           update_mode=GridUpdateMode.SELECTION_CHANGED 
+                           )
+                    selected_rows = grid_response['selected_rows']
+                    print("RESPONSEAAAAAAAAAAAAAAA",grid_response)
+                    if (len(selected_rows) > 0) and selected_rows[0]["_selectedRowNodeInfo"]["nodeRowIndex"] > 0:
+                        st.session_state.object_table_selected = selected_rows[0]["_selectedRowNodeInfo"]["nodeRowIndex"] - 1
                 cols[1].markdown(f"##### Instructions", unsafe_allow_html=True)
                 df = pd.DataFrame.from_dict(table_instr)
                 df.columns = ['instruction', 'count', 'destination']
@@ -683,14 +713,31 @@ def main():
                     selected_rows = grid_response['selected_rows']
                     if (len(selected_rows) > 0):
                         if (selected_rows[0]['code line'] != 'total'):
-                            chosen_line = int(selected_rows[0]['code line'])
+                            chosen_file, chosen_line = selected_rows[0]['code line'].split(':')
+                            chosen_line = int(chosen_line.strip()[4:])
+                            chosen_file = os.path.join(CodeLineInfoRow.inferred_home_dir,  chosen_file.strip())
                             tkey = 'table_select' + str(peer_gpu)
+                            st.session_state[tkey] = chosen_line
+                            file_to_vis = chosen_file
                             if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
                                 show_sidebar()
-                                st.session_state[tkey] = chosen_line
                             # show_sidebar(int(selected_rows['code line']))
                             # .scrollTop = ''' + str(graph_height + i/100) + ''';
                 components.html(scroll_js(graph_height + margin + i * 0.0001), height=0)
+                if st.session_state.object_table_selected != None:
+                    if not (len(by_var_name_onclick) <= st.session_state.object_table_selected or st.session_state.object_table_selected < 0):
+                        tempop: LineInfo = by_var_name_onclick[st.session_state.object_table_selected]
+                        st.markdown(f"##### Selected Object: {tempop.obj_id_info.obj_id}-{tempop.obj_name_info.var_name}", unsafe_allow_html=True)
+                        tempdict = [
+                            (i.file_name, i.func_name, i.line_no) for i in tempop.call_stack
+                        ]
+                        df = pd.DataFrame.from_dict(tempdict)
+                        df.columns = [ 'file name', 'function name', 'line']
+                        table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
+                        AgGrid(df, height=table_height, fit_columns_on_grid_load=True, custom_css=ag_custom_css,
+                            columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
+                            )
+
                 break
             else:
                 st.write("This gpu issued no communication")
@@ -700,6 +747,7 @@ def main():
 def show_sidebar():
     global chosen_line, file_to_vis, ops_by_line_info
     # print("CHOSEN LINE " + str(chosen_line))
+    print("XDE", file_to_vis not in ops_by_line_info["by_file_linenum"])
     if file_to_vis not in ops_by_line_info["by_file_linenum"]: return
     linenum = chosen_line
     if (linenum in ops_by_line_info["by_file_linenum"][file_to_vis]):
@@ -739,7 +787,6 @@ def show_sidebar():
                         unsafe_allow_html=True,)
             st.markdown("### Total transfers: " + str(len(linedata)))
             st.markdown("#### Objects updated: ")
-            print(linedata)
             tmpcounter: Dict[LineInfo, int] = {}
             for i in linedata:
                 tmpcounter[i] = 0
@@ -824,7 +871,12 @@ def process_folderpath(folder: str):
     return folder
 
 def choose_src_code_file():
-    global file_to_vis, existing_src_code_files, home_folder, current_folder, ops_by_line_info
+    global file_to_vis, existing_src_code_files, home_folder, current_folder, ops_by_line_info, choose_src_code_file_list
+
+    def update_clicked_image(index):
+        if index not in choose_src_code_file_list:
+            choose_src_code_file_list[index] = 0
+        choose_src_code_file_list[index] += 1
 
     files_to_show = set()
     folders_to_show = set()
@@ -842,7 +894,7 @@ def choose_src_code_file():
     for filepath in existing_src_code_files.values():
         folder, file = os.path.split(filepath)
         folder = process_folderpath(folder)
-        print(folder, current_folder, home_folder, CodeLineInfoRow.inferred_home_dir)
+        # print(folder, current_folder, home_folder, CodeLineInfoRow.inferred_home_dir)
         if folder == current_folder: continue
         commonpath = os.path.commonpath((folder, current_folder))
         if commonpath == current_folder:
@@ -854,7 +906,7 @@ def choose_src_code_file():
     print("fsp", files_to_show, folders_to_show)
 
     # display them
-
+    # TODO download them so they also work offline
     folder_icon, file_icon = ("https://icons.getbootstrap.com/assets/icons/folder.svg", "https://icons.getbootstrap.com/assets/icons/file-earmark.svg")
     img_size = 32
 
@@ -870,6 +922,8 @@ def choose_src_code_file():
     while totallen > 0:
         cols = st.columns([1 for i in range(item_per_line)])
         for i in range(item_per_line):
+            if idx not in choose_src_code_file_list:
+                choose_src_code_file_list[idx] = 0
             totallen -= 1
             if totallen < 0: break
             name = combined_list[idx]
@@ -883,8 +937,8 @@ def choose_src_code_file():
                     if clicked > -1:
                         st.session_state.current_folder, _ = os.path.split(current_folder)
                         setup_globals()
+                        choose_src_code_file_list = {}
                         st.experimental_rerun()
-                        break
                 elif idx < folder_len:
                     #display folder
                     print("display folder:", name)
@@ -893,14 +947,14 @@ def choose_src_code_file():
                     if clicked > -1:
                         st.session_state.current_folder = os.path.join(current_folder, name)
                         setup_globals()
+                        choose_src_code_file_list = {}
                         st.experimental_rerun()
-                        break
                 else:
                     #display file
                     print("display file:", name)
                     num_accesses = ops_by_line_info["by_file"]
 
-                    clicked = clickable_images([file_icon],titles=[name], img_style={"width":f"{img_size}px","height":f"{img_size}px"})
+                    clicked = clickable_images([file_icon],titles=[name], img_style={"width":f"{img_size}px","height":f"{img_size}px"}, div_style={"asd" : f"{choose_src_code_file_list[idx]}"})
                     
                     st.write(name)
                     
@@ -911,6 +965,8 @@ def choose_src_code_file():
 
                     if clicked > -1:
                         file_to_vis = fake_item
+                        update_clicked_image(idx)
+                        
             idx += 1
 
 
@@ -1015,7 +1071,14 @@ def continue_main():
 
     check_src_code_folder()
     read_code()
-
+    print("BEFORE MAIN")
+    # st.json(SnoopieObject.get_display_dict())
+    st.json([{
+        "unique_obj": i.get_unique_obj(),
+        "addr": i.addr,
+        "offs": i.obj_offset
+    } for i in OpInfoRow.table()
+    if i.mem_dev_id == 2 and i.running_dev_id == 0])
     main()
 
     st.markdown("""---""")
@@ -1038,7 +1101,9 @@ if __name__ == "__main__":
         start_newfile = st.button("Profile another file")
         if start_newfile:
             # pickle_filename = "".join(logfile_name.split(".")[:-1]) + ".pkl"
-            # os.remove(pickle_filename)
+            if "pickle_filename" in st.session_state and os.path.exists(st.session_state.pickle_filename):
+                os.remove(st.session_state.pickle_filename)
+            reset_globals()
             st.session_state.show_filepicker = True
 
     if st.session_state.show_filepicker:

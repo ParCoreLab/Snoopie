@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, NamedTuple, Tuple, MutableSet
 from abc import ABC, abstractmethod
 import os
 
@@ -26,6 +26,17 @@ class Table(ABC):
         self.pid = pid
 
 
+class UniqueObjectKeyable:
+    def __init__(self, key: "UniqueObject") -> None:
+        self.key: "UniqueObject" = key
+
+    def __eq__(self, __value: object) -> bool:
+        return isinstance(__value, type(self)) and self.key == __value.key
+
+    def __hash__(self) -> int:
+        return hash(self.key)
+
+
 def generic_filter(table: Table, criteria: dict):
     filtered = []
     for row in table.table():
@@ -40,7 +51,7 @@ def generic_filter(table: Table, criteria: dict):
 
 
 class OpInfoRow(Table):
-    _table: List[Table] = []
+    _table: List["OpInfoRow"] = []
 
     def __init__(
         self,
@@ -67,6 +78,8 @@ class OpInfoRow(Table):
         self.code_line_estimated_status = code_line_estimated_status
         self.obj_offset = obj_offset
         self.mem_range = mem_range
+
+        self.related_object: "SnoopieObject" | None = None
 
         OpInfoRow._table.append(self)
 
@@ -106,21 +119,33 @@ class OpInfoRow(Table):
     def get_obj_info(self):
         obj_id_info: ObjIdRow | None = ObjIdRow.search(self.pid, self.obj_offset)
         if obj_id_info == None:
+            print("OBJ ID INFO NONE", self.obj_offset, self.pid)
             return None, None
         obj_name_info: ObjNameRow | None = ObjNameRow.by_obj_id.get(self.pid).get(
             obj_id_info.obj_id
         )
         return obj_id_info, obj_name_info
 
+    def get_unique_obj(self) -> "UniqueObject":
+        id, name = self.get_obj_info()
+        if id is None or name is None:
+            return None
+        return UniqueObject(name.var_name, name.call_stack.get_tuple_stack(), id.obj_id)
+
     def get_line_info(self, obj_id_info=None, obj_name_info=None):
         if obj_id_info == None or obj_name_info == None:
             obj_id_info, obj_name_info = self.get_obj_info()
         codeline_info = self.get_codeline_info()
-        return LineInfo(self, obj_name_info, obj_id_info, codeline_info)
+        return LineInfo.get(obj_name_info, obj_id_info, codeline_info)
 
 
 class FunctionInfoRow(Table):
     by_pc: Dict[int, Dict[int, Table]] = {}
+
+    class Key(NamedTuple):
+        func_name: str
+        file_name: str
+        line_no: int
 
     def __init__(self, pid: int, pc: int, func_name: str, file_name: str, line_no: int):
         super().__init__(pid)
@@ -141,8 +166,21 @@ class FunctionInfoRow(Table):
     def table():
         return table_to_list(FunctionInfoRow.by_pc)
 
+    def __str__(self) -> str:
+        return f"{self.file_name}[{self.func_name}]:{self.line_no}"
+
+    def get_key(self) -> Key:
+        return FunctionInfoRow.Key(self.func_name, self.file_name, self.line_no)
+
 
 class ObjIdRow(Table):
+    class Key(NamedTuple):
+        offset: str
+        size: int
+        obj_id: int
+        dev_id: int
+        pid: int
+
     by_dev_offset: Dict[int, Dict[str, Table]] = {}
     by_pid_offset: Dict[int, Dict[str, Table]] = {}
 
@@ -156,6 +194,9 @@ class ObjIdRow(Table):
         quick_add_to_dict(ObjIdRow.by_dev_offset, dev_id, offset, self)
 
         quick_add_to_dict(ObjIdRow.by_pid_offset, pid, offset, self)
+
+    def get_key(self):
+        return ObjIdRow.Key(self.offset, self.size, self.obj_id, self.dev_id, self.pid)
 
     @staticmethod
     def table():
@@ -181,10 +222,80 @@ class CallStack:
         split = call_stack_string.split("<")
         return split
 
-    def get_parsed_stack(self):
+    def get_parsed_stack(self) -> List[FunctionInfoRow]:
         return [
             FunctionInfoRow.search_by_pc(self.pid, pc) for pc in reversed(self.stack)
         ]
+
+    def get_tuple_stack(self) -> Tuple[FunctionInfoRow.Key]:
+        return tuple(i.get_key() for i in self.get_parsed_stack())
+
+
+class UniqueObject(NamedTuple):
+    obj_name: str
+    initialized_call_stack: Tuple[FunctionInfoRow.Key]
+    object_id: int
+
+    def __str__(self) -> str:
+        return f"{self.obj_name}:{self.object_id}, l:{len(self.initialized_call_stack)}"
+
+
+class SnoopieObject(UniqueObjectKeyable):
+    all_objects: Dict[UniqueObject, "SnoopieObject"] = {}
+
+    def __init__(self, obj_name: str, obj_id: int, call_stack: CallStack):
+        k = UniqueObject(obj_name, call_stack.get_tuple_stack(), obj_id)
+        super().__init__(k)
+        self.addres_ranges: Dict[ObjIdRow.Key, int] = {}
+        self.ops: List[OpInfoRow] = []
+        # SnoopieObject.all_objects[k] = self
+
+    def add_op(self, op: OpInfoRow):
+        self.ops.append(op)
+
+    def add_addres_range(self, ar: ObjIdRow):
+        key = ar.get_key()
+        if key not in self.addres_ranges:
+            self.addres_ranges[key] = 0
+        self.addres_ranges[key] += 1
+
+    def __str__(self) -> str:
+        return str(self.key)
+
+    @staticmethod
+    def get_display_dict() -> List[Dict]:
+        return {str(j): i.display_dict() for j, i in SnoopieObject.all_objects.items()}
+
+    # {
+    #     "var_name": self.key.obj_name,
+    #     "id": self.key.object_id,
+    #     "created_stack": [str(i) for i in self.key.initialized_call_stack]
+    # }
+
+    def display_dict(self):
+        return {
+            "key": self.key,
+            "address_ranges": [
+                {
+                    "count": c,
+                    "dev_id": i.dev_id,
+                    "offset": i.offset,
+                    "size": i.size,
+                    "pid": i.pid,
+                }
+                for i, c in self.addres_ranges.items()
+            ],
+            # "ops": [
+            #     {
+            #         "op_code": i.op_code,
+            #         "code_line_index": i.code_line_index,
+            #         "mem_dev": i.mem_dev_id,
+            #         "run_dev": i.running_dev_id,
+            #         "offset": i.addr,
+            #     }
+            #     for i in self.ops
+            # ],
+        }
 
 
 class ObjNameRow(Table):
@@ -253,6 +364,7 @@ class CodeLineInfoRow(Table):
             for i in rows
             if len(i.file) > 0 or len(i.dir_path) > 0
         ]
+        print("dirpaths", dirpaths)
         index = 0
         for i in range(min([len(i) for i in dirpaths])):
             index = i
@@ -267,15 +379,32 @@ class CodeLineInfoRow(Table):
         return home_dir_path
 
 
-class LineInfo:
+class LineInfo(UniqueObjectKeyable):
+    saved_objects = {}
+
+    @staticmethod
+    def get(
+        obj_name_info: ObjNameRow, obj_id_info: ObjIdRow, codeline_info: CodeLineInfoRow
+    ) -> "LineInfo":
+        key = LineInfo.get_key_t(obj_name_info, obj_id_info)
+        if key in LineInfo.saved_objects:
+            return LineInfo.saved_objects[key]
+        else:
+            ret = LineInfo(obj_name_info, obj_id_info, codeline_info)
+            LineInfo.saved_objects[key] = ret
+            return ret
+
+    """
+    Don't use __init__ unless really necessary
+    """
+
     def __init__(
         self,
-        op_info: OpInfoRow,
         obj_name_info: ObjNameRow,
         obj_id_info: ObjIdRow,
         codeline_info: CodeLineInfoRow,
     ):
-        self.op_info = op_info
+        super().__init__(LineInfo.get_key_t(obj_name_info, obj_id_info))
         self.obj_name_info = obj_name_info
         self.obj_id_info = obj_id_info
         self.codeline_info = codeline_info
@@ -286,21 +415,28 @@ class LineInfo:
     def __repr__(self) -> str:
         ret = ""
         for i in self.call_stack:
-            ret += i.func_name + " -> "
+            ret += str(i) + " -> "
         ret += self.obj_name_info.var_name
-        ret += (
-            " : " + self.codeline_info.file + ":" + str(self.codeline_info.code_linenum)
-        )
         return ret
 
     def __str__(self) -> str:
-        return self.__repr__()
+        ret = ""
+        for i in self.call_stack:
+            ret += i.func_name + " -> "
+        ret += self.obj_name_info.var_name
+        return ret
 
-    def __eq__(self, __value: object) -> bool:
-        return isinstance(__value, LineInfo) and hash(self) == hash(__value)
+    @staticmethod
+    def get_key_t(obj_name_info: ObjNameRow, obj_id_info: ObjIdRow):
+        return UniqueObject(
+            obj_name=obj_name_info.var_name,
+            object_id=obj_id_info.obj_id,
+            # dev_id=obj_id_info.dev_id,
+            initialized_call_stack=obj_name_info.call_stack.get_tuple_stack(),
+        )
 
-    def __hash__(self) -> int:
-        return hash("LineInfo:" + str(self))
+    def get_key(self) -> UniqueObject:
+        return LineInfo.get_key_t(self.obj_name_info, self.obj_id_info)
 
     def check_correct_line(self, file: str, line: int) -> bool:
         return (
