@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 project(snoopie VERSION 1.0
         DESCRIPTION "ok"
-        LANGUAGES C CXX)
+        LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 14)
 

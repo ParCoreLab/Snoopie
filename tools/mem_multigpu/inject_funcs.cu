@@ -46,6 +46,8 @@ using namespace adamant;
 
 __device__ int last_valid_line_index = -1;
 
+
+
 extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, int dev_id,
     uint64_t addr,
     uint64_t grid_launch_id,
@@ -89,4 +91,11 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
     if (rand_num < 100000/sample_size)
       channel_dev->push(&ma, sizeof(mem_access_t), dev_id);
   }
+}
+
+
+
+// BLACK MAGIC DONT REMOVE
+__global__ void trickary() {
+  instrument_mem(0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
