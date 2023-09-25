@@ -1,42 +1,41 @@
+#include <getopt.h>
 #include <iostream>
 #include <stdio.h>
 #include <unistd.h>
-#include <getopt.h>
 
 using namespace std;
 
-
-#define gpuErrchk(ans) { gpuAssert(ans); }
-inline void gpuAssert(cudaError_t code)
-{
+#define gpuErrchk(ans)                                                         \
+  { gpuAssert(ans); }
+inline void gpuAssert(cudaError_t code) {
   if (code != cudaSuccess) {
-  fprintf(stderr,"GPUassert: %s\n", cudaGetErrorString(code));
+    fprintf(stderr, "GPUassert: %s\n", cudaGetErrorString(code));
   }
 }
 
-__host__ __device__ int modify_cell(int a) {
-  return a + 2;
-}
+__host__ __device__ int modify_cell(int a) { return a + 2; }
 
-__global__ void simple_kernel(int size, int *src, int *dst1, int *dst2, int *dst3){
+__global__ void simple_kernel(int size, int *src, int *dst1, int *dst2,
+                              int *dst3) {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= size) { 
+  if (idx >= size) {
     return;
   }
 
   if (idx % 3 == 0) {
     dst1[idx] = modify_cell(src[idx]);
-  }
-  else if (idx % 3 == 1) {
+  } else if (idx % 3 == 1) {
     dst2[idx] = modify_cell(src[idx]);
   } else {
     dst3[idx] = modify_cell(src[idx]);
   }
 }
 
-extern __global__ void simple_kernel1(int size, int *src, int *dst1, int *dst2, int *dst3);
+extern __global__ void simple_kernel1(int size, int *src, int *dst1, int *dst2,
+                                      int *dst3);
 
-extern __global__ void simple_kernel2(int size, int *src, int *dst1, int *dst2, int *dst3);
+extern __global__ void simple_kernel2(int size, int *src, int *dst1, int *dst2,
+                                      int *dst3);
 
 extern cudaError_t foo_alloc(int **buf, size_t size);
 
@@ -50,48 +49,47 @@ struct diim_args {
 
 typedef struct diim_args diim_args;
 
-
-void getargs(diim_args *args, int argc, char* argv[]) {
+void getargs(diim_args *args, int argc, char *argv[]) {
   int c;
 
   while ((c = getopt(argc, argv, "n:v:c")) != -1) {
     switch (c) {
-      case 'n':
-        args->size = atoi(optarg);
-        if (args->size <= 0) {
-          fprintf(stderr, "Error: argument for -n cannot be 0 or less\n");
-        }
-        break;
-      case 'v':
-        args->verbose = 1;
-        break;
-      case 'c':
-        args->check = 1;
-        break;
-      case '?':
-        if (optopt == 'n') {
-          fprintf(stderr, "Error: no argument provided for -n flag\n");
-        } else {
-          fprintf(stderr, "Error: unknown option '%c'\n", optopt);
-        }
-        exit(1);
-      default:
-        abort();
+    case 'n':
+      args->size = atoi(optarg);
+      if (args->size <= 0) {
+        fprintf(stderr, "Error: argument for -n cannot be 0 or less\n");
+      }
+      break;
+    case 'v':
+      args->verbose = 1;
+      break;
+    case 'c':
+      args->check = 1;
+      break;
+    case '?':
+      if (optopt == 'n') {
+        fprintf(stderr, "Error: no argument provided for -n flag\n");
+      } else {
+        fprintf(stderr, "Error: unknown option '%c'\n", optopt);
+      }
+      exit(1);
+    default:
+      abort();
     }
   }
 }
 
 diim_args *default_args() {
-  diim_args *args = (diim_args*) malloc(sizeof(diim_args));
+  diim_args *args = (diim_args *)malloc(sizeof(diim_args));
 
   args->size = 32;
   args->verbose = 0;
   args->check = 0;
-  
+
   return args;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
 
   diim_args *args = default_args();
   getargs(args, argc, argv);
@@ -135,7 +133,7 @@ int main(int argc, char* argv[]) {
   gpuErrchk(foo_alloc(&g2, buf_size));
 
   int *g3 = NULL;
-  
+
   cudaSetDevice(gpuid[3]);
   gpuErrchk(foo_alloc(&g3, buf_size));
 
@@ -152,9 +150,8 @@ int main(int argc, char* argv[]) {
   gpuErrchk(foo_hostalloc(&h2, buf_size));
 
   cudaSetDevice(gpuid[3]);
-  int *h3 = NULL; 
+  int *h3 = NULL;
   gpuErrchk(foo_hostalloc(&h3, buf_size));
-
 
   cudaSetDevice(gpuid[0]);
   gpuErrchk(cudaMemcpy(g0, h0, buf_size, cudaMemcpyHostToDevice));
@@ -169,9 +166,15 @@ int main(int argc, char* argv[]) {
   gpuErrchk(cudaMemcpy(g3, h3, buf_size, cudaMemcpyHostToDevice));
 
   cudaSetDevice(gpuid[0]);
-  simple_kernel<<<std::ceil(args->size / 1024.0), max(args->size > 1024 ? 1024 :args->size % 1025, 1)>>>(args->size, g0, g1, g2, g3);
-  simple_kernel1<<<std::ceil(args->size / 1024.0), max(args->size > 1024 ? 1024 :args->size % 1025, 1)>>>(args->size, g0, g1, g2, g3);
-  simple_kernel2<<<std::ceil(args->size / 1024.0), max(args->size > 1024 ? 1024 :args->size % 1025, 1)>>>(args->size, g0, g1, g2, g3);
+  simple_kernel<<<std::ceil(args->size / 1024.0),
+                  max(args->size > 1024 ? 1024 : args->size % 1025, 1)>>>(
+      args->size, g0, g1, g2, g3);
+  simple_kernel1<<<std::ceil(args->size / 1024.0),
+                   max(args->size > 1024 ? 1024 : args->size % 1025, 1)>>>(
+      args->size, g0, g1, g2, g3);
+  simple_kernel2<<<std::ceil(args->size / 1024.0),
+                   max(args->size > 1024 ? 1024 : args->size % 1025, 1)>>>(
+      args->size, g0, g1, g2, g3);
   cudaDeviceSynchronize();
 
   if (args->check) {
@@ -180,7 +183,6 @@ int main(int argc, char* argv[]) {
     gpuErrchk(cudaMemcpy(h3, g2, buf_size, cudaMemcpyDeviceToHost));
   }
 
-  
   cudaFree(h0);
   cudaFree(h1);
   cudaFree(h2);

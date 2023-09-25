@@ -26,14 +26,14 @@
  */
 
 #include <assert.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <unistd.h>
 #include <map>
 #include <sstream>
+#include <stdint.h>
+#include <stdio.h>
 #include <string>
-#include <unordered_set>
+#include <unistd.h>
 #include <unordered_map>
+#include <unordered_set>
 
 /* every tool needs to include this once */
 #include "nvbit_tool.h"
@@ -48,9 +48,9 @@
 #include "common.h"
 #include "util.h"
 
-#define HEX(x)                                                            \
-  "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
-  << std::dec
+#define HEX(x)                                                                 \
+  "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x        \
+       << std::dec
 
 #define CHANNEL_SIZE (1l << 30)
 
@@ -61,7 +61,7 @@ struct CTXstate {
   int id;
 
   /* Channel used to communicate from GPU to CPU receiving thread */
-  ChannelDev* channel_dev;
+  ChannelDev *channel_dev;
   ChannelHost channel_host;
 };
 
@@ -75,7 +75,7 @@ struct MemoryAllocation {
 pthread_mutex_t mutex;
 
 /* map to store context state */
-std::unordered_map<CUcontext, CTXstate*> ctx_state_map;
+std::unordered_map<CUcontext, CTXstate *> ctx_state_map;
 
 /* skip flag used to avoid re-entry on the nvbit_callback when issuing
  * flush_channel kernel call */
@@ -87,7 +87,6 @@ uint32_t instr_end_interval = UINT32_MAX;
 std::string kernel_name;
 int verbose = 0;
 
-
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;
 
@@ -96,12 +95,12 @@ void nvbit_at_init() {
   GET_VAR_INT(
       instr_begin_interval, "INSTR_BEGIN", 0,
       "Beginning of the instruction interval where to apply instrumentation");
-  GET_VAR_INT(
-      instr_end_interval, "INSTR_END", UINT32_MAX,
-      "End of the instruction interval where to apply instrumentation");
+  GET_VAR_INT(instr_end_interval, "INSTR_END", UINT32_MAX,
+              "End of the instruction interval where to apply instrumentation");
   GET_VAR_INT(verbose, "TOOL_VERBOSE", 0, "Enable verbosity inside the tool");
 
-  GET_VAR_STR(kernel_name, "KERNEL_NAME", "Specify the name of the kernel to track");
+  GET_VAR_STR(kernel_name, "KERNEL_NAME",
+              "Specify the name of the kernel to track");
 
   std::string pad(100, '-');
   if (verbose) {
@@ -116,39 +115,43 @@ void nvbit_at_init() {
 }
 
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
-    const char* name, void* params, CUresult* pStatus) {
-    pthread_mutex_lock(&mutex);
-    std::string cbid_name(find_cbid_name(cbid));
+                         const char *name, void *params, CUresult *pStatus) {
+  pthread_mutex_lock(&mutex);
+  std::string cbid_name(find_cbid_name(cbid));
 
-    bool is_func = false;
-    std::string func_name;
-    CUfunction func;
+  bool is_func = false;
+  std::string func_name;
+  CUfunction func;
 
-    if (cbid == API_CUDA_cuLaunchKernel || cbid == API_CUDA_cuLaunchKernel_ptsz) {
-      cuLaunchKernel_params* p = (cuLaunchKernel_params*)params;
-      func_name = (nvbit_get_func_name(ctx, p->f));
-      func = p->f;
-      is_func = true;
-    }  
-    else if (cbid == API_CUDA_cuLaunchCooperativeKernel || cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz) {
-      cuLaunchCooperativeKernel_params* p = (cuLaunchCooperativeKernel_params*)params;
-      func_name = (nvbit_get_func_name(ctx, p->f));
-      func = p->f;
-      is_func = true;
+  if (cbid == API_CUDA_cuLaunchKernel || cbid == API_CUDA_cuLaunchKernel_ptsz) {
+    cuLaunchKernel_params *p = (cuLaunchKernel_params *)params;
+    func_name = (nvbit_get_func_name(ctx, p->f));
+    func = p->f;
+    is_func = true;
+  } else if (cbid == API_CUDA_cuLaunchCooperativeKernel ||
+             cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz) {
+    cuLaunchCooperativeKernel_params *p =
+        (cuLaunchCooperativeKernel_params *)params;
+    func_name = (nvbit_get_func_name(ctx, p->f));
+    func = p->f;
+    is_func = true;
+  }
+
+  std::cout << "###"
+            << " " << (is_exit ? "BGN" : "END") << ":\t" << cbid_name
+            << (is_func ? func_name : "") << std::endl;
+
+  if (is_func) {
+    std::vector<CUfunction> related_functions =
+        nvbit_get_related_functions(ctx, func);
+
+    /* iterate on function */
+    for (auto f : related_functions) {
+      std::string related_func_name(nvbit_get_func_name(ctx, f));
+      std::cout << "Related func to: " << func_name
+                << " is: " << related_func_name << std::endl;
     }
+  }
 
-    std::cout << "###" << " " << (is_exit ? "BGN" : "END") << ":\t" << cbid_name << (is_func? func_name : "") << std::endl;
-
-    if (is_func) {
-      std::vector<CUfunction> related_functions = nvbit_get_related_functions(ctx, func);
-
-      /* iterate on function */
-      for (auto f : related_functions) {
-        std::string related_func_name(nvbit_get_func_name(ctx, f));
-        std::cout << "Related func to: " << func_name << " is: " << related_func_name << std::endl;
-      }
-    }
-
-
-    pthread_mutex_unlock(&mutex);
+  pthread_mutex_unlock(&mutex);
 }

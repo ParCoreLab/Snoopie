@@ -30,9 +30,9 @@
  * Do not modify!!!  */
 
 #pragma once
-#include <stdio.h>
 #include <cassert>
 #include <stdint.h>
+#include <stdio.h>
 
 #define SIGN_EXTEND64(x) ((((int64_t)(x)) << 32) >> 32)
 
@@ -41,22 +41,21 @@ extern "C" __device__ __noinline__ uint64_t
 gen_mref_addr(uint32_t ra_high, int is_ra64, uint32_t ra_low, int ra_stride,
               uint32_t ru_high, int is_ru64, uint32_t ru_low, int32_t imm,
               uint32_t mref_idx /* unused */) {
-    int64_t base_addr = 0;
+  int64_t base_addr = 0;
 
-    if (is_ra64) {
-        base_addr +=
-            (((uint64_t)ra_high) << 32) | ((uint64_t)ra_low * ra_stride);
-    } else {
-        base_addr += SIGN_EXTEND64(ra_low * ra_stride);
-    }
+  if (is_ra64) {
+    base_addr += (((uint64_t)ra_high) << 32) | ((uint64_t)ra_low * ra_stride);
+  } else {
+    base_addr += SIGN_EXTEND64(ra_low * ra_stride);
+  }
 
-    if (is_ru64) {
-        base_addr += (((uint64_t)ru_high) << 32) | ((uint64_t)ru_low);
-    } else {
-        base_addr += SIGN_EXTEND64(ru_low);
-    }
+  if (is_ru64) {
+    base_addr += (((uint64_t)ru_high) << 32) | ((uint64_t)ru_low);
+  } else {
+    base_addr += SIGN_EXTEND64(ru_low);
+  }
 
-    uint64_t addr = base_addr + imm;
+  uint64_t addr = base_addr + imm;
 #if 0
     printf(
         "ra_high %d - is_ra64 %d - ra_low %d - ra_stride %d - ru_high %d - "
@@ -64,21 +63,21 @@ gen_mref_addr(uint32_t ra_high, int is_ra64, uint32_t ra_low, int ra_stride,
         ra_high, is_ra64, ra_low, ra_stride, ru_high, is_ru64, ru_low, imm,
         base_addr, addr);
 #endif
-    return addr;
+  return addr;
 }
 
 __global__ void load_module_nvbit_kernel(int var) {
-    printf("");
-    if (var) {
-        int tmp = gen_mref_addr(var, var, var, var, var, var, var, var, var);
-        printf("%d\n", tmp);
-    }
+  printf("");
+  if (var) {
+    int tmp = gen_mref_addr(var, var, var, var, var, var, var, var, var);
+    printf("%d\n", tmp);
+  }
 }
 extern "C" void __nvbit_start();
 
 extern "C" void nvbit_at_context_init_hook() {
-    __nvbit_start();
-    load_module_nvbit_kernel<<<1, 1>>>(0);
-    cudaDeviceSynchronize();
-    assert(cudaGetLastError() == cudaSuccess);
+  __nvbit_start();
+  load_module_nvbit_kernel<<<1, 1>>>(0);
+  cudaDeviceSynchronize();
+  assert(cudaGetLastError() == cudaSuccess);
 }

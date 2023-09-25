@@ -30,12 +30,12 @@
 /* information collected in the instrumentation function and passed
  * on the channel from the GPU to the CPU */
 typedef struct {
-    int32_t cta_id_x;
-    int32_t cta_id_y;
-    int32_t cta_id_z;
-    int32_t warp_id;
-    int32_t opcode_id;
-    int32_t num_regs;
-    /* 32 lanes, each thread can store up to 5 register values */
-    uint32_t reg_vals[32][8];
+  int32_t cta_id_x;
+  int32_t cta_id_y;
+  int32_t cta_id_z;
+  int32_t warp_id;
+  int32_t opcode_id;
+  int32_t num_regs;
+  /* 32 lanes, each thread can store up to 5 register values */
+  uint32_t reg_vals[32][8];
 } reg_info_t;

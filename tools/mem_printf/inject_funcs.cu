@@ -32,9 +32,9 @@
 
 extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id,
                                                        uint64_t addr) {
-    /* if predicate is off return */
-    if (!pred) {
-        return;
-    }
-    printf(" 0x%016lx - opcode_id %d\n", addr, opcode_id);
+  /* if predicate is off return */
+  if (!pred) {
+    return;
+  }
+  printf(" 0x%016lx - opcode_id %d\n", addr, opcode_id);
 }
