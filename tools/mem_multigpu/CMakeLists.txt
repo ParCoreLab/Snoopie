@@ -10,7 +10,6 @@ add_library(mem_multigpu SHARED
 
 target_link_libraries(mem_multigpu
         CUDA::cudart
-        cuda
         # nvshmem::nvshmem
         # MPI::MPI_CXX
         zstd
