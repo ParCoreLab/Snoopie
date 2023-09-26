@@ -43,6 +43,10 @@ find_package(NVSHMEM REQUIRED)
 find_package(MPI REQUIRED)
 find_package(NVBIT REQUIRED)
 
+find_package(OpenMP REQUIRED)
+list(APPEND CMAKE_CUDA_FLAGS "-Xcompiler -fopenmp")
+
+
 add_subdirectory(tools/mem_multigpu)
 add_subdirectory(tests)
 
@@ -77,7 +81,7 @@ set(MPIRUN mpirun)
 #  DEPENDS jacobi_object
 #  COMMAND cuobjdump jacobi.o -xelf all)
 
-add_custom_target(stencil_nvshmem_nvidia_test_mapping 
+add_custom_target(stencil_nvshmem_nvidia_test_mapping
   COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I${NVSHMEM_HOME}/include -I${MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo
   COMMAND cuobjdump jacobi.o -xelf all
   COMMAND nvdisasm --print-line-info jacobi.sm_80.cubin > testfile.txt
@@ -91,4 +95,4 @@ add_custom_target(stencil_nvshmem_nvidia_test
   COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x KERNEL_NAME="void jacobi_kernel<32, 32>" -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:${NVSHMEM_HOME}/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" -x CODE_ATTRIBUTION=1 -np ${NP} ./stencil-cmake-nvidia -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
-#add_dependencies(stencil_nvshmem_nvidia_test ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/jacobi_mapping)  
+#add_dependencies(stencil_nvshmem_nvidia_test ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/jacobi_mapping)

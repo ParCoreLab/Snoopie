@@ -1,5 +1,3 @@
-find_package(OpenMP)
-
 add_executable(stencil-p2p_base
         jacobi.cu)
 
