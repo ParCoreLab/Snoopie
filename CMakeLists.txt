@@ -51,7 +51,7 @@ add_subdirectory(tools/mem_multigpu)
 add_subdirectory(tests)
 
 add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
-
+add_subdirectory(tests/stencil/stencil-p2p_base)
 #message("${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia")
 
 set(NP 2)
@@ -93,6 +93,19 @@ add_custom_target(stencil_nvshmem_nvidia_test
   COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.o ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.cubin
   COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x KERNEL_NAME="void jacobi_kernel<32, 32>" -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:${NVSHMEM_HOME}/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" -x CODE_ATTRIBUTION=1 -np ${NP} ./stencil-cmake-nvidia -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+)
+
+add_custom_target(stencil_p2p_base_test_mapping
+  COMMAND nvcc -cubin -DHAVE_CUB -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt  -std=c++14 jacobi.cu
+  COMMAND nvdisasm --print-line-info jacobi.cubin > testfile.txt
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base)
+
+add_custom_target(stencil_p2p_base_test
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
+  DEPENDS stencil_p2p_base_test_mapping
+  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
+  COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/*.cubin
+  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 #add_dependencies(stencil_nvshmem_nvidia_test ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/jacobi_mapping)
