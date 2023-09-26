@@ -40,7 +40,7 @@ find_package(MPI REQUIRED)
 find_package(NVBIT REQUIRED)
 
 find_package(OpenMP REQUIRED)
-list(APPEND CMAKE_CUDA_FLAGS "-Xcompiler -fopenmp")
+list(APPEND CMAKE_CUDA_FLAGS "${OpenMP_CXX_FLAGS}")
 
 # add_subdirectory(cpptrace)
 add_subdirectory(tools/mem_multigpu)
