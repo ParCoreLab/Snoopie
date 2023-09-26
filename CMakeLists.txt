@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.23)
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CUDA_ARCHITECTURES 75)
+
 project(snoopie VERSION 1.0
         DESCRIPTION "ok"
         LANGUAGES CXX CUDA)
 
-set(CMAKE_CXX_STANDARD 14)
 
 # Minimum supported NVCC version
 set(NVCC_VER_MIN 10.1)

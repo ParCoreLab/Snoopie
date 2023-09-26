@@ -58,17 +58,16 @@ function run_nvshmem() {
 
    np=4
    exp_size=64
-
-   results=$(NP=$np SIZE=$exp_size make run && zstd -dc *.zst | grep -v "op_code" | grep -iv "cumemcpy")
-
+   NP=$np SIZE=$exp_size make run 
+    
    # count the number of operations
-   recv_size=$(echo "$results" |  wc -l)
+   recv_size=$(zstd -dc *.zst | grep -iv "op_code" | grep -iv "cumemcpy" | wc -l)
 
    # check if the shift is working properly
-   target_1=$(echo "$results" | cut -f 5 -d ',' | grep -c '1')
-   target_2=$(echo "$results" | cut -f 5 -d ',' | grep -c '2')
-   target_3=$(echo "$results" | cut -f 5 -d ',' | grep -c '3')
-   target_4=$(echo "$results" | cut -f 5 -d ',' | grep -c '0')
+   target_1=$(zstd -dc *.zst | grep -iv "op_code" | grep -iv "cumemcpy" | cut -f 5 -d ',' | grep -c '1')
+   target_2=$(zstd -dc *.zst | grep -iv "op_code" | grep -iv "cumemcpy" | cut -f 5 -d ',' | grep -c '2')
+   target_3=$(zstd -dc *.zst | grep -iv "op_code" | grep -iv "cumemcpy" | cut -f 5 -d ',' | grep -c '3')
+   target_4=$(zstd -dc *.zst | grep -iv "op_code" | grep -iv "cumemcpy" | cut -f 5 -d ',' | grep -c '0')
 
 
    if (( exp_size != recv_size )); then
