@@ -52,6 +52,7 @@ add_subdirectory(tests)
 
 add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
 add_subdirectory(tests/stencil/stencil-p2p_base)
+add_subdirectory(tests/stencil/stencil-tb-singlestream)
 #message("${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia")
 
 set(NP 2)
@@ -106,6 +107,20 @@ add_custom_target(stencil_p2p_base_test
   COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/*.cubin
   COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+)
+
+
+add_custom_target(stencil_tb_singlestream_test_mapping
+  COMMAND nvcc -cubin -DHAVE_CUB -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt  -std=c++14 jacobi.cu
+  COMMAND nvdisasm --print-line-info jacobi.cubin > testfile.txt
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream)
+
+add_custom_target(stencil_tb_singlestream_test
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-tb-singlestream
+  DEPENDS stencil_tb_singlestream_test_mapping
+  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-tb-singlestream
+  COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream/*.cubin
+  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" ./stencil-tb_singlestream -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 #add_dependencies(stencil_nvshmem_nvidia_test ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/jacobi_mapping)
