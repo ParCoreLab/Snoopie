@@ -13,14 +13,15 @@ def _parse():
         usage="streamlit run /path/to/parse_and_vis.py -- [optional arguments]",
     )
 
-    parser.add_argument(
-        "--logfile",
-        "-l",
-        help="Path to the snoopie log file. Either the compressed .zst file or the decompressed file.",
-        type=str,
-        required=False,
-        default="",
-    )
+    # parser.add_argument(
+    #     "--logfile",
+    #     "-l",
+    #     help="Path to the snoopie log file. Either the compressed .zst file or the decompressed file.",
+    #     type=str,
+    #     required=False,
+    #     default="",
+    # )
+    parser.add_argument('files', nargs='*', help="List of logfiles. Either compressed zst or uncompressed",)
     parser.add_argument(
         "--gpu-num",
         "-n",
@@ -30,9 +31,9 @@ def _parse():
         type=int,
     )
     parser.add_argument(
-        "--src-code-file",
+        "--src-code-folder",
         "-s",
-        help="Source code file for code attribution.",
+        help="Source code folder for code attribution.",
         required=False,
         default="",
         type=str,
@@ -60,30 +61,23 @@ def parse():
             st.session_state.gpu_num = args.gpu_num
             st.session_state.sampling_period = args.sampling_period
 
-            src_code_file = args.src_code_file
-            logfile = args.logfile
+            src_code_folder = args.src_code_folder
+            logfile = args.files
+            print("PARSER logfile", logfile)
 
-            if src_code_file == "":
+            if src_code_folder == "":
                 st.session_state.show_filepicker = True
             else:
-                f = file_from_filepath(src_code_file)
-                if f == None:
-                    st.write("Source code file not found")
-                    st.session_state.show_filepicker = True
-                else:
-                    st.session_state.src_code_file = f
+                st.session_state.home_folder = src_code_folder
 
-            if logfile == "":
+            if len(logfile) == 0:
                 st.session_state.show_filepicker = True
             else:
-                f = file_from_filepath_check(logfile)
-                if f == None:
-                    st.write("Log file not found")
-                    st.session_state.show_filepicker = True
-                else:
-                    st.session_state.logfile = f
-                    st.session_state.logfile_name = logfile
-            setup_globals()
+                st.session_state.logfile, st.session_state.logfile_base = multi_file_from_filepath_check(logfile)
+                print (st.session_state.logfile,
+                st.session_state.logfile_base
+                )
+                st.session_state.logfile_name = logfile
     else:  # if run in electron, there is no argument parser
         if "first_run" not in st.session_state:
             st.session_state.first_run = False

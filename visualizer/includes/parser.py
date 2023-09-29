@@ -214,6 +214,7 @@ def read_data(
     file: TextIOWrapper | List[TextIOWrapper], filename: str | List[str], gbs
 ):
     global _pid
+    print(file, filename)
     if file == None or filename == None:
         st.experimental_rerun()  # this shouldn't be here need to fix the problem soon
 

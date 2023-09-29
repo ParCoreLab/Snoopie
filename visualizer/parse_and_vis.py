@@ -173,7 +173,6 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
     for dev in range(gpu_num):
         object_view.append({})
 
-    all_ops: List[OpInfoRow] = OpInfoRow.table()
     print("OWD 1")
     for source_dev_id in range(gpu_num):
         owned_objs: List[SnoopieObject] = [
@@ -228,25 +227,6 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
                         # tmp = dict_details["by_line"].get(line_info, 0)
                         # dict_details["by_line"][line_info] = tmp + 1
 
-                        tmp = line_info.codeline_info.code_line_index
-                        if tmp not in ops_by_line_info["by_line_index"]:
-                            ops_by_line_info["by_line_index"][tmp] = 0
-                        ops_by_line_info["by_line_index"][tmp] += 1
-
-                        tmp = line_info.codeline_info.combined_filepath()
-                        if tmp not in ops_by_line_info["by_file"]:
-                            ops_by_line_info["by_file"][tmp] = 0
-                        ops_by_line_info["by_file"][tmp] += 1
-
-                        tmp2 = line_info.codeline_info.code_linenum
-                        if tmp not in ops_by_line_info["by_file_linenum"]:
-                            ops_by_line_info["by_file_linenum"][tmp] = {}
-                        if tmp2 not in ops_by_line_info["by_file_linenum"][tmp]:
-                            ops_by_line_info["by_file_linenum"][tmp][tmp2] = []
-                        ops_by_line_info["by_file_linenum"][tmp][tmp2].append(line_info)
-
-                        ops_by_line_info["total"] += 1
-
                         combined_info = f"{dev}, {op}, {str(line_info)}"
                         tmp = dict_details["combined"].get(combined_info, 0)
                         dict_details["combined"][combined_info] = tmp + 1
@@ -267,7 +247,7 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
 
 
 def main():
-    global gpu_num, ops, chosen_line, ops_to_display, data_by_line, reverse_table_lineinfo, file_to_vis
+    global gpu_num, ops, chosen_line, ops_to_display, data_by_line, reverse_table_lineinfo, file_to_vis, ops_by_line_info
 
     top_cols = st.columns([5, 5])
 
@@ -635,7 +615,13 @@ def main():
             table_objs.append(("-","total", len(to_filter), "-"))
             for peer_gpu in other_gpus:
                 ops_accessed: List[OpInfoRow] = [op for op in to_filter if op.mem_dev_id == peer_gpu]
-
+                # st.json([                {
+                #     "op_code": i.op_code,
+                #     "code_line_index": i.code_line_index,
+                #     "mem_dev": i.mem_dev_id,
+                #     "run_dev": i.running_dev_id,
+                #     "offset": i.addr,
+                # } for i in ops_accessed])
                 by_op_type = {}
                 by_var_name: Dict[LineInfo, int] = {}
                 by_lines = {}
@@ -655,6 +641,26 @@ def main():
                         by_lines[line_display_str] = 0
                     by_lines[line_display_str] = by_lines[line_display_str] + 1
                     reverse_table_lineinfo[line_display_str] = line_info
+                    
+                    tmp = op.code_line_index
+                    if tmp not in ops_by_line_info["by_line_index"]:
+                        ops_by_line_info["by_line_index"][tmp] = 0
+                    ops_by_line_info["by_line_index"][tmp] += 1
+        
+                    tmp = line_info.codeline_info.combined_filepath()
+                    if tmp not in ops_by_line_info["by_file"]:
+                        ops_by_line_info["by_file"][tmp] = 0
+                    ops_by_line_info["by_file"][tmp] += 1
+
+                    tmp2 = line_info.codeline_info.code_linenum
+                    if tmp not in ops_by_line_info["by_file_linenum"]:
+                        ops_by_line_info["by_file_linenum"][tmp] = {}
+                    if tmp2 not in ops_by_line_info["by_file_linenum"][tmp]:
+                        ops_by_line_info["by_file_linenum"][tmp][tmp2] = []
+                    ops_by_line_info["by_file_linenum"][tmp][tmp2].append(line_info)
+
+                    ops_by_line_info["total"] += 1
+
 
                 for key, value in by_op_type.items():
                     table_instr.append((key, value, peer_gpu))
@@ -717,9 +723,11 @@ def main():
                             chosen_line = int(chosen_line.strip()[4:])
                             chosen_file = os.path.join(CodeLineInfoRow.inferred_home_dir,  chosen_file.strip())
                             tkey = 'table_select' + str(peer_gpu)
-                            st.session_state[tkey] = chosen_line
                             file_to_vis = chosen_file
+                            print("SHOW!", file_to_vis, tkey, st.session_state[tkey])
                             if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
+                                st.session_state[tkey] = chosen_line
+                                print("SHOW?")
                                 show_sidebar()
                             # show_sidebar(int(selected_rows['code line']))
                             # .scrollTop = ''' + str(graph_height + i/100) + ''';
@@ -972,6 +980,7 @@ def choose_src_code_file():
 
 def show_code():
     global src_lines, chosen_line, ops_to_display, ops_by_line_info, current_folder, file_to_vis
+    print("sbow", file_to_vis)
     content_head = """<head>
         <style>
             .percentage {
@@ -995,11 +1004,13 @@ def show_code():
     total_comm = ops_by_line_info['total']
     filtered_comm = {}
 
-    for line_index, linedata in ops_by_line_info["by_file_linenum"][file_to_vis].items():
-        ftotal = len(linedata)
-        filtered_comm[line_index] = ftotal
-        if (ftotal > max_line_comm):
-            max_line_comm = ftotal
+    if (file_to_vis in ops_by_line_info["by_file"] and 
+    file_to_vis in ops_by_line_info["by_file_linenum"]):
+        for line_index, linedata in ops_by_line_info["by_file_linenum"][file_to_vis].items():
+            ftotal = len(linedata)
+            filtered_comm[line_index] = ftotal
+            if (ftotal > max_line_comm):
+                max_line_comm = ftotal
 
     if total_comm == 0:
         total_comm = 1  # division by zero
@@ -1021,7 +1032,7 @@ def show_code():
         # content_head+="""<div style='display:flex;flex-direction:row;><code class='hljs language-c'
         #                 style='width:90%;margin-bottom:0;padding-bottom:0;overflow-x:hidden"""
         comm_percentage = 0.0
-        if line_index in ops_by_line_info["by_file_linenum"][file_to_vis]:
+        if file_to_vis in ops_by_line_info["by_file_linenum"] and line_index in ops_by_line_info["by_file_linenum"][file_to_vis]:
             comm_percentage = float(filtered_comm[line_index]) / float(total_comm) * 100
         div_inject = "<div class='percentage' style='background-color:" + pal[int(comm_percentage) % len(pal)] + ";opacity:0.4;width:" + str(comm_percentage) + "%'></div>"
 
@@ -1065,28 +1076,30 @@ def show_code():
 
 def continue_main():
     global gpu_num, ops, logfile, logfile_name, file_to_vis
-
+    print("A")
     gpu_num, ops = read_data(logfile, logfile_name, (gpu_num, ops))
+    print("C")
     setup_globals()
-
+    print("B")
     check_src_code_folder()
+    print("D")
     read_code()
     print("BEFORE MAIN")
     # st.json(SnoopieObject.get_display_dict())
-    st.json([{
-        "unique_obj": i.get_unique_obj(),
-        "addr": i.addr,
-        "offs": i.obj_offset
-    } for i in OpInfoRow.table()
-    if i.mem_dev_id == 2 and i.running_dev_id == 0])
+    # st.json([{
+    #     "unique_obj": i.get_unique_obj(),
+    #     "addr": i.addr,
+    #     "offs": i.obj_offset
+    # } for i in OpInfoRow.table()
+    # if i.mem_dev_id == 2 and i.running_dev_id == 0])
     main()
 
     st.markdown("""---""")
     choose_src_code_file()
     st.markdown("""---""")
-    if (file_to_vis is not None
-    and file_to_vis in ops_by_line_info["by_file"]
-    and file_to_vis in ops_by_line_info["by_file_linenum"]):
+    if (file_to_vis is not None):
+    # and file_to_vis in ops_by_line_info["by_file"]
+    # and file_to_vis in ops_by_line_info["by_file_linenum"]
         show_code()
 
         
@@ -1105,7 +1118,6 @@ if __name__ == "__main__":
                 os.remove(st.session_state.pickle_filename)
             reset_globals()
             st.session_state.show_filepicker = True
-
     if st.session_state.show_filepicker:
         if filepicker_page.filepicker_page() == False:
             continue_main()

@@ -285,16 +285,16 @@ class SnoopieObject(UniqueObjectKeyable):
                 }
                 for i, c in self.addres_ranges.items()
             ],
-            # "ops": [
-            #     {
-            #         "op_code": i.op_code,
-            #         "code_line_index": i.code_line_index,
-            #         "mem_dev": i.mem_dev_id,
-            #         "run_dev": i.running_dev_id,
-            #         "offset": i.addr,
-            #     }
-            #     for i in self.ops
-            # ],
+            "ops": [
+                {
+                    "op_code": i.op_code,
+                    "code_line_index": i.code_line_index,
+                    "mem_dev": i.mem_dev_id,
+                    "run_dev": i.running_dev_id,
+                    "offset": i.addr,
+                }
+                for i in self.ops
+            ],
         }
 
 
@@ -315,6 +315,12 @@ class ObjNameRow(Table):
 
 
 class CodeLineInfoRow(Table):
+    class CodeLineInfoTuple(NamedTuple):
+        code_line_index: int
+        dir_path: str
+        file: str
+        code_linenum: int
+        code_line_estimated_status: int
     by_cd_index: Dict[int, Dict[int, Table]] = {}
     inferred_home_dir: str = None
 
@@ -335,6 +341,15 @@ class CodeLineInfoRow(Table):
         self.code_line_estimated_status = code_line_estimated_status
 
         quick_add_to_dict(CodeLineInfoRow.by_cd_index, pid, code_line_index, self)
+
+    def to_tuple(self) -> "CodeLineInfoRow.CodeLineInfoTuple":
+        return CodeLineInfoRow.CodeLineInfoTuple(
+            self.code_line_index,
+            self.dir_path,
+            self.file,
+            self.code_linenum,
+            self.code_line_estimated_status
+        )
 
     @staticmethod
     def table():
@@ -380,13 +395,17 @@ class CodeLineInfoRow(Table):
 
 
 class LineInfo(UniqueObjectKeyable):
+    class LineInfoKey(NamedTuple):
+        Uobject: UniqueObject
+        codeline_info: CodeLineInfoRow.CodeLineInfoTuple
+
     saved_objects = {}
 
     @staticmethod
     def get(
         obj_name_info: ObjNameRow, obj_id_info: ObjIdRow, codeline_info: CodeLineInfoRow
     ) -> "LineInfo":
-        key = LineInfo.get_key_t(obj_name_info, obj_id_info)
+        key = LineInfo.get_key_t(obj_name_info, obj_id_info, codeline_info)
         if key in LineInfo.saved_objects:
             return LineInfo.saved_objects[key]
         else:
@@ -404,7 +423,7 @@ class LineInfo(UniqueObjectKeyable):
         obj_id_info: ObjIdRow,
         codeline_info: CodeLineInfoRow,
     ):
-        super().__init__(LineInfo.get_key_t(obj_name_info, obj_id_info))
+        super().__init__(LineInfo.get_key_t(obj_name_info, obj_id_info, codeline_info))
         self.obj_name_info = obj_name_info
         self.obj_id_info = obj_id_info
         self.codeline_info = codeline_info
@@ -427,12 +446,15 @@ class LineInfo(UniqueObjectKeyable):
         return ret
 
     @staticmethod
-    def get_key_t(obj_name_info: ObjNameRow, obj_id_info: ObjIdRow):
-        return UniqueObject(
+    def get_key_t(obj_name_info: ObjNameRow, obj_id_info: ObjIdRow, code_line_info: CodeLineInfoRow):
+        return LineInfo.LineInfoKey(
+            UniqueObject(
             obj_name=obj_name_info.var_name,
             object_id=obj_id_info.obj_id,
             # dev_id=obj_id_info.dev_id,
             initialized_call_stack=obj_name_info.call_stack.get_tuple_stack(),
+        ),
+        code_line_info.to_tuple()
         )
 
     def get_key(self) -> UniqueObject:
