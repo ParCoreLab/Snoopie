@@ -37,9 +37,9 @@ FetchContent_MakeAvailable(cpptrace)
 
 enable_language(CUDA)
 
-set(NVSHMEM_DIR "./cmake/nvshmem")
+#set(NVSHMEM_DIR "./cmake/nvshmem")
 
-find_package(NVSHMEM REQUIRED)
+#find_package(NVSHMEM REQUIRED)
 find_package(MPI REQUIRED)
 find_package(NVBIT REQUIRED)
 
@@ -50,7 +50,7 @@ list(APPEND CMAKE_CUDA_FLAGS "-Xcompiler -fopenmp")
 add_subdirectory(tools/mem_multigpu)
 add_subdirectory(tests)
 
-add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
+#add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
 add_subdirectory(tests/stencil/stencil-p2p_base)
 add_subdirectory(tests/stencil/stencil-tb-singlestream)
 #message("${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia")
