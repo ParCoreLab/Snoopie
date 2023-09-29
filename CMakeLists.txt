@@ -50,7 +50,7 @@ list(APPEND CMAKE_CUDA_FLAGS "-Xcompiler -fopenmp")
 add_subdirectory(tools/mem_multigpu)
 add_subdirectory(tests)
 
-#add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
+add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
 add_subdirectory(tests/stencil/stencil-p2p_base)
 add_subdirectory(tests/stencil/stencil-tb-singlestream)
 #message("${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia")
@@ -83,7 +83,7 @@ set(MPIRUN mpirun)
 #  COMMAND cuobjdump jacobi.o -xelf all)
 
 add_custom_target(stencil_nvshmem_nvidia_test_mapping
-  COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I${NVSHMEM_HOME}/include -I${MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo
+	COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I$ENV{NVSHMEM_HOME}/include -I$ENV{MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo
   COMMAND cuobjdump jacobi.o -xelf all
   COMMAND nvdisasm --print-line-info jacobi.sm_80.cubin > testfile.txt
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia)
@@ -93,7 +93,7 @@ add_custom_target(stencil_nvshmem_nvidia_test
   DEPENDS stencil_nvshmem_nvidia_test_mapping
   COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.o ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.cubin
-  COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x KERNEL_NAME="void jacobi_kernel<32, 32>" -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:${NVSHMEM_HOME}/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" -x CODE_ATTRIBUTION=1 -np ${NP} ./stencil-cmake-nvidia -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+  COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x KERNEL_NAME=all -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$ENV{NVSHMEM_HOME}/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" -x CODE_ATTRIBUTION=1 -np ${NP} ./stencil-cmake-nvidia -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 add_custom_target(stencil_p2p_base_test_mapping

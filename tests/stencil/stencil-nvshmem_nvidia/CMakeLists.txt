@@ -3,9 +3,12 @@ find_package(OpenMP)
 add_executable(stencil-cmake-nvidia
         jacobi.cu)
 
+target_include_directories(stencil-cmake-nvidia PRIVATE $ENV{NVSHMEM_HOME}/include)
+
+message("$ENV{NVSHMEM_HOME}/include")
+
 target_link_libraries(stencil-cmake-nvidia
-        nvshmem::nvshmem
-        wrapper
+	-L$ENV{NVSHMEM_HOME}/lib -lnvshmem_host -lnvshmem_device
         mem_multigpu
         CUDA::cudart
         cuda
