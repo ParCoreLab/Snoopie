@@ -50,6 +50,7 @@ list(APPEND CMAKE_CUDA_FLAGS "-Xcompiler -fopenmp")
 add_subdirectory(tools/mem_multigpu)
 add_subdirectory(tests)
 
+add_subdirectory(tests/bfs)
 add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
 add_subdirectory(tests/stencil/stencil-p2p_base)
 add_subdirectory(tests/stencil/stencil-tb-singlestream)
@@ -81,6 +82,19 @@ set(MPIRUN mpirun)
 #  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia
 #  DEPENDS jacobi_object
 #  COMMAND cuobjdump jacobi.o -xelf all)
+
+add_custom_target(bfs_test
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/bfs
+  #DEPENDS stencil_nvshmem_nvidia_test_mapping
+  #COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
+  #COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.o ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.cubin
+  COMMAND if [ ! -d "gupta2" ] \; then wget https://suitesparse-collection-website.herokuapp.com/MM/Gupta/gupta2.tar.gz && tar -xf gupta2.tar.gz \; fi \;
+  #COMMAND tar -xf gupta2.tar.gz
+  COMMAND echo "native run"
+  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH ./bfs -f gupta2/gupta2.mtx -n 4 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
+  COMMAND echo "profiled run"
+  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" ./bfs -f gupta2/gupta2.mtx -n 4 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
+)
 
 add_custom_target(stencil_nvshmem_nvidia_test_mapping
 	COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I$ENV{NVSHMEM_HOME}/include -I$ENV{MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo
