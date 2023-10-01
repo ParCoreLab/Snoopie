@@ -54,6 +54,7 @@ add_subdirectory(tests/bfs)
 add_subdirectory(tests/stencil/stencil-nvshmem_nvidia)
 add_subdirectory(tests/stencil/stencil-p2p_base)
 add_subdirectory(tests/stencil/stencil-tb-singlestream)
+add_subdirectory(tests/obj-testcases/nvshmem-multi-files)
 #message("${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia")
 
 set(NP 2)
@@ -82,6 +83,23 @@ set(MPIRUN mpirun)
 #  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia
 #  DEPENDS jacobi_object
 #  COMMAND cuobjdump jacobi.o -xelf all)
+
+add_custom_target(nvshmem-multi-files_test_mapping
+  COMMAND nvcc -cubin -rdc=true -lineinfo device-initiated-direct-access.cu
+  COMMAND nvdisasm --print-line-info device-initiated-direct-access.cubin > testfile.txt
+  COMMAND nvcc -cubin -rdc=true -lineinfo simple1.cu
+  COMMAND nvdisasm --print-line-info simple1.cubin >> testfile.txt
+  COMMAND nvcc -cubin -rdc=true -lineinfo simple2.cu
+  COMMAND nvdisasm --print-line-info simple2.cubin >> testfile.txt
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files)
+
+add_custom_target(nvshmem-multi-files_test
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/obj-testcases/nvshmem-multi-files
+  DEPENDS nvshmem-multi-files_test_mapping
+  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/obj-testcases/nvshmem-multi-files
+  COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files/*.cubin
+  COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x NOBANNER=1 -x LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" -x KERNEL_NAME=all -x CODE_ATTRIBUTION=1 -np ${NP} ./nvshmem-multi-files -n 32
+)
 
 add_custom_target(bfs_test_mapping
   COMMAND nvcc -cubin -DHAVE_CUB -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt -std=c++14 bfs_basic.cu
