@@ -96,9 +96,9 @@ add_custom_target(bfs_test
   COMMAND if [ ! -d "gupta2" ] \; then wget https://suitesparse-collection-website.herokuapp.com/MM/Gupta/gupta2.tar.gz && tar -xf gupta2.tar.gz \; fi \;
   #COMMAND tar -xf gupta2.tar.gz
   COMMAND echo "native run"
-  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH ./bfs -f gupta2/gupta2.mtx -n 4 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
+  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH ./bfs -f gupta2/gupta2.mtx -n 2 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
   COMMAND echo "profiled run"
-  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/libmem_multigpu.so KERNEL_NAME="all" CODE_ATTRIBUTION=1 ./bfs -f gupta2/gupta2.mtx -n 4 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1 
+  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/libmem_multigpu.so KERNEL_NAME="all" CODE_ATTRIBUTION=1 ./bfs -f gupta2/gupta2.mtx -n 2 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1 
 )
 
 add_custom_target(stencil_nvshmem_nvidia_test_mapping
