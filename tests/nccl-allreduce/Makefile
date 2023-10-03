@@ -28,4 +28,4 @@ run:
 
 profile:
 	@rm -f *.zst
-	@NOBANNER=1 KERNEL_NAME="nccl" LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" ./all_reduce -n $(SIZE) -g $(NGPUS)
+	@NOBANNER=1 KERNEL_NAME="nccl" LD_PRELOAD="../../build/tools/mem_multigpu/libmem_multigpu.so" ./all_reduce -n $(SIZE) -g $(NGPUS)
