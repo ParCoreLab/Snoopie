@@ -22,6 +22,7 @@ from includes.streamlit_globals import *
 from includes.parser import *
 from includes.tables import *
 from st_clickable_images import clickable_images
+import json
 
 
 
@@ -207,7 +208,7 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
             if obj_size > GRAPH_SIZE_LIMIT:
                 step *= int(obj_size / GRAPH_SIZE_LIMIT)
             cols = int(math.sqrt(obj_size)) * 4
-            print(related_dict)
+            # print(related_dict)
             for i in range(0, int(id_info.size), step):
                 hex_addr = str.format('0x{:016x}', int(offset, 16) + i)
                 # st.write(f"{hex_addr}, {hex_addr in related_dict}")
@@ -630,6 +631,8 @@ def main():
                         by_op_type[op.op_code] = 0
                     by_op_type[op.op_code] = by_op_type[op.op_code] + 1
                     op_id_info, op_name_info = op.get_obj_info()
+                    if op_id_info is None or op_name_info is None:
+                        continue
                     line_info: LineInfo = op.get_line_info(op_id_info, op_name_info)
                     if line_info not in by_var_name.keys():
                         by_var_name[line_info] = 0
@@ -724,11 +727,13 @@ def main():
                             chosen_file = os.path.join(CodeLineInfoRow.inferred_home_dir,  chosen_file.strip())
                             tkey = 'table_select' + str(peer_gpu)
                             file_to_vis = chosen_file
-                            print("SHOW!", file_to_vis, tkey, st.session_state[tkey])
-                            if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
-                                st.session_state[tkey] = chosen_line
-                                print("SHOW?")
-                                show_sidebar()
+                            to_inform = json.dumps({"file":os.path.join(".",file_to_vis[len(CodeLineInfoRow.inferred_home_dir)+1:]),"line":chosen_line})
+                            print("[SNOOPIE-VSCODE-JUMP]" + to_inform,file=sys.stderr)
+                            # print("SHOW!", file_to_vis, tkey, st.session_state[tkey])
+                            # if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
+                            #     st.session_state[tkey] = chosen_line
+                            #     print("SHOW?")
+                            #     show_sidebar()
                             # show_sidebar(int(selected_rows['code line']))
                             # .scrollTop = ''' + str(graph_height + i/100) + ''';
                 components.html(scroll_js(graph_height + margin + i * 0.0001), height=0)
@@ -1076,13 +1081,20 @@ def show_code():
 
 def continue_main():
     global gpu_num, ops, logfile, logfile_name, file_to_vis
-    print("A")
     gpu_num, ops = read_data(logfile, logfile_name, (gpu_num, ops))
-    print("C")
     setup_globals()
-    print("B")
     check_src_code_folder()
-    print("D")
+    # Send Line info to vscode
+    # TODO change so that we don't use stderr later
+    if "send_extension_info_once" not in st.session_state:
+        class SetEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, set):
+                    return list(obj)
+                return json.JSONEncoder.default(self, obj)
+        to_send = json.dumps(setup_info_to_send_vscode_lineinfo(),cls=SetEncoder)
+        print("[SNOOPIE-VSCODE-START]" + to_send, file=sys.stderr)
+        st.session_state["send_extension_info_once"] = True
     read_code()
     print("BEFORE MAIN")
     # st.json(SnoopieObject.get_display_dict())
@@ -1106,7 +1118,7 @@ def continue_main():
 
 
 if __name__ == "__main__":
-    st.set_page_config(layout="wide")
+    # st.set_page_config(layout="wide")
 
     argumentparser.parse()
     setup_globals()
@@ -1124,3 +1136,5 @@ if __name__ == "__main__":
     else:
         continue_main()
     # print(clicked_src)
+
+

@@ -273,9 +273,7 @@ def read_data(
             if u is None:
                 continue
             if u not in SnoopieObject.all_objects:
-                tmp = SnoopieObject(
-                    name.var_name, id.obj_id, name.call_stack
-                )
+                tmp = SnoopieObject(name.var_name, id.obj_id, name.call_stack)
                 SnoopieObject.all_objects[u] = tmp
             so: SnoopieObject = SnoopieObject.all_objects[u]
             so.add_op(op)
@@ -323,3 +321,37 @@ def read_data(
         st.session_state.gpu_num = gpu_num
 
     return gpu_num, ops
+
+
+def setup_info_to_send_vscode_lineinfo():
+    senddict = {}
+    for op in OpInfoRow.table():
+        obj_info, name_info = op.get_obj_info()
+        if obj_info is None or name_info is None:
+            continue
+        codeline_info: CodeLineInfoRow = op.get_codeline_info()
+        if codeline_info is None:
+            continue
+        filename = os.path.join(
+            st.session_state.home_folder, codeline_info.relative_file_path()
+        )
+        file_dict = senddict.get(filename, {})
+        senddict[filename] = file_dict
+        line_dict = file_dict.get(
+            codeline_info.code_linenum,
+            {"byOpType": {}, "byGPUPair": {}, "objectInfo": set(), "total": 0},
+        )
+        file_dict[codeline_info.code_linenum] = line_dict
+        line_dict["objectInfo"].add(op.get_unique_obj())
+        if op.op_code not in line_dict["byOpType"]:
+            line_dict["byOpType"][op.op_code] = 0
+        line_dict["byOpType"][op.op_code] += 1
+        gpu_pair = f"{op.running_dev_id}-{op.mem_dev_id}"
+        if gpu_pair not in line_dict["byGPUPair"]:
+            line_dict["byGPUPair"][gpu_pair] = 0
+        line_dict["byGPUPair"][gpu_pair] += 1
+        line_dict["total"] += 1
+        if "__total" not in senddict:
+            senddict["__total"] = 0
+        senddict["__total"] += 1
+    return senddict
