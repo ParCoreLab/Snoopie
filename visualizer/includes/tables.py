@@ -121,9 +121,7 @@ class OpInfoRow(Table):
         if obj_id_info == None:
             print("OBJ ID INFO NONE", self.obj_offset, self.pid)
             return None, None
-        obj_name_info: ObjNameRow | None = ObjNameRow.by_obj_id.get(self.pid).get(
-            obj_id_info.obj_id
-        )
+        obj_name_info: ObjNameRow | None = ObjNameRow.search(self.pid, obj_id_info.obj_id)
         return obj_id_info, obj_name_info
 
     def get_unique_obj(self) -> "UniqueObject":
@@ -135,6 +133,8 @@ class OpInfoRow(Table):
     def get_line_info(self, obj_id_info=None, obj_name_info=None):
         if obj_id_info == None or obj_name_info == None:
             obj_id_info, obj_name_info = self.get_obj_info()
+            if obj_id_info == None or obj_name_info == None:
+                return None
         codeline_info = self.get_codeline_info()
         return LineInfo.get(obj_name_info, obj_id_info, codeline_info)
 
@@ -207,7 +207,17 @@ class ObjIdRow(Table):
         temp = ObjIdRow.by_pid_offset.get(pid)
         if temp == None:
             return None
-        return temp.get(offset)
+        r = temp.get(offset)
+        # check other offsets
+        if r is None:
+            for p in ObjIdRow.by_pid_offset.keys(): 
+                if p != pid:
+                    temp = ObjIdRow.by_pid_offset.get(p)
+                    if temp is not None:
+                        r = temp.get(offset)
+                        if r is not None:
+                            break
+        return r
 
 
 class CallStack:
@@ -312,6 +322,23 @@ class ObjNameRow(Table):
     @staticmethod
     def table():
         return table_to_list(ObjNameRow.by_obj_id)
+    
+    @staticmethod
+    def search(pid: int, id: int):
+        temp = ObjNameRow.by_obj_id.get(pid)
+        if temp == None:
+            return None
+        r = temp.get(id)
+        # check other offsets
+        if r is None:
+            for p in ObjNameRow.by_obj_id.keys(): 
+                if p != pid:
+                    temp = ObjNameRow.by_obj_id.get(p)
+                    if temp is not None:
+                        r = temp.get(id)
+                        if r is not None:
+                            break
+        return r
 
 
 class CodeLineInfoRow(Table):

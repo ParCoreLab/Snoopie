@@ -133,12 +133,12 @@ def check_src_code_folder():
     for key, value in path_status.items():
         if value is False:
             st.write(Exception(f"The source code file for {os.path.join(home_folder,key)} cannot be found"))
-    st.write(CodeLineInfoRow.inferred_home_dir)
-    st.json([
-            (i.dir_path)
-            for i in CodeLineInfoRow.table()
-            if len(i.file) > 0 or len(i.dir_path) > 0
-        ])
+    # st.write(CodeLineInfoRow.inferred_home_dir)
+    # st.json([
+    #         (i.dir_path)
+    #         for i in CodeLineInfoRow.table()
+    #         if len(i.file) > 0 or len(i.dir_path) > 0
+    #     ])
 
     existing_src_code_files = {
         i.combined_filepath() : os.path.join(home_folder, i.relative_file_path())
@@ -161,7 +161,7 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
     if gpu_filter == None:
         gpu_filter = [i for i in range(gpu_num)]
 
-    st.json(gpu_filter)
+    # st.json(gpu_filter)
 
     def check_filter(hex_addr, filtered_ops: List[OpInfoRow]) -> List[OpInfoRow]:
         filtered_addrs = [i for i in filtered_ops if i.addr == hex_addr]
@@ -630,6 +630,8 @@ def main():
                         by_op_type[op.op_code] = 0
                     by_op_type[op.op_code] = by_op_type[op.op_code] + 1
                     op_id_info, op_name_info = op.get_obj_info()
+                    if op_id_info is None or op_name_info is None:
+                        continue
                     line_info: LineInfo = op.get_line_info(op_id_info, op_name_info)
                     if line_info not in by_var_name.keys():
                         by_var_name[line_info] = 0
@@ -724,7 +726,6 @@ def main():
                             chosen_file = os.path.join(CodeLineInfoRow.inferred_home_dir,  chosen_file.strip())
                             tkey = 'table_select' + str(peer_gpu)
                             file_to_vis = chosen_file
-                            print("SHOW!", file_to_vis, tkey, st.session_state[tkey])
                             if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
                                 st.session_state[tkey] = chosen_line
                                 print("SHOW?")
@@ -739,6 +740,7 @@ def main():
                         tempdict = [
                             (i.file_name, i.func_name, i.line_no) for i in tempop.call_stack
                         ]
+                        tempdict.reverse()
                         df = pd.DataFrame.from_dict(tempdict)
                         df.columns = [ 'file name', 'function name', 'line']
                         table_height = min(MIN_TABLE_HEIGHT + len(df) * (ROW_HEIGHT), MAX_TABLE_HEIGHT)
@@ -831,6 +833,7 @@ def show_sidebar():
                                     if p.op_code in ops_to_display
                                     and p.mem_dev_id == j
                                     and p.running_dev_id == i
+                                    and (p.get_line_info() is not None)
                                     and (p.get_line_info()).check_correct_line(file_to_vis, linenum)]
                     width = len(filtered_ops)
                     widths[i].append(width)
