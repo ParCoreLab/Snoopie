@@ -12,8 +12,8 @@ clean:
 run:
 	@rm -f *.zst
 	@rm -rf *.txt
-	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../tools/mem_multigpu/libmem_multigpu.so" ./hipa -n $(SIZE)
+	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../src/mem_multigpu/libmem_multigpu.so" ./hipa -n $(SIZE)
 
 run_async:
 	@rm -f *.zst
-	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../tools/mem_multigpu/libmem_multigpu.so" ./hipa -n $(SIZE) -a
+	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../src/mem_multigpu/libmem_multigpu.so" ./hipa -n $(SIZE) -a
