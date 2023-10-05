@@ -49,143 +49,141 @@ int verbose = 0;
  * do initializations in this call. In this case for instance we get some
  * environment variables values which we use as input arguments to the tool */
 void nvbit_at_init() {
-    /* we get some environment variables that are going to be use to selectively
-     * instrument (within a interval of kernel indexes and instructions). By
-     * default we instrument everything. */
-    GET_VAR_INT(
-        instr_begin_interval, "INSTR_BEGIN", 0,
-        "Beginning of the instruction interval where to apply instrumentation");
-    GET_VAR_INT(
-        instr_end_interval, "INSTR_END", UINT32_MAX,
-        "End of the instruction interval where to apply instrumentation");
-    GET_VAR_INT(verbose, "TOOL_VERBOSE", 0, "Enable verbosity inside the tool");
-    std::string pad(100, '-');
-    printf("%s\n", pad.c_str());
+  /* we get some environment variables that are going to be use to selectively
+   * instrument (within a interval of kernel indexes and instructions). By
+   * default we instrument everything. */
+  GET_VAR_INT(
+      instr_begin_interval, "INSTR_BEGIN", 0,
+      "Beginning of the instruction interval where to apply instrumentation");
+  GET_VAR_INT(instr_end_interval, "INSTR_END", UINT32_MAX,
+              "End of the instruction interval where to apply instrumentation");
+  GET_VAR_INT(verbose, "TOOL_VERBOSE", 0, "Enable verbosity inside the tool");
+  std::string pad(100, '-');
+  printf("%s\n", pad.c_str());
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
 std::unordered_set<CUfunction> already_instrumented;
 
 void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
-    /* Get related functions of the kernel (device function that can be
-     * called by the kernel) */
-    std::vector<CUfunction> related_functions =
-        nvbit_get_related_functions(ctx, func);
+  /* Get related functions of the kernel (device function that can be
+   * called by the kernel) */
+  std::vector<CUfunction> related_functions =
+      nvbit_get_related_functions(ctx, func);
 
-    /* add kernel itself to the related function vector */
-    related_functions.push_back(func);
+  /* add kernel itself to the related function vector */
+  related_functions.push_back(func);
 
-    /* iterate on function */
-    for (auto f : related_functions) {
-        /* "recording" function was instrumented, if set insertion failed
-         * we have already encountered this function */
-        if (!already_instrumented.insert(f).second) {
-            continue;
-        }
-
-        /* Get the vector of instruction composing the loaded CUFunction "func"
-         */
-        const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, func);
-
-        /* If verbose we print function name and number of" static" instructions
-         */
-        if (verbose) {
-            printf("inspecting %s - num instrs %ld\n",
-                   nvbit_get_func_name(ctx, func), instrs.size());
-        }
-
-        /* We iterate on the vector of instruction */
-        for (auto instr : instrs) {
-            /* Check if the instruction falls in the interval where we want to
-             * instrument */
-            if (instr->getIdx() < instr_begin_interval ||
-                instr->getIdx() >= instr_end_interval) {
-                continue;
-            }
-
-            std::string opcode = instr->getOpcode();
-            /* match every MOV instruction */
-            if (opcode.compare(0, 3, "MOV") == 0) {
-               /* assert MOV has really two arguments */
-                assert(instr->getNumOperands() == 2);
-                const InstrType::operand_t *op0 = instr->getOperand(0);
-                assert(op0->type == InstrType::OperandType::REG);
-                const InstrType::operand_t *op1 = instr->getOperand(1);
-
-                if(op1->type !=  InstrType::OperandType::REG &&
-                   op1->type != InstrType::OperandType::UREG &&
-                   op1->type != InstrType::OperandType::IMM_UINT64 &&
-                   op1->type != InstrType::OperandType::CBANK) {
-                    instr->printDecoded();
-                    printf("Operand %s not handled\n", InstrType::OperandTypeStr[(int) op1->type]);
-                    continue;
-                }
-
-                if (verbose) {
-                    instr->printDecoded();
-                }
-
-                /* Insert a call to "mov_replace" before the instruction */
-                nvbit_insert_call(instr, "mov_replace", IPOINT_BEFORE);
-
-                /* Add predicate as argument to the instrumentation function */
-                nvbit_add_call_arg_guard_pred_val(instr);
-
-                /* Add destination register number as argument (first operand
-                 * must be a register)*/
-                nvbit_add_call_arg_const_val32(instr, op0->u.reg.num);
-
-                /* add second operand */
-
-                /* 0: non reg, 1: vector reg, 2: uniform reg */
-                int is_op1_reg = 0;
-                if (op1->type == InstrType::OperandType::REG) {
-                    is_op1_reg = 1;
-                    /* register number as immediate */
-                    nvbit_add_call_arg_const_val32(instr, op1->u.reg.num);
-
-                } else if (op1->type == InstrType::OperandType::UREG) {
-                    is_op1_reg = 2;
-                    /* register number as immediate */
-                    nvbit_add_call_arg_const_val32(instr, op1->u.reg.num);
-
-                } else if (op1->type == InstrType::OperandType::IMM_UINT64) {
-                    /* Add immediate value (registers are 32 bits so immediate
-                     * is also 32-bit and we can cast to int safely) */
-                    nvbit_add_call_arg_const_val32(
-                        instr, (int)op1->u.imm_uint64.value);
-
-                } else if (op1->type == InstrType::OperandType::CBANK) {
-                    /* Add value from constant bank (passed as immediate to
-                     * the mov_replace function) */
-                    nvbit_add_call_arg_cbank_val(instr, op1->u.cbank.id,
-                                                 op1->u.cbank.imm_offset);
-                }
-
-                /* Add flag to specify if value or register number */
-                nvbit_add_call_arg_const_val32(instr, is_op1_reg);
-
-                /* Remove original instruction */
-                nvbit_remove_orig(instr);
-            }
-        }
+  /* iterate on function */
+  for (auto f : related_functions) {
+    /* "recording" function was instrumented, if set insertion failed
+     * we have already encountered this function */
+    if (!already_instrumented.insert(f).second) {
+      continue;
     }
+
+    /* Get the vector of instruction composing the loaded CUFunction "func"
+     */
+    const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, func);
+
+    /* If verbose we print function name and number of" static" instructions
+     */
+    if (verbose) {
+      printf("inspecting %s - num instrs %ld\n", nvbit_get_func_name(ctx, func),
+             instrs.size());
+    }
+
+    /* We iterate on the vector of instruction */
+    for (auto instr : instrs) {
+      /* Check if the instruction falls in the interval where we want to
+       * instrument */
+      if (instr->getIdx() < instr_begin_interval ||
+          instr->getIdx() >= instr_end_interval) {
+        continue;
+      }
+
+      std::string opcode = instr->getOpcode();
+      /* match every MOV instruction */
+      if (opcode.compare(0, 3, "MOV") == 0) {
+        /* assert MOV has really two arguments */
+        assert(instr->getNumOperands() == 2);
+        const InstrType::operand_t *op0 = instr->getOperand(0);
+        assert(op0->type == InstrType::OperandType::REG);
+        const InstrType::operand_t *op1 = instr->getOperand(1);
+
+        if (op1->type != InstrType::OperandType::REG &&
+            op1->type != InstrType::OperandType::UREG &&
+            op1->type != InstrType::OperandType::IMM_UINT64 &&
+            op1->type != InstrType::OperandType::CBANK) {
+          instr->printDecoded();
+          printf("Operand %s not handled\n",
+                 InstrType::OperandTypeStr[(int)op1->type]);
+          continue;
+        }
+
+        if (verbose) {
+          instr->printDecoded();
+        }
+
+        /* Insert a call to "mov_replace" before the instruction */
+        nvbit_insert_call(instr, "mov_replace", IPOINT_BEFORE);
+
+        /* Add predicate as argument to the instrumentation function */
+        nvbit_add_call_arg_guard_pred_val(instr);
+
+        /* Add destination register number as argument (first operand
+         * must be a register)*/
+        nvbit_add_call_arg_const_val32(instr, op0->u.reg.num);
+
+        /* add second operand */
+
+        /* 0: non reg, 1: vector reg, 2: uniform reg */
+        int is_op1_reg = 0;
+        if (op1->type == InstrType::OperandType::REG) {
+          is_op1_reg = 1;
+          /* register number as immediate */
+          nvbit_add_call_arg_const_val32(instr, op1->u.reg.num);
+
+        } else if (op1->type == InstrType::OperandType::UREG) {
+          is_op1_reg = 2;
+          /* register number as immediate */
+          nvbit_add_call_arg_const_val32(instr, op1->u.reg.num);
+
+        } else if (op1->type == InstrType::OperandType::IMM_UINT64) {
+          /* Add immediate value (registers are 32 bits so immediate
+           * is also 32-bit and we can cast to int safely) */
+          nvbit_add_call_arg_const_val32(instr, (int)op1->u.imm_uint64.value);
+
+        } else if (op1->type == InstrType::OperandType::CBANK) {
+          /* Add value from constant bank (passed as immediate to
+           * the mov_replace function) */
+          nvbit_add_call_arg_cbank_val(instr, op1->u.cbank.id,
+                                       op1->u.cbank.imm_offset);
+        }
+
+        /* Add flag to specify if value or register number */
+        nvbit_add_call_arg_const_val32(instr, is_op1_reg);
+
+        /* Remove original instruction */
+        nvbit_remove_orig(instr);
+      }
+    }
+  }
 }
 
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
                          const char *name, void *params, CUresult *pStatus) {
-    /* Identify all the possible CUDA launch events */
-    if (cbid == API_CUDA_cuLaunch || cbid == API_CUDA_cuLaunchKernel_ptsz ||
-        cbid == API_CUDA_cuLaunchGrid || cbid == API_CUDA_cuLaunchGridAsync ||
-        cbid == API_CUDA_cuLaunchKernel) {
-        /* cast params to cuLaunch_params since if we are here we know these are
-         * the right parameters type */
-        cuLaunch_params *p = (cuLaunch_params *)params;
+  /* Identify all the possible CUDA launch events */
+  if (cbid == API_CUDA_cuLaunch || cbid == API_CUDA_cuLaunchKernel_ptsz ||
+      cbid == API_CUDA_cuLaunchGrid || cbid == API_CUDA_cuLaunchGridAsync ||
+      cbid == API_CUDA_cuLaunchKernel) {
+    /* cast params to cuLaunch_params since if we are here we know these are
+     * the right parameters type */
+    cuLaunch_params *p = (cuLaunch_params *)params;
 
-        if (!is_exit) {
-            instrument_function_if_needed(ctx, p->f);
-            nvbit_enable_instrumented(ctx, p->f, true);
-        }
+    if (!is_exit) {
+      instrument_function_if_needed(ctx, p->f);
+      nvbit_enable_instrumented(ctx, p->f, true);
     }
+  }
 }
-

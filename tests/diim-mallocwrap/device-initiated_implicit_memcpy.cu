@@ -1,43 +1,39 @@
 #include <iostream>
 #include <stdio.h>
-#include<unistd.h>
+#include <unistd.h>
 
 #include "cuda_wrapper.hpp"
 
 using namespace std;
 
-
-#define gpuErrchk(ans) { gpuAssert(ans); }
-inline void gpuAssert(cudaError_t code)
-{
+#define gpuErrchk(ans)                                                         \
+  { gpuAssert(ans); }
+inline void gpuAssert(cudaError_t code) {
   if (code != cudaSuccess) {
-  fprintf(stderr,"GPUassert: %s\n", cudaGetErrorString(code));
+    fprintf(stderr, "GPUassert: %s\n", cudaGetErrorString(code));
   }
 }
 
-__host__ __device__ int modify_cell(int a) {
-  return a + 2;
-}
+__host__ __device__ int modify_cell(int a) { return a + 2; }
 
 __device__ int a = 0;
 
-__global__ void simple_kernel1(int *gpu_id){
-	a += *gpu_id;
-	printf("a: %d in gpu %d\n", a, *gpu_id);
+__global__ void simple_kernel1(int *gpu_id) {
+  a += *gpu_id;
+  printf("a: %d in gpu %d\n", a, *gpu_id);
 }
 
-__global__ void simple_kernel(int *src, int *dst1, int *dst2){
+__global__ void simple_kernel(int *src, int *dst1, int *dst2) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int b = 10;
   if (idx % 2 == 0) {
     dst1[idx] = modify_cell(src[idx]);
-    //dst1[idx] += a;
-    //dst1[idx] += dst2[idx];
-  }
-  else {
+    // dst1[idx] += a;
+    // dst1[idx] += dst2[idx];
+  } else {
     dst2[idx] = modify_cell(src[idx]);
-    //dst2[idx] += b;
-    //dst2[idx] += dst1[idx];
+    // dst2[idx] += b;
+    // dst2[idx] += dst1[idx];
   }
 #if 0
   idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -48,7 +44,7 @@ __global__ void simple_kernel(int *src, int *dst1, int *dst2){
     dst2[idx] += modify_cell(src[idx]);
   }
 #endif
-  //printf("hello\n");
+  // printf("hello\n");
 }
 
 #if 0
@@ -116,12 +112,12 @@ int main() {
 
   int gpu_id = 0;
   int gpu_id1 = 1;
-  //gpuErrchk(cudaMallocHostWRAP(&gpu_id, 1, "gpu_id", 4));
-  //gpuErrchk(cudaMallocHostWRAP(&gpu_id1, 1, "gpu_id", 4));
+  // gpuErrchk(cudaMallocHostWRAP(&gpu_id, 1, "gpu_id", 4));
+  // gpuErrchk(cudaMallocHostWRAP(&gpu_id1, 1, "gpu_id", 4));
   //*gpu_id = 0;
   int *gpu_id_dev = NULL;
   int *gpu_id_dev1 = NULL;
-  gpuErrchk(cudaMallocWRAP(&gpu_id_dev, 4, "gpu_id_dev", 4)); 
+  gpuErrchk(cudaMallocWRAP(&gpu_id_dev, 4, "gpu_id_dev", 4));
   gpuErrchk(cudaMemcpy(gpu_id_dev, &gpu_id, 4, cudaMemcpyHostToDevice));
   simple_kernel1<<<1, 1>>>(gpu_id_dev);
   cudaSetDevice(gpuid[1]);
@@ -131,39 +127,40 @@ int main() {
   simple_kernel1<<<1, 1>>>(gpu_id_dev1);
   cudaSetDevice(gpuid[0]);
   //*gpu_id = gpuid[0];
-  //gpuErrchk(cudaMemcpy(gpu_id_dev, gpu_id, 4, cudaMemcpyHostToDevice));
+  // gpuErrchk(cudaMemcpy(gpu_id_dev, gpu_id, 4, cudaMemcpyHostToDevice));
   simple_kernel1<<<1, 1>>>(gpu_id_dev);
   cudaSetDevice(gpuid[1]);
   //*gpu_id = gpuid[1];
-  //gpuErrchk(cudaMemcpy(gpu_id_dev1, gpu_id, 4, cudaMemcpyHostToDevice));
+  // gpuErrchk(cudaMemcpy(gpu_id_dev1, gpu_id, 4, cudaMemcpyHostToDevice));
   simple_kernel1<<<1, 1>>>(gpu_id_dev1);
   cudaSetDevice(gpuid[0]);
   //*gpu_id = gpuid[0];
-  //gpuErrchk(cudaMemcpy(gpu_id_dev, gpu_id, 4, cudaMemcpyHostToDevice));
+  // gpuErrchk(cudaMemcpy(gpu_id_dev, gpu_id, 4, cudaMemcpyHostToDevice));
   simple_kernel1<<<1, 1>>>(gpu_id_dev);
   cudaSetDevice(gpuid[1]);
   //*gpu_id = gpuid[1];
-  //gpuErrchk(cudaMemcpy(gpu_id_dev1, gpu_id, 4, cudaMemcpyHostToDevice));
+  // gpuErrchk(cudaMemcpy(gpu_id_dev1, gpu_id, 4, cudaMemcpyHostToDevice));
   simple_kernel1<<<1, 1>>>(gpu_id_dev1);
   gpuErrchk(cudaMemcpy(h1, g1, buf_size, cudaMemcpyDeviceToHost));
   gpuErrchk(cudaMemcpy(h2, g2, buf_size, cudaMemcpyDeviceToHost));
-  //simple_kernel1<<<1, size>>>(g0, g1, g2);
+  // simple_kernel1<<<1, size>>>(g0, g1, g2);
 
   for (int i = 0; i < size; i++) {
-    printf("\rchecking correctness against CPU: %.2f", ((float) i / (float) size) * 100);
-	  if (i % 2 == 0 && h1[i] == modify_cell(h0[i])) {
-		  continue;
+    printf("\rchecking correctness against CPU: %.2f",
+           ((float)i / (float)size) * 100);
+    if (i % 2 == 0 && h1[i] == modify_cell(h0[i])) {
+      continue;
     } else if (i % 2 == 1 && h2[i] == modify_cell(h0[i])) {
-		  continue;
+      continue;
     }
 
-    cout << "FAILED: modify_cell((H0: " << i << ")) " << modify_cell(h0[i]) << "  != (H1: " << i << ") " << h1[i] << endl;
+    cout << "FAILED: modify_cell((H0: " << i << ")) " << modify_cell(h0[i])
+         << "  != (H1: " << i << ") " << h1[i] << endl;
     return 1;
   }
 
   printf("\ntransfer finished successfully\n");
 
-  
   cudaFree(h0);
   cudaFree(h1);
   cudaFree(h2);

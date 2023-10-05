@@ -29,9 +29,9 @@
  * the nvbit core library to properly load this tool.
  * Do not modify!!!  */
 #pragma once
-#include <stdio.h>
 #include <cassert>
 #include <stdint.h>
+#include <stdio.h>
 
 __managed__ volatile int32_t __nvbit_var = 0;
 
@@ -40,50 +40,58 @@ __managed__ volatile int32_t __nvbit_var = 0;
 
 extern "C" __device__ __noinline__ int32_t nvbit_read_reg(uint64_t reg_num) {
 #pragma unroll
-    for (int i = 0; i < 1024; i++) __nvbit_var += i;
-    assert(__nvbit_var == reg_num);
-    return __nvbit_var;
+  for (int i = 0; i < 1024; i++)
+    __nvbit_var += i;
+  assert(__nvbit_var == reg_num);
+  return __nvbit_var;
 }
 
 extern "C" __device__ __noinline__ void nvbit_write_reg(uint64_t reg_num,
                                                         int32_t reg_val) {
 #pragma unroll
-    for (int i = 0; i < 1024; i++) __nvbit_var += i;
-    assert(__nvbit_var == reg_num + reg_val);
+  for (int i = 0; i < 1024; i++)
+    __nvbit_var += i;
+  assert(__nvbit_var == reg_num + reg_val);
 }
 
 extern "C" __device__ __noinline__ int32_t nvbit_read_ureg(uint64_t reg_num) {
 #pragma unroll
-    for (int i = 0; i < 512; i++) __nvbit_var += i;
-    assert(__nvbit_var == reg_num);
-    return __nvbit_var;
+  for (int i = 0; i < 512; i++)
+    __nvbit_var += i;
+  assert(__nvbit_var == reg_num);
+  return __nvbit_var;
 }
 
 extern "C" __device__ __noinline__ void nvbit_write_ureg(uint64_t reg_num,
-                                                        int32_t reg_val) {
+                                                         int32_t reg_val) {
 #pragma unroll
-    for (int i = 0; i < 512; i++) __nvbit_var += i;
-    assert(__nvbit_var == reg_num + reg_val);
+  for (int i = 0; i < 512; i++)
+    __nvbit_var += i;
+  assert(__nvbit_var == reg_num + reg_val);
 }
 
 extern "C" __device__ __noinline__ int32_t nvbit_read_pred_reg() {
 #pragma unroll
-    for (int i = 0; i < 32; i++) __nvbit_var += i;
-    return __nvbit_var;
+  for (int i = 0; i < 32; i++)
+    __nvbit_var += i;
+  return __nvbit_var;
 }
 
 extern "C" __device__ __noinline__ void nvbit_write_pred_reg(int32_t reg_val) {
 #pragma unroll
-    for (int i = 0; i < 32; i++) __nvbit_var += reg_val;
+  for (int i = 0; i < 32; i++)
+    __nvbit_var += reg_val;
 }
 
 extern "C" __device__ __noinline__ int32_t nvbit_read_upred_reg() {
 #pragma unroll
-    for (int i = 0; i < 32; i++) __nvbit_var += i;
-    return __nvbit_var;
+  for (int i = 0; i < 32; i++)
+    __nvbit_var += i;
+  return __nvbit_var;
 }
 
 extern "C" __device__ __noinline__ void nvbit_write_upred_reg(int32_t reg_val) {
 #pragma unroll
-    for (int i = 0; i < 32; i++) __nvbit_var += reg_val;
+  for (int i = 0; i < 32; i++)
+    __nvbit_var += reg_val;
 }

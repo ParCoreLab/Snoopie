@@ -34,18 +34,15 @@
 #define MEMTINGS2
 typedef struct {
 
-    int dev_id;
+  int dev_id;
 
+  int lane_id;
+  int func_id;
+  int opcode_id;
+  uint64_t addrs[32];
 
-
-
-    int lane_id;
-    int func_id;
-    int opcode_id;
-    uint64_t addrs[32];
-
-    int global_index;
-    uint64_t thread_index;
+  int global_index;
+  uint64_t thread_index;
 
 } mem_access_t;
 #endif

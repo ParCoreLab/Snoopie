@@ -38,115 +38,116 @@ constexpr const int PT = 7;
 /* the entire predicate register is encoded as "8" */
 constexpr const int PR = 8;
 constexpr const int URZ = 63;
-constexpr const int UPT = 7;  // uniform predicate true
-constexpr const int UPR = 8;  // entire uniform predicate register
+constexpr const int UPT = 7; // uniform predicate true
+constexpr const int UPR = 8; // entire uniform predicate register
 constexpr const int MAX_CHARS = 256;
 
 // loads and stores have 1, LDGSTS has 2
 constexpr const int MAX_NUM_MREF_PER_INSTR = 2;
 
 enum class MemorySpace {
-    NONE,
-    LOCAL,             // local memory operation
-    GENERIC,           // generic memory operation
-    GLOBAL,            // global memory operation
-    SHARED,            // shared memory operation
-    CONSTANT,          // constant memory operation
-    GLOBAL_TO_SHARED,  // read from global memory then write to shared memory
-    SURFACE,   // surface memory operation
-    TEXTURE,   // texture memory operation
+  NONE,
+  LOCAL,            // local memory operation
+  GENERIC,          // generic memory operation
+  GLOBAL,           // global memory operation
+  SHARED,           // shared memory operation
+  CONSTANT,         // constant memory operation
+  GLOBAL_TO_SHARED, // read from global memory then write to shared memory
+  SURFACE,          // surface memory operation
+  TEXTURE,          // texture memory operation
 };
-constexpr const char* MemorySpaceStr[] = {
-    "NONE", "LOCAL", "GENERIC", "GLOBAL", "SHARED", "CONSTANT",
-    "GLOBAL_TO_SHARED", "SURFACE", "TEXTURE",
+constexpr const char *MemorySpaceStr[] = {
+    "NONE",    "LOCAL",    "GENERIC",          "GLOBAL",
+    "SHARED",  "CONSTANT", "GLOBAL_TO_SHARED", "SURFACE",
+    "TEXTURE",
 };
 
 enum class OperandType {
-    IMM_UINT64,
-    IMM_DOUBLE,
-    REG,
-    PRED,
-    UREG,
-    UPRED,
-    CBANK,
-    MREF,
-    GENERIC
+  IMM_UINT64,
+  IMM_DOUBLE,
+  REG,
+  PRED,
+  UREG,
+  UPRED,
+  CBANK,
+  MREF,
+  GENERIC
 };
 
-constexpr const char* OperandTypeStr[] = {
+constexpr const char *OperandTypeStr[] = {
     "IMM_UINT64", "IMM_DOUBLE", "REG",  "PRED",   "UREG",
     "UPRED",      "CBANK",      "MREF", "GENERIC"};
 
 enum class RegModifierType {
-    NO_MOD = 0,
-    /* stride modifiers */
-    X1,
-    X4,
-    X8,
-    X16,
-    /* size modifiers */
-    U32,
-    U64,
+  NO_MOD = 0,
+  /* stride modifiers */
+  X1,
+  X4,
+  X8,
+  X16,
+  /* size modifiers */
+  U32,
+  U64,
 };
-constexpr const char* RegModifierTypeStr[] = {
+constexpr const char *RegModifierTypeStr[] = {
     "NO_MOD", "X1", "X4", "X8", "X16", "U32", /* no U */ "64"};
 
 typedef struct {
-    /* operand type */
-    OperandType type;
-    /* operand string */
-    char str[MAX_CHARS];
-    /* is negative */
-    bool is_neg;
-    /* is not */
-    bool is_not;
-    /* is absolute */
-    bool is_abs;
-    /* operand size in byte */
-    int nbytes;
+  /* operand type */
+  OperandType type;
+  /* operand string */
+  char str[MAX_CHARS];
+  /* is negative */
+  bool is_neg;
+  /* is not */
+  bool is_not;
+  /* is absolute */
+  bool is_abs;
+  /* operand size in byte */
+  int nbytes;
 
-    union {
-        struct {
-            uint64_t value;
-        } imm_uint64;
+  union {
+    struct {
+      uint64_t value;
+    } imm_uint64;
 
-        struct {
-            double value;
-        } imm_double;
+    struct {
+      double value;
+    } imm_double;
 
-        struct {
-            int num;
-            /* register properties .XXX */
-            char prop[MAX_CHARS];
-        } reg;
+    struct {
+      int num;
+      /* register properties .XXX */
+      char prop[MAX_CHARS];
+    } reg;
 
-        struct {
-            int num;
-        } pred;
+    struct {
+      int num;
+    } pred;
 
-        struct {
-            int id;
-            bool has_imm_offset;
-            int imm_offset;
-            bool has_reg_offset;
-            int reg_offset;
-        } cbank;
+    struct {
+      int id;
+      bool has_imm_offset;
+      int imm_offset;
+      bool has_reg_offset;
+      int reg_offset;
+    } cbank;
 
-        struct {
-            bool has_ra;
-            int ra_num;
-            RegModifierType ra_mod;
-            bool has_ur;
-            int ur_num;
-            RegModifierType ur_mod;
-            bool has_imm;
-            int imm;
-        } mref;
+    struct {
+      bool has_ra;
+      int ra_num;
+      RegModifierType ra_mod;
+      bool has_ur;
+      int ur_num;
+      RegModifierType ur_mod;
+      bool has_imm;
+      int imm;
+    } mref;
 
-        struct {
-            char array[MAX_CHARS];
-        } generic;
+    struct {
+      char array[MAX_CHARS];
+    } generic;
 
-    } u;
+  } u;
 } operand_t;
-};
+}; // namespace InstrType
