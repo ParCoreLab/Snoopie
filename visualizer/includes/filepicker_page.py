@@ -52,7 +52,7 @@ def filepicker_page():
 
     _home_folder = st.text_input(
         "Home folder of source code:",
-        value="/" if _home_folder is None else _home_folder,
+        value=os.getcwd() if _home_folder is None else _home_folder,
     )
 
     _gpu_num = st.number_input(
