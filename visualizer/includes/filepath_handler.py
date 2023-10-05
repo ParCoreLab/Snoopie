@@ -62,3 +62,11 @@ def multi_file_from_upload_check(file: List[str]):
     ret[0] = [i[0] for i in tmp]
     ret[1] = [i[1] for i in tmp]
     return ret
+
+def multi_file_from_filepath_check(file: List[str]):
+    print("FF",file)
+    tmp = [file_from_filepath_check(i) for i in file]
+    ret = [(),()]
+    ret[0] = [i for i in tmp]
+    ret[1] = file
+    return ret[0], ret[1]
