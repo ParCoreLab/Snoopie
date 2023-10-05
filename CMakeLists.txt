@@ -47,7 +47,7 @@ find_package(OpenMP REQUIRED)
 list(APPEND CMAKE_CUDA_FLAGS "-Xcompiler -fopenmp")
 
 
-add_subdirectory(tools/mem_multigpu)
+add_subdirectory(src/mem_multigpu)
 add_subdirectory(tests)
 
 add_subdirectory(tests/bfs)
