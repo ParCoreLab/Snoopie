@@ -61,20 +61,21 @@ cd visualizer; pip install st-click-detector-0.1.3/
 
 ### Usage
 ```
-streamlit run /path/to/parse_and_vis.py -- [options]
+usage: streamlit run /path/to/parse_and_vis.py -- [optional arguments]
+
+Snoopie, a multigpu profiler
+
+positional arguments:
+  files                 List of logfiles. Either compressed zst or uncompressed
 
 options:
   -h, --help            show this help message and exit
-  --logfile LOGFILE, -l LOGFILE
-                        Path to the snoopie log file. Either the compressed .zst file
-                        or the decompressed file.
   --gpu-num GPU_NUM, -n GPU_NUM
                         Number of gpus the code was run on.
-  --src-code-file SRC_CODE_FILE, -s SRC_CODE_FILE
-                        Source code file for code attribution.
+  --src-code-folder SRC_CODE_FOLDER, -s SRC_CODE_FOLDER
+                        Source code folder for code attribution.
   --sampling-period SAMPLING_PERIOD, -p SAMPLING_PERIOD
                         Sampling period
-
 ```
 
 Running without options will display a GUI for uploading files and setting parameters.
