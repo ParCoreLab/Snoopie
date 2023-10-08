@@ -148,6 +148,7 @@ bool skip_callback_flag = false;
 uint32_t instr_begin_interval = 0;
 uint32_t instr_end_interval = UINT32_MAX;
 std::string kernel_name;
+std::string profiled_nccl_file = "";
 int on_dev_filtering = 1;
 int time_log = 0;
 int verbose = 0;
@@ -459,6 +460,7 @@ void nvbit_at_init()
   GET_VAR_INT(nvshmem_ngpus, "NVSHMEM_NGPUS", 10, "Setting the number of GPUS nvshmem will use");
 
   GET_VAR_STR(kernel_name, "KERNEL_NAME", "Specify the name of the kernel to track");
+  GET_VAR_STR(profiled_nccl_file, "PROFILED_NCCL_FILE", "Specify the name of the file that has the NCCL function calls");
   GET_VAR_INT(code_attribution, "CODE_ATTRIBUTION", 0, "Enable source code line attribution");
   GET_VAR_INT(sample_size, "SAMPLE_SIZE", 1, "Setting the sample size, if 100, it means 1/100 of population is sampled");
 
@@ -574,6 +576,72 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 	}
     }
 
+    // change here
+    uint32_t nccl_line_num = 0;
+    std::string nccl_filename;
+    std::string nccl_dirname;
+    if(!profiled_nccl_file.empty()) {
+	    cout << "profiled_nccl_file is not empty\n";
+	    std::vector<stacktrace_frame> trace = generate_trace();
+	    allocation_site_t* call_site = root;
+	    allocation_site_t* parent = NULL;
+	    for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr) {
+		allocation_line_t* line = allocation_line_table->find(itr->address);
+                if(line == NULL) {
+                        allocation_line_table->insert(new allocation_line_t(itr->address, itr->symbol, itr->filename, itr->line));
+                }
+		if(root == NULL) {
+                        root = new allocation_site_t (itr->address);
+                        call_site = root;
+                        parent = call_site;
+                        call_site = call_site->get_first_child();
+                        continue;
+                }
+		allocation_site_t* temp = call_site;
+                call_site = search_at_level(call_site, itr->address);
+		if(call_site == NULL) {
+			if(temp != NULL) {
+                                while(temp->get_next_sibling() != NULL)
+                                        temp = temp->get_next_sibling();
+                                temp->set_next_sibling(new allocation_site_t(itr->address));
+                                call_site = temp->get_next_sibling();
+				call_site->set_parent(temp->get_parent());
+                        } else {
+                                parent->set_first_child(new allocation_site_t(itr->address));
+                                call_site = parent->get_first_child();
+                                call_site->set_parent(parent);
+                        }
+		}
+		parent = call_site;
+		call_site = call_site->get_first_child();
+	    }
+	    string file_name;
+	    if(parent) {
+                file_name = allocation_line_table->find(parent->get_pc())->get_file_name();
+                while(file_name.find(/*str1*/profiled_nccl_file) == string::npos) {
+                        parent = parent->get_parent();
+                        if(parent)
+                                file_name = allocation_line_table->find(parent->get_pc())->get_file_name();
+                        else
+                                break;
+                }
+            }
+	    if(parent) {
+		allocation_line_t* node = allocation_line_table->find(parent->get_pc());
+		path = node->get_file_name();
+        	if(path.size() > 0) {
+                	std::istringstream tokenized_path(path);
+                	while (std::getline(tokenized_path, file, '/'));
+                	path.erase(path.size()-file.size()-1, file.size()+1);
+			nccl_line_num = node->get_line_num();
+    			nccl_filename = file;
+    			nccl_dirname = path;
+        	}
+	    }
+    } else {
+	    cout << "profiled_nccl_file is empty\n";
+    }
+
     std::string prev_valid_file_name;
     std::string prev_valid_dir_name;
     uint32_t prev_valid_line_num = 0;
@@ -589,11 +657,16 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       char *dir_name = (char*)malloc(sizeof(char)*PATH_NAME_SIZE);
       dir_name[0] = '\0';
       uint32_t line_num = 0;
-      bool ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num);
-      std::string filename = file_name;
-      std::string dirname = dir_name;
-      std::string sass = instr->getSass();
+      bool ret_line_info;
+      std::string filename;
+      std::string dirname;
+      std::string sass;
 
+      if(profiled_nccl_file.empty()) {
+	      ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name, &dir_name, &line_num);
+	      filename = file_name;
+	      dirname = dir_name;
+	      sass = instr->getSass();
       if(code_attribution && path.size() > 0) {
       	std::istringstream input1(sass);
       	for (std::string word; std::getline(input1, word, ' '); ) {
@@ -614,6 +687,11 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 		      stg_count++;
 	      }
       	}
+      } 
+      } else {
+	      filename = nccl_filename;
+	      dirname = nccl_dirname;
+	      line_num = nccl_line_num;
       }
 
       short estimated_status = 2; // it is estimated
@@ -726,8 +804,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   CTXstate *ctx_state = ctx_state_map[ctx];
 
   MemoryAllocation ma;
-  if (!is_exit && cbid == API_CUDA_cuLaunchKernel_ptsz ||
-      cbid == API_CUDA_cuLaunchKernel)
+  if (!is_exit && (cbid == API_CUDA_cuLaunchKernel_ptsz ||
+      cbid == API_CUDA_cuLaunchKernel))
   {
     cuLaunchKernel_params *p = (cuLaunchKernel_params *)params;
 
@@ -792,8 +870,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       }
     }
   }
-  else if (!is_exit && cbid == API_CUDA_cuLaunchCooperativeKernel ||
-      cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz)
+  else if (!is_exit && (cbid == API_CUDA_cuLaunchCooperativeKernel ||
+      cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz))
   {
     cuLaunchCooperativeKernel_params *p = (cuLaunchCooperativeKernel_params *)params;
 
@@ -1088,6 +1166,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		parent = allocation_site;
 		allocation_site = allocation_site->get_first_child();
         }
+
 	string func_name;
 	if(parent) {
 		func_name = allocation_line_table->find(parent->get_pc())->get_func_name();
@@ -1118,8 +1197,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
         	range = adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(), ma.deviceID, "", ADM_STATE_ALLOC);
 		range_nodes.push_back(new adm_range_t(ma.pointer, ma.bytesize, parent->get_object_id(), ma.deviceID));
 	}
-  }
-
+  } 
   skip_callback_flag = false;
   log_time(std::string("End Cuda Event ") + (is_exit ? "Exit" : "Enter") +  find_cbid_name(cbid));
   pthread_mutex_unlock(&mutex1);
