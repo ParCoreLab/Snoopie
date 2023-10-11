@@ -260,7 +260,7 @@ class line_hash_table_t
 public:
 
     // hash function to map values to key
-    int hashFunction(uint64_t x) {
+    int hashFunction(size_t x) {
         return (x % 54121 % hash_table_size);
     }
 
@@ -283,11 +283,11 @@ public:
 	entry_size++;
     }
 
-    adm_line_location_t* find(int global_index) noexcept
+    adm_line_location_t* find(size_t global_index) noexcept
     {
         // get the hash index of key
         int index = hashFunction(global_index);
-
+        cout << "searched index: " << index << "\n";
         if(table[index].empty())
                 return nullptr;
         // find the key in (index)th list
@@ -301,6 +301,16 @@ public:
         if (i != table[index].end())
                 return *i;
         return nullptr;
+    }
+
+    void print(std::ofstream& object_outfile) noexcept
+    {   
+        list <adm_line_location_t*> :: iterator i;
+	for(int j = 0; j < hash_table_size; j++) {
+        	for (i = table[j].begin(); i != table[j].end(); i++) {
+                	(*i)->print(object_outfile);
+        	}
+	}
     }
 };
 

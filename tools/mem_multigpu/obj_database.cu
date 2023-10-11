@@ -170,10 +170,11 @@ adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::stri
 }
 
 ADM_VISIBILITY
-adm_line_location_t* adamant::adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept
+adm_line_location_t* adamant::adm_line_location_insert(const size_t global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept
 {
         adm_line_location_t* line = line_table->find(global_index);
         if(line == nullptr) {
+		cout << "line inserted\n";
                 line = new adm_line_location_t();
                 line->set_global_index(global_index);
                 line->set_file_name(file_name);
@@ -183,8 +184,10 @@ adm_line_location_t* adamant::adm_line_location_insert(const int global_index, s
                 line->set_estimated_status(estimated);
                 line_table->insert(line);
         }
-        if(line->get_global_index() == global_index)
+        if(line->get_global_index() == global_index) {
+		cout << "line found " << line->get_global_index() << " " << global_index << "\n";
                 return line;
+	}
         return nullptr;
 }
 
@@ -315,12 +318,15 @@ void adamant::adm_line_table_print() noexcept
   codeline_outfile.open(codeline_log_str);
   codeline_outfile << "code_line_index, dir_path, file, code_linenum, code_line_estimated_status\n";
   int size = line_table->get_size();
+  cout << "size of code line table " << size << "\n";
+  line_table->print(codeline_outfile);
+#if 0
   for(int i = 0; i < size; i++) {
   	adm_line_location_t* line = line_table->find(i);
-	if(line == nullptr)
-		break;
-	line->print(codeline_outfile);
+	if(line != nullptr)
+		line->print(codeline_outfile);
   }
+#endif
   codeline_outfile.close();
 }
 

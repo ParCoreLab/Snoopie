@@ -113,7 +113,7 @@ adm_range_t* adm_range_find(const uint64_t address) noexcept;
 
 class adm_line_location_t
 {
-    int global_index;
+    size_t global_index;
     std::string file_name;
     std::string dir_name;
     std::string sass;
@@ -123,8 +123,8 @@ class adm_line_location_t
   public:
 
     adm_line_location_t(): global_index(-1), line_num(0), estimated(0) {}
-    int get_global_index() const noexcept { return global_index; };
-    void set_global_index(const int idx) noexcept { global_index=idx; };
+    size_t get_global_index() const noexcept { return global_index; };
+    void set_global_index(const size_t idx) noexcept { global_index=idx; };
     void inc_global_index() noexcept { global_index++; };
     std::string get_file_name() const noexcept { return file_name; };
     void set_file_name(std::string filename) {file_name = filename; };
@@ -139,7 +139,7 @@ class adm_line_location_t
     void print(std::ofstream& codeline_outfile) const noexcept;
 };
 
-adm_line_location_t* adm_line_location_insert(const int global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept;
+adm_line_location_t* adm_line_location_insert(const size_t global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept;
 
 adm_line_location_t* adm_line_location_find(const int global_index) noexcept;
 
