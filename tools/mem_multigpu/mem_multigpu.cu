@@ -583,7 +583,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     std::string nccl_filename;
     std::string nccl_dirname;
     if(!profiled_nccl_file.empty()) {
-	    cout << "profiled_nccl_file is not empty\n";
+	    //cout << "profiled_nccl_file is not empty\n";
 	    std::vector<stacktrace_frame> trace = generate_trace();
 	    allocation_site_t* call_site = root;
 	    allocation_site_t* parent = NULL;
@@ -641,7 +641,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
         	}
 	    }
     } else {
-	    cout << "profiled_nccl_file is empty\n";
+	    //cout << "profiled_nccl_file is empty\n";
     }
 
     std::string prev_valid_file_name;
@@ -702,7 +702,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
         estimated_status = 1; // it is original
 	std::string hashed_string = dirname + filename + ":" + std::to_string(line_num);
 	size_t global_index = hash_func(hashed_string);
-	cout << "global_index: "  << global_index << endl;
+	//cout << "global_index: "  << global_index << endl;
         adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
         prev_valid_file_name = filename;
         prev_valid_dir_name = dirname;
@@ -710,7 +710,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       } else {
 	std::string hashed_string = prev_valid_dir_name + prev_valid_file_name + ":" + std::to_string(prev_valid_line_num);
 	size_t global_index = hash_func(hashed_string);
-	cout << "global_index: "  << global_index << endl;
+	//cout << "global_index: "  << global_index << endl;
         adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, sass, prev_valid_line_num, estimated_status);
       }
       global_index++;

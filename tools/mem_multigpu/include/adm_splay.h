@@ -287,7 +287,7 @@ public:
     {
         // get the hash index of key
         int index = hashFunction(global_index);
-        cout << "searched index: " << index << "\n";
+        //cout << "searched index: " << index << "\n";
         if(table[index].empty())
                 return nullptr;
         // find the key in (index)th list
