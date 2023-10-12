@@ -35,7 +35,7 @@ bool line_exists(int index) {
         return false;
 }
 
-std::string get_line_file_name(int global_index) {
+std::string get_line_file_name(uint64_t global_index) {
         adm_line_location_t* line = line_table->find(global_index);
         if(line) {
                 return line->get_file_name();
@@ -43,7 +43,7 @@ std::string get_line_file_name(int global_index) {
         return "";
 }
 
-std::string get_line_dir_name(int global_index) {
+std::string get_line_dir_name(uint64_t global_index) {
         adm_line_location_t* line = line_table->find(global_index);
         if(line) {
                 return line->get_dir_name();
@@ -51,7 +51,7 @@ std::string get_line_dir_name(int global_index) {
         return "";
 }
 
-std::string get_line_sass(int global_index) {
+std::string get_line_sass(uint64_t global_index) {
         adm_line_location_t* line = line_table->find(global_index);
         if(line) {
                 return line->get_sass();
@@ -59,7 +59,7 @@ std::string get_line_sass(int global_index) {
         return "";
 }
 
-uint32_t get_line_line_num(int global_index) {
+uint32_t get_line_line_num(uint64_t global_index) {
         adm_line_location_t* line = line_table->find(global_index);
         if(line) {
                 return line->get_line_num();
@@ -67,7 +67,7 @@ uint32_t get_line_line_num(int global_index) {
         return 0;
 }
 
-short get_line_estimated_status(int global_index) {
+short get_line_estimated_status(uint64_t global_index) {
         adm_line_location_t* line = line_table->find(global_index);
         if(line) {
                 return line->get_estimated_status();

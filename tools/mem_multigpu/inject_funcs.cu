@@ -52,7 +52,7 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
     uint64_t addr,
     uint64_t grid_launch_id,
     uint64_t pchannel_dev,
-    int global_index,
+    uint64_t global_index,
     int func_id,
     int sample_size) {
   /* if thread is predicated off, return */

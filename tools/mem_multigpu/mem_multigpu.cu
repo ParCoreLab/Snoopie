@@ -89,7 +89,7 @@ static bool nvshmem_malloc_handled = false;
 static bool object_attribution = false;
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>* nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>* ranges = nullptr;
-static int global_index = 0;
+static size_t global_index = 0;
 
 static allocation_site_t* root = NULL;
 
@@ -109,15 +109,15 @@ void initialize_line_table(int size);
 
 bool line_exists(int index);
 
-std::string get_line_file_name(int index);
+std::string get_line_file_name(uint64_t index);
 
-std::string get_line_dir_name(int index);
+std::string get_line_dir_name(uint64_t index);
 
-std::string get_line_sass(int index);
+std::string get_line_sass(uint64_t index);
 
-uint32_t get_line_line_num(int index);
+uint32_t get_line_line_num(uint64_t index);
 
-short get_line_estimated_status(int index);
+short get_line_estimated_status(uint64_t index);
 
 std::string get_object_var_name(uint64_t pc);
 
@@ -701,7 +701,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 
         estimated_status = 1; // it is original
 	std::string hashed_string = dirname + filename + ":" + std::to_string(line_num);
-	size_t global_index = hash_func(hashed_string);
+	global_index = hash_func(hashed_string);
 	//cout << "global_index: "  << global_index << endl;
         adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
         prev_valid_file_name = filename;
@@ -709,11 +709,11 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
         prev_valid_line_num = line_num;
       } else {
 	std::string hashed_string = prev_valid_dir_name + prev_valid_file_name + ":" + std::to_string(prev_valid_line_num);
-	size_t global_index = hash_func(hashed_string);
+	global_index = hash_func(hashed_string);
 	//cout << "global_index: "  << global_index << endl;
         adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, sass, prev_valid_line_num, estimated_status);
       }
-      global_index++;
+      //global_index++;
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
           instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
@@ -767,7 +767,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
           /* add pointer to channel_dev*/
           nvbit_add_call_arg_const_val64(
               instr, (uint64_t)ctx_state->channel_dev);
-          nvbit_add_call_arg_const_val32(instr, global_index-1);
+          nvbit_add_call_arg_const_val64(instr, global_index);
           nvbit_add_call_arg_const_val32(instr, func_id);
 	  nvbit_add_call_arg_const_val32(instr, sample_size);
           mref_idx++;
@@ -1443,7 +1443,7 @@ void *recv_thread_fun(void *args)
         uint32_t linenum;
         uint32_t data_type_size = 1;
         int dev_id = -1;
-        int line_index = ma->global_index;
+        uint64_t line_index = ma->global_index;
         std::string line_filename = get_line_file_name(line_index);
         std::string line_dirname = get_line_dir_name(line_index);
         std::string line_sass = get_line_sass(line_index);

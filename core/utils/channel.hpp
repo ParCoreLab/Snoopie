@@ -48,7 +48,7 @@ typedef struct {
     int opcode_id;
     uint64_t addrs[32];
 
-    int global_index;
+    uint64_t global_index;
     uint64_t thread_index;
 } mem_access_t;
 #endif
