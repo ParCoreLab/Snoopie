@@ -13,23 +13,23 @@ NVCC_NV_LDFLAGS = -ccbin=$(MPICCX) -lgomp -L$(CUDA_HOME)/lib64 -lcuda -lcudart -
 
 MAKEFLAGS += -j
 
-all: main 
+all: main
 
-main: main.o 
+main: main.o
 	$(NVCC) -g $(GENCODE_FLAGS) -o $@ $^ $(NVCC_NV_LDFLAGS)
-	
+
 
 main.o: main.cu
 	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $<
 
-ptx: 
+ptx:
 	$(NVCC) --ptx $(NVCC_NV_FLAGS) -o $@ $< $(NVCC_NV_LDFLAGS)
 
 
 run: main
 	@rm -f *.zst
 	@rm -f *.txt
-	@$(MPIRUN) --oversubscribe -x NVSHMEM_NGPUS=4 -x NOBANNER=1 -x LD_PRELOAD="../../tools/mem_multigpu/libmem_multigpu.so" -x KERNEL_NAME="simple_shift" -np $(NP) ./main -n $(SIZE)
+	@$(MPIRUN) --oversubscribe -x NVSHMEM_NGPUS=4 -x NOBANNER=1 -x LD_PRELOAD="../../src/mem_multigpu/libmem_multigpu.so" -x KERNEL_NAME="simple_shift" -np $(NP) ./main -n $(SIZE)
 
 clean:
 	rm -f *./address_range_log_*.txt *.txt  *.zst main.o main main.o.ptx main.ptx

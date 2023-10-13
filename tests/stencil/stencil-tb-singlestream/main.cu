@@ -4,6 +4,4 @@
 
 using std::make_pair;
 
-int main(int argc, char *argv[]) {
-    return selected.second(argc, argv);
-}
+int main(int argc, char *argv[]) { return selected.second(argc, argv); }

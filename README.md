@@ -13,7 +13,11 @@
 
 ```bash
 $ git clone https://github.com/mktip/nvbit-profiler
-$ cd tools/mem_multigpu/ && ARCH=80 make # builds mem_multigpu.so
+$ cd src/mem_multigpu/ && ARCH=80 make # builds mem_multigpu.so
+
+# Or with Cmake
+$ cmake .
+$ make mem_multigpu
 ```
 
 ## Usage
@@ -33,7 +37,7 @@ $ LD_PRELOAD="/path/to/mem_multigpu.so" NVSHMEM_VERSION="2.7" KERNEL_NAME="kerne
 
 $ LD_PRELOAD="/path/to/mem_multigpu.so" NVSHMEM_NGPUS="4" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 ./multigpu-app
 
-> To enable sampling-based profiling, pass SAMPLE_SIZE=<sample_size> environment variable as follow. 
+> To enable sampling-based profiling, pass SAMPLE_SIZE=<sample_size> environment variable as follow.
 
 $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" SAMPLE_SIZE=<sample_size> ./multigpu-app
 

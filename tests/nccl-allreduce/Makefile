@@ -1,7 +1,7 @@
 SIZE ?= 32
 NGPUS ?= 4
 
-all: all_reduce 
+all: all_reduce
 
 NVCC=nvcc
 GENCODE_SM80    := -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80
@@ -14,7 +14,7 @@ endif
 
 NVCC_FLAGS += -g -G $(GENCODE_FLAGS) -std=c++17
 LD_FLAGS = -L$(CUDA_HOME)/lib64 -lcudart -lnvToolsExt -lnccl
-all_reduce: Makefile all_reduce.cu 
+all_reduce: Makefile all_reduce.cu
 	$(NVCC) -cubin -lineinfo all_reduce.cu -o all_reduce.cubin
 	nvdisasm --print-line-info all_reduce.cubin > testfile.txt
 	$(NVCC) $(NVCC_FLAGS) all_reduce.cu $(LD_FLAGS) -o all_reduce
@@ -28,4 +28,4 @@ run:
 
 profile:
 	@rm -f *.zst
-	@NOBANNER=1 KERNEL_NAME="nccl" LD_PRELOAD="../../build/tools/mem_multigpu/libmem_multigpu.so" ./all_reduce -n $(SIZE) -g $(NGPUS)
+	@NOBANNER=1 KERNEL_NAME="nccl" LD_PRELOAD="../../build/src/mem_multigpu/libmem_multigpu.so" ./all_reduce -n $(SIZE) -g $(NGPUS)

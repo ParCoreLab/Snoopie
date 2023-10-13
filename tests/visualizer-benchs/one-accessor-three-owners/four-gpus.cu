@@ -1,26 +1,23 @@
 #include <iostream>
 #include <stdio.h>
-#include<unistd.h>
+#include <unistd.h>
 
 #include "cuda_wrapper.hpp"
 
 using namespace std;
 
-
-#define gpuErrchk(ans) { gpuAssert(ans); }
-inline void gpuAssert(cudaError_t code)
-{
+#define gpuErrchk(ans)                                                         \
+  { gpuAssert(ans); }
+inline void gpuAssert(cudaError_t code) {
   if (code != cudaSuccess) {
-  fprintf(stderr,"GPUassert: %s\n", cudaGetErrorString(code));
+    fprintf(stderr, "GPUassert: %s\n", cudaGetErrorString(code));
   }
 }
 
-__host__ __device__ int modify_cell(int a) {
-  return a + 2;
-}
+__host__ __device__ int modify_cell(int a) { return a + 2; }
 
-__global__ void simple_kernel(int *dst, int *src1, int *src2, int *src3){
-  //int idx = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void simple_kernel(int *dst, int *src1, int *src2, int *src3) {
+  // int idx = blockIdx.x * blockDim.x + threadIdx.x;
   dst[50] = modify_cell(src1[50]);
   dst[50] += modify_cell(src2[50]);
   dst[50] += modify_cell(src3[50]);
@@ -33,12 +30,11 @@ int main() {
   cudaError_t err = cudaDeviceCanAccessPeer(&canAccessPeer, 0, 1);
   if (err != cudaSuccess) {
   }
- 
+
   cudaSetDevice(gpuid[0]);
   gpuErrchk(cudaDeviceEnablePeerAccess(1, 0));
   gpuErrchk(cudaDeviceEnablePeerAccess(2, 0));
   gpuErrchk(cudaDeviceEnablePeerAccess(3, 0));
-   
 
   const size_t size = 100;
   const size_t buf_size = size * sizeof(int);
@@ -52,7 +48,7 @@ int main() {
   int *h2 = NULL;
   int *h3 = NULL;
 
-  //cudaSetDevice(gpuid[0]);
+  // cudaSetDevice(gpuid[0]);
   gpuErrchk(cudaMallocWRAP(&g0, buf_size, "g0", 4));
   gpuErrchk(cudaMallocHostWRAP(&h0, buf_size, "h0", 4));
 
@@ -74,7 +70,7 @@ int main() {
   cudaSetDevice(gpuid[0]);
 
   simple_kernel<<<1, size>>>(g0, g1, g2, g3);
-  
+
   gpuErrchk(cudaMemcpy(h0, g0, buf_size, cudaMemcpyDeviceToHost));
 
   cudaFree(h0);

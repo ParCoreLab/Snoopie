@@ -12,7 +12,7 @@ else
 endif
 NVCC_FLAGS += -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt  -std=c++14
 jacobi: Makefile jacobi.cu
-	#$(NVCC) $(NVCC_FLAGS) $(GENCODE_FLAGS) jacobi.cu -o jacobi 
+	#$(NVCC) $(NVCC_FLAGS) $(GENCODE_FLAGS) jacobi.cu -o jacobi
 	g++ -g -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o wrapper.o -lineinfo
 	nvcc -g -shared --generate-line-info -o libwrapper.so wrapper.o -lineinfo
 	$(NVCC) -cubin $(NVCC_FLAGS) jacobi.cu
@@ -32,7 +32,7 @@ run: jacobi
 
 profile: jacobi
 	#NOBANNER=1 KERNEL_NAME="void jacobi_kernel<32, 32>" CODE_ATTRIBUTION=1 SAMPLE_SIZE=10 LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
-	NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
-	# NOBANNER=1 SILENT=1 LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:. SILENT=0 KERNEL_NAME="void jacobi_kernel<32, 32>" LD_PRELOAD="../../tools/mem_multigpu/mem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
+	NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
+	# NOBANNER=1 SILENT=1 LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:. SILENT=0 KERNEL_NAME="void jacobi_kernel<32, 32>" LD_PRELOAD="../../src/mem_multigpu/libmem_multigpu.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	# NOBANNER=1 SILENT=0 LD_PRELOAD="../../tools/mem_trace/mem_trace.so" ./jacobi -nx $(SIZE) -ny $(SIZE) -niter $(NITER)
 	@# nsys profile --trace=cuda,nvtx -o jacobi ./jacobi -niter 10

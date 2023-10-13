@@ -1,4 +1,4 @@
-all:	two-gpus_compile two-gpus_run 
+all:	two-gpus_compile two-gpus_run
 
 two-gpus_compile:
 	g++ -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -O3 -o wrapper.o -lineinfo
@@ -9,8 +9,8 @@ two-gpus_compile:
 	nvdisasm --print-line-info two-gpus.cubin > testfile.txt
 
 two-gpus_run:
-	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../../tools/mem_multigpu/mem_multigpu.so KERNEL_NAME=all CODE_ATTRIBUTION=1 ./two-gpus
-	#LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/mem_multigpu.so ./two-gpus
+	LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../../src/mem_multigpu/libmem_multigpu.so KERNEL_NAME=all CODE_ATTRIBUTION=1 ./two-gpus
+	#LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$$LD_LIBRARY_PATH LD_PRELOAD=../../src/mem_multigpu/libmem_multigpu.so ./two-gpus
 
 clean:
 	rm -f *.so *.o two-gpus *ptx *cubin *txt

@@ -46,15 +46,10 @@ using namespace adamant;
 
 __device__ int last_valid_line_index = -1;
 
-
-
-extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, int dev_id,
-    uint64_t addr,
-    uint64_t grid_launch_id,
-    uint64_t pchannel_dev,
-    int global_index,
-    int func_id,
-    int sample_size) {
+extern "C" __device__ __noinline__ void
+instrument_mem(int pred, int opcode_id, int dev_id, uint64_t addr,
+               uint64_t grid_launch_id, uint64_t pchannel_dev, int global_index,
+               int func_id, int sample_size) {
   /* if thread is predicated off, return */
   if (!pred) {
     return;
@@ -78,24 +73,23 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
   ma.global_index = global_index;
   ma.func_id = func_id;
 
-  uint64_t blockId = blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
-  ma.thread_index = blockId * (blockDim.x * blockDim.y * blockDim.z) + (threadIdx.z * (blockDim.x * blockDim.y)) + (threadIdx.y * blockDim.x) + threadIdx.x;
+  uint64_t blockId =
+      blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;
+  ma.thread_index = blockId * (blockDim.x * blockDim.y * blockDim.z) +
+                    (threadIdx.z * (blockDim.x * blockDim.y)) +
+                    (threadIdx.y * blockDim.x) + threadIdx.x;
 
   /* first active lane pushes information on the channel */
 
   if (first_laneid == laneid) {
-    ChannelDev* channel_dev = (ChannelDev*)pchannel_dev;
+    ChannelDev *channel_dev = (ChannelDev *)pchannel_dev;
 
     long rand_num = clock64() % 100000;
 
-    if (rand_num < 100000/sample_size)
+    if (rand_num < 100000 / sample_size)
       channel_dev->push(&ma, sizeof(mem_access_t), dev_id);
   }
 }
 
-
-
 // BLACK MAGIC DONT REMOVE
-__global__ void trickary() {
-  instrument_mem(0, 0, 0, 0, 0, 0, 0, 0, 0);
-}
+__global__ void trickary() { instrument_mem(0, 0, 0, 0, 0, 0, 0, 0, 0); }

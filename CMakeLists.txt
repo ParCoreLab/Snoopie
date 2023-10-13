@@ -47,7 +47,7 @@ find_package(OpenMP REQUIRED)
 list(APPEND CMAKE_CUDA_FLAGS "-Xcompiler -fopenmp")
 
 
-add_subdirectory(tools/mem_multigpu)
+add_subdirectory(src/mem_multigpu)
 add_subdirectory(tests)
 
 add_subdirectory(tests/bfs)
@@ -98,7 +98,7 @@ add_custom_target(nvshmem-multi-files_test
   DEPENDS nvshmem-multi-files_test_mapping
   COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/obj-testcases/nvshmem-multi-files
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files/*.cubin
-  COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x NOBANNER=1 -x LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" -x KERNEL_NAME=all -x CODE_ATTRIBUTION=1 -np ${NP} ./nvshmem-multi-files -n 32
+  COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x NOBANNER=1 -x LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" -x KERNEL_NAME=all -x CODE_ATTRIBUTION=1 -np ${NP} ./nvshmem-multi-files -n 32
 )
 
 add_custom_target(bfs_test_mapping
@@ -116,7 +116,7 @@ add_custom_target(bfs_test
   COMMAND echo "native run"
   COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH ./bfs -f gupta2/gupta2.mtx -n 2 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
   COMMAND echo "profiled run"
-  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD=../../tools/mem_multigpu/libmem_multigpu.so KERNEL_NAME="all" CODE_ATTRIBUTION=1 ./bfs -f gupta2/gupta2.mtx -n 2 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1 
+  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD=../../src/mem_multigpu/libmem_multigpu.so KERNEL_NAME="all" CODE_ATTRIBUTION=1 ./bfs -f gupta2/gupta2.mtx -n 2 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1 
 )
 
 add_custom_target(stencil_nvshmem_nvidia_test_mapping
@@ -130,7 +130,7 @@ add_custom_target(stencil_nvshmem_nvidia_test
   DEPENDS stencil_nvshmem_nvidia_test_mapping
   COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.o ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.cubin
-  COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x KERNEL_NAME=all -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$ENV{NVSHMEM_HOME}/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" -x CODE_ATTRIBUTION=1 -np ${NP} ./stencil-cmake-nvidia -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+  COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x KERNEL_NAME=all -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$ENV{NVSHMEM_HOME}/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" -x CODE_ATTRIBUTION=1 -np ${NP} ./stencil-cmake-nvidia -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 add_custom_target(stencil_p2p_base_test_mapping
@@ -143,7 +143,7 @@ add_custom_target(stencil_p2p_base_test
   DEPENDS stencil_p2p_base_test_mapping
   COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/*.cubin
-  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 
@@ -157,7 +157,7 @@ add_custom_target(stencil_tb_singlestream_test
   DEPENDS stencil_tb_singlestream_test_mapping
   COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-tb-singlestream
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream/*.cubin
-  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../tools/mem_multigpu/libmem_multigpu.so" ./stencil-tb_singlestream -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-tb_singlestream -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 #add_dependencies(stencil_nvshmem_nvidia_test ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/jacobi_mapping)

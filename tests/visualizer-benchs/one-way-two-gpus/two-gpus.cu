@@ -1,25 +1,22 @@
 #include <iostream>
 #include <stdio.h>
-#include<unistd.h>
+#include <unistd.h>
 
 #include "cuda_wrapper.hpp"
 
 using namespace std;
 
-
-#define gpuErrchk(ans) { gpuAssert(ans); }
-inline void gpuAssert(cudaError_t code)
-{
+#define gpuErrchk(ans)                                                         \
+  { gpuAssert(ans); }
+inline void gpuAssert(cudaError_t code) {
   if (code != cudaSuccess) {
-  fprintf(stderr,"GPUassert: %s\n", cudaGetErrorString(code));
+    fprintf(stderr, "GPUassert: %s\n", cudaGetErrorString(code));
   }
 }
 
-__host__ __device__ int modify_cell(int a) {
-  return a + 2;
-}
+__host__ __device__ int modify_cell(int a) { return a + 2; }
 
-__global__ void simple_kernel(int *src, int *dst1){
+__global__ void simple_kernel(int *src, int *dst1) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   dst1[idx] = modify_cell(src[idx]);
 }
@@ -60,7 +57,7 @@ int main() {
   simple_kernel<<<1, size>>>(g0, g1);
 
   gpuErrchk(cudaMemcpy(h1, g1, buf_size, cudaMemcpyDeviceToHost));
-  
+
   cudaFree(h0);
   cudaFree(h1);
   cudaFree(g0);

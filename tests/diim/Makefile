@@ -13,4 +13,4 @@ clean:
 
 run:
 	@rm -f *.zst
-	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../tools/mem_multigpu/libmem_multigpu.so" CODE_ATTRIBUTION=1 ./diim -n $(SIZE)
+	@NOBANNER=1 KERNEL_NAME="simple_kernel" LD_PRELOAD="../../src/mem_multigpu/libmem_multigpu.so" CODE_ATTRIBUTION=1 ./diim -n $(SIZE)

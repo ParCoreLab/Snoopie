@@ -1,42 +1,40 @@
-#include <iostream>
 #include <assert.h>
+#include <cuda/std/chrono>
+#include <iostream>
 #include <stdio.h>
 #include <unistd.h>
-#include <cuda/std/chrono>
 
 using namespace std;
 
 // __device__ volatile int *shared_ptr = NULL;
 
-#define gpuErrchk(ans) { gpuAssert(ans); }
+#define gpuErrchk(ans)                                                         \
+  { gpuAssert(ans); }
 
-__host__ __device__ inline void gpuAssert(cudaError_t code)
-{
+__host__ __device__ inline void gpuAssert(cudaError_t code) {
   if (code != cudaSuccess) {
     printf("GPUassert: %d\n", code);
   }
 }
 
-__global__ void alloc_spin(int **shared_ptr){
+__global__ void alloc_spin(int **shared_ptr) {
   gpuErrchk(cudaMalloc(shared_ptr, sizeof(int)));
   printf("*shared ptr is now: %p\n", *shared_ptr);
   **shared_ptr = 10;
 }
 
-__global__ void read_spin(int **shared_ptr){
+__global__ void read_spin(int **shared_ptr) {
   printf("Attempting to dereference shared ptr -> ");
   printf("*shared_ptr: %p\n", *shared_ptr);
-  while(shared_ptr == NULL) { }
+  while (shared_ptr == NULL) {
+  }
   printf("i: %d\n", **shared_ptr);
 }
 
-
 int main() {
-
 
   cudaStream_t stream1;
   cudaStreamCreate(&stream1);
-
 
   cudaSetDevice(0);
   int **shared_ptr;

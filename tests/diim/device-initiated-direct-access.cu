@@ -1,24 +1,21 @@
+#include <getopt.h>
 #include <iostream>
 #include <stdio.h>
 #include <unistd.h>
-#include <getopt.h>
 
 using namespace std;
 
-
-#define gpuErrchk(ans) { gpuAssert(ans); }
-inline void gpuAssert(cudaError_t code)
-{
+#define gpuErrchk(ans)                                                         \
+  { gpuAssert(ans); }
+inline void gpuAssert(cudaError_t code) {
   if (code != cudaSuccess) {
-  fprintf(stderr,"GPUassert: %s\n", cudaGetErrorString(code));
+    fprintf(stderr, "GPUassert: %s\n", cudaGetErrorString(code));
   }
 }
 
-__host__ __device__ int modify_cell(int a) {
-  return a + 2;
-}
+__host__ __device__ int modify_cell(int a) { return a + 2; }
 
-__global__ void simple_kernel(int size, int *src, int *dst1, int *dst2){
+__global__ void simple_kernel(int size, int *src, int *dst1, int *dst2) {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= size) {
     return;
@@ -26,8 +23,7 @@ __global__ void simple_kernel(int size, int *src, int *dst1, int *dst2){
 
   if (idx % 2 == 0) {
     dst1[idx] = modify_cell(src[idx]);
-  }
-  else {
+  } else {
     dst2[idx] = modify_cell(src[idx]);
   }
 }
@@ -40,39 +36,38 @@ struct diim_args {
 
 typedef struct diim_args diim_args;
 
-
-void getargs(diim_args *args, int argc, char* argv[]) {
+void getargs(diim_args *args, int argc, char *argv[]) {
   int c;
 
   while ((c = getopt(argc, argv, "n:v:c")) != -1) {
     switch (c) {
-      case 'n':
-        args->size = atoi(optarg);
-        if (args->size <= 0) {
-          fprintf(stderr, "Error: argument for -n cannot be 0 or less\n");
-        }
-        break;
-      case 'v':
-        args->verbose = 1;
-        break;
-      case 'c':
-        args->check = 1;
-        break;
-      case '?':
-        if (optopt == 'n') {
-          fprintf(stderr, "Error: no argument provided for -n flag\n");
-        } else {
-          fprintf(stderr, "Error: unknown option '%c'\n", optopt);
-        }
-        exit(1);
-      default:
-        abort();
+    case 'n':
+      args->size = atoi(optarg);
+      if (args->size <= 0) {
+        fprintf(stderr, "Error: argument for -n cannot be 0 or less\n");
+      }
+      break;
+    case 'v':
+      args->verbose = 1;
+      break;
+    case 'c':
+      args->check = 1;
+      break;
+    case '?':
+      if (optopt == 'n') {
+        fprintf(stderr, "Error: no argument provided for -n flag\n");
+      } else {
+        fprintf(stderr, "Error: unknown option '%c'\n", optopt);
+      }
+      exit(1);
+    default:
+      abort();
     }
   }
 }
 
 diim_args *default_args() {
-  diim_args *args = (diim_args*) malloc(sizeof(diim_args));
+  diim_args *args = (diim_args *)malloc(sizeof(diim_args));
 
   args->size = 32;
   args->verbose = 0;
@@ -81,7 +76,7 @@ diim_args *default_args() {
   return args;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
 
   diim_args *args = default_args();
   getargs(args, argc, argv);
@@ -124,7 +119,9 @@ int main(int argc, char* argv[]) {
   gpuErrchk(cudaMemcpy(g0, h0, buf_size, cudaMemcpyHostToDevice));
 
   cudaSetDevice(gpuid[0]);
-  simple_kernel<<<std::ceil(args->size / 1024.0), max(args->size > 1024 ? 1024 :args->size % 1025, 1)>>>(args->size, g0, g1, g2);
+  simple_kernel<<<std::ceil(args->size / 1024.0),
+                  max(args->size > 1024 ? 1024 : args->size % 1025, 1)>>>(
+      args->size, g0, g1, g2);
   cudaDeviceSynchronize();
 
   if (args->check) {
@@ -132,7 +129,8 @@ int main(int argc, char* argv[]) {
     gpuErrchk(cudaMemcpy(h2, g2, buf_size, cudaMemcpyDeviceToHost));
     for (int i = 0; i < args->size; i++) {
       if (args->verbose) {
-        printf("\rchecking correctness against CPU: %.2f", ((float) (i + 1) / (float) args->size) * 100);
+        printf("\rchecking correctness against CPU: %.2f",
+               ((float)(i + 1) / (float)args->size) * 100);
 
         if (i == args->size - 1) {
           printf("\n");
@@ -145,11 +143,11 @@ int main(int argc, char* argv[]) {
         continue;
       }
 
-      cout << "FAILED: modify_cell((H0: " << i << ")) " << modify_cell(h0[i]) << "  != (H1: " << i << ") " << h1[i] << endl;
+      cout << "FAILED: modify_cell((H0: " << i << ")) " << modify_cell(h0[i])
+           << "  != (H1: " << i << ") " << h1[i] << endl;
       return 1;
     }
   }
-
 
   cudaFree(h0);
   cudaFree(h1);
