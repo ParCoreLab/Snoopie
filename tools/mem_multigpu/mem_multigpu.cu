@@ -1615,7 +1615,7 @@ void nvbit_at_term()
   printNTree(root, flag);
 
   ofstream object_outfile;
-  string object_str("mem_alloc_site_log_");
+  string object_str("call_site_log_");
   string txt_str(".txt");
   string object_log_str = object_str + to_string(getpid()) + txt_str;
   object_outfile.open(object_log_str);
@@ -1633,7 +1633,9 @@ void nvbit_at_term()
   object_outfile1.close();
 
   ofstream object_outfile2;
-  string object_str2("data_object_log_");
+  //string object_str2("data_object_log_");
+  string object_str2("callpath_log_");
+
   string object_log_str2 = object_str2 + to_string(getpid()) + txt_str;
   object_outfile2.open(object_log_str2);
   object_outfile2 << "obj_id,var_name,call_stack\n";
