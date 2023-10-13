@@ -1,4 +1,11 @@
+#!/usr/bin/env python3
+
+import shutil
+import subprocess
 import argparse
+import glob
+import time
+import os
 
 
 def main():
@@ -62,9 +69,52 @@ def main():
 
     args = parser.parse_args()
 
-    print(args.command)
-    print(args.kernel_name)
+    run_snoopie(args)
 
+def run_snoopie(args):
+    env = os.environ.copy()
+    env["LD_PRELOAD"] = env["SNOOPIE_PATH"]
+
+    if (args.verbose):
+        env["TOOL_VERBOSE"] = "1"
+
+    if (args.disable_code_attribution):
+        env["CODE_ATTRIBUTION"] = "0"
+
+    if (args.sample_size):
+        env["SAMPLE_SIZE"] = args.sample_size
+
+    if (args.filtering_location == "device"):
+        env["ON_DEVICE_FILTERING"] = "1"
+
+    if (args.filtering_location == "host"):
+        env["ON_DEVICE_FILTERING"] = "0"
+
+    if (args.nvshmem_ngpus):
+        env["NVSHMEM_NGPUS"] = args.nvshmem_ngpus
+
+    if (args.nvshmem_version):
+        env["NVSHMEM_VERSION"] = args.nvshmem_version
+
+    if (args.kernel_name):
+        env["KERNEL_NAME"] = args.kernel_name
+
+    cmd = " ".join(args.command)
+
+    print(f"Running {cmd}")
+    snooped_command = subprocess.Popen(args.command, env=dict(env))
+    snooped_command.wait()
+    print(f"Finished Execution of {cmd}")
+
+    print(f"Creating results file")
+    log_files = glob.glob(f"*{snooped_command.pid}*")
+    os.mkdir(f"./results-{snooped_command.pid}")
+
+    for f in log_files:
+        shutil.move(f, f"./results-{snooped_command.pid}")
+
+    shutil.make_archive(f"./results-{snooped_command.pid}", "zip", f"./results-{snooped_command.pid}")
+    shutil.rmtree(f"./results-{snooped_command.pid}")
 
 if __name__ == "__main__":
     main()
