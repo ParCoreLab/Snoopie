@@ -119,10 +119,11 @@ class adm_line_location_t
     std::string sass;
     uint32_t line_num;
     short estimated;
+    int kernel_launch_id;
 
   public:
 
-    adm_line_location_t(): global_index(-1), line_num(0), estimated(0) {}
+    adm_line_location_t(): global_index(-1), line_num(0), estimated(0), kernel_launch_id(0) {}
     size_t get_global_index() const noexcept { return global_index; };
     void set_global_index(const size_t idx) noexcept { global_index=idx; };
     void inc_global_index() noexcept { global_index++; };
@@ -134,12 +135,14 @@ class adm_line_location_t
     void set_sass(std::string sass_instr) {sass = sass_instr; };
     uint32_t get_line_num() const noexcept { return line_num; };
     void set_line_num(const uint32_t linenum) noexcept { line_num=linenum; };
+    int get_kernel_launch_id() const noexcept { return kernel_launch_id; };
+    void set_kernel_launch_id(const int launch_id) noexcept { kernel_launch_id=launch_id; };
     short get_estimated_status() const noexcept { return estimated; };
     void set_estimated_status(const short estimated_status) noexcept { estimated=estimated_status; };
     void print(std::ofstream& codeline_outfile) const noexcept;
 };
 
-adm_line_location_t* adm_line_location_insert(const size_t global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept;
+adm_line_location_t* adm_line_location_insert(const size_t global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated, int launch_id) noexcept;
 
 adm_line_location_t* adm_line_location_find(const int global_index) noexcept;
 

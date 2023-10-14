@@ -641,7 +641,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     			nccl_dirname = path;
         	}
 	    }
-	    } else if(parent && parent->get_object_id() == 0) {
+	    } 
+	    if(parent && parent->get_object_id() == 0) {
                 parent->set_object_id(++object_counter);
                 object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8, false));
             } 
@@ -701,22 +702,23 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 	      line_num = nccl_line_num;
       }
 
+      int launch_id = parent->get_object_id();
       short estimated_status = 2; // it is estimated
       if(line_num != 0) {
 
         estimated_status = 1; // it is original
-	std::string hashed_string = dirname + filename + ":" + std::to_string(line_num);
+	std::string hashed_string = dirname + filename + std::to_string(line_num) + ":" + std::to_string(launch_id);
 	global_index = hash_func(hashed_string);
 	//cout << "global_index: "  << global_index << endl;
-        adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status);
+        adm_line_location_insert(global_index, filename, dirname, sass, line_num, estimated_status, launch_id);
         prev_valid_file_name = filename;
         prev_valid_dir_name = dirname;
         prev_valid_line_num = line_num;
       } else {
-	std::string hashed_string = prev_valid_dir_name + prev_valid_file_name + ":" + std::to_string(prev_valid_line_num);
+	std::string hashed_string = prev_valid_dir_name + prev_valid_file_name + std::to_string(prev_valid_line_num) + ":" + std::to_string(launch_id);
 	global_index = hash_func(hashed_string);
 	//cout << "global_index: "  << global_index << endl;
-        adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, sass, prev_valid_line_num, estimated_status);
+        adm_line_location_insert(global_index, prev_valid_file_name, prev_valid_dir_name, sass, prev_valid_line_num, estimated_status,  launch_id);
       }
       //global_index++;
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||

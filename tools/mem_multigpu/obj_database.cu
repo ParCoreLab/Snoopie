@@ -143,7 +143,7 @@ adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::stri
 }
 
 ADM_VISIBILITY
-adm_line_location_t* adamant::adm_line_location_insert(const size_t global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated) noexcept
+adm_line_location_t* adamant::adm_line_location_insert(const size_t global_index, std::string file_name, std::string dir_name, std::string sass, const uint32_t line_num, short estimated, int launch_id) noexcept
 {
         adm_line_location_t* line = line_table->find(global_index);
         if(line == nullptr) {
@@ -155,6 +155,7 @@ adm_line_location_t* adamant::adm_line_location_insert(const size_t global_index
 		line->set_sass(sass);
                 line->set_line_num(line_num);
                 line->set_estimated_status(estimated);
+		line->set_kernel_launch_id(launch_id);
                 line_table->insert(line);
         }
         if(line->get_global_index() == global_index) {
@@ -289,7 +290,7 @@ void adamant::adm_line_table_print() noexcept
   string txt_str(".txt");
   string codeline_log_str = codeline_str + to_string(getpid()) + txt_str;
   codeline_outfile.open(codeline_log_str);
-  codeline_outfile << "code_line_index, dir_path, file, code_linenum, code_line_estimated_status\n";
+  codeline_outfile << "code_line_index, dir_path, file, code_linenum, code_line_estimated_status, kernel_launch_id\n";
   int size = line_table->get_size();
   //cout << "size of code line table " << size << "\n";
   line_table->print(codeline_outfile);
@@ -361,5 +362,5 @@ ADM_VISIBILITY
 void adm_line_location_t::print(std::ofstream& codeline_outfile) const noexcept
 {
 	codeline_outfile << global_index << "," << dir_name << "," << file_name
-		<< "," << line_num << "," << estimated << "\n";
+		<< "," << line_num << "," << estimated << "," << kernel_launch_id << "\n";
 }
