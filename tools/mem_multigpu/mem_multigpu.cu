@@ -582,7 +582,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     uint32_t nccl_line_num = 0;
     std::string nccl_filename;
     std::string nccl_dirname;
-    if(!profiled_nccl_file.empty()) {
+    //if(!profiled_nccl_file.empty()) {
 	    //cout << "profiled_nccl_file is not empty\n";
 	    std::vector<stacktrace_frame> trace = generate_trace();
 	    allocation_site_t* call_site = root;
@@ -617,6 +617,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 		parent = call_site;
 		call_site = call_site->get_first_child();
 	    }
+	    if(!profiled_nccl_file.empty()) {
 	    string file_name;
 	    if(parent) {
                 file_name = allocation_line_table->find(parent->get_pc())->get_file_name();
@@ -640,9 +641,13 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
     			nccl_dirname = path;
         	}
 	    }
-    } else {
+	    } else if(parent && parent->get_object_id() == 0) {
+                parent->set_object_id(++object_counter);
+                object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+            } 
+    //} else {
 	    //cout << "profiled_nccl_file is empty\n";
-    }
+    //}
 
     std::string prev_valid_file_name;
     std::string prev_valid_dir_name;
