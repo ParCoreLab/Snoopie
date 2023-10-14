@@ -353,6 +353,7 @@ void adm_object_t::print(std::ofstream& object_outfile) const noexcept
 	  if(temp)
 		object_outfile << "<";
   }
+  object_outfile << "," << get_object_flag();
   object_outfile << "\n";
 }
 

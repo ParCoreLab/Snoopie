@@ -193,15 +193,16 @@ class adm_object_t
     std::string var_name;
     uint32_t data_type_size;
     uint32_t range_count;
+    bool object_flag;
 
   public:
 
     adm_meta_t meta;
 
-    adm_object_t(): object_id(0), allocation_site(NULL), data_type_size(0), range_count(0) {}
+    adm_object_t(): object_id(0), allocation_site(NULL), data_type_size(0), range_count(0), object_flag(false) {}
 
-    adm_object_t(int object_id1, allocation_site_t* allocation_site1, uint32_t data_type_size1): 
-	object_id(object_id1), allocation_site(allocation_site1), data_type_size(data_type_size1), range_count(0) {}
+    adm_object_t(int object_id1, allocation_site_t* allocation_site1, uint32_t data_type_size1, bool flag): 
+	object_id(object_id1), allocation_site(allocation_site1), data_type_size(data_type_size1), range_count(0), object_flag(flag) {}
 
     int get_object_id() const noexcept { return object_id; };
 
@@ -216,6 +217,10 @@ class adm_object_t
     std::string get_var_name() const noexcept { return var_name; };
 
     void set_var_name(std::string varname) {var_name = varname; };
+
+    bool get_object_flag() const noexcept { return object_flag; };
+    
+    void set_object_flag(bool flag) {object_flag = flag; };
 
     uint32_t get_data_type_size() const noexcept { return data_type_size; };
 

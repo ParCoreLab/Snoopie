@@ -643,7 +643,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
 	    }
 	    } else if(parent && parent->get_object_id() == 0) {
                 parent->set_object_id(++object_counter);
-                object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+                object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8, false));
             } 
     //} else {
 	    //cout << "profiled_nccl_file is empty\n";
@@ -1203,7 +1203,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 	}
 	if(parent && parent->get_object_id() == 0) {
 		parent->set_object_id(++object_counter);
-		object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+		object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8, true));
 	}
 	adm_range_t* range;
 	if(parent) {
@@ -1332,7 +1332,7 @@ void * nvshmem_malloc ( size_t size) {
 
         if(parent && parent->get_object_id() == 0) {
                 parent->set_object_id(++object_counter);
-                object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+                object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8, true));
         }
 
         adm_range_t* range;
@@ -1637,7 +1637,7 @@ void nvbit_at_term()
 
   string object_log_str2 = object_str2 + to_string(getpid()) + txt_str;
   object_outfile2.open(object_log_str2);
-  object_outfile2 << "obj_id,var_name,call_stack\n";
+  object_outfile2 << "obj_id,var_name,call_stack,is_object\n";
   for(auto i : object_nodes)
         i->print(object_outfile2);
   object_outfile2.close();
