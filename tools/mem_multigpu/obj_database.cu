@@ -95,30 +95,6 @@ std::string get_object_var_name(uint64_t pc) {
 	return "";
 }
 
-std::string get_object_file_name(uint64_t pc) {
-        adm_object_t* obj = object_table->find(pc);
-        if(obj) {
-                return obj->get_file_name();
-        }
-        return "";
-}
-
-std::string get_object_func_name(uint64_t pc) {
-        adm_object_t* obj = object_table->find(pc);
-        if(obj) {
-                return obj->get_func_name();
-        }
-        return "";
-}
-
-uint32_t get_object_line_num(uint64_t pc) {
-        adm_object_t* obj = object_table->find(pc);
-        if(obj) {
-                return obj->get_line_num();
-        }
-        return 0;
-}
-
 uint32_t get_object_data_type_size(uint64_t pc) {
         adm_object_t* obj = object_table->find(pc);
         if(obj) {
@@ -159,9 +135,6 @@ adm_object_t* adamant::adm_object_insert(const uint64_t allocation_pc, std::stri
 		obj->set_allocation_pc(allocation_pc);
 		obj->set_var_name(varname);
 		obj->set_data_type_size(element_size);
-		obj->set_file_name(filename);
-		obj->set_func_name(funcname);
-		obj->set_line_num(linenum);
 		object_table->insert(obj);
 	}
 	if(obj->get_allocation_pc() == allocation_pc)

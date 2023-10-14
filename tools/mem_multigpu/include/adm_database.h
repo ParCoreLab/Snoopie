@@ -191,9 +191,6 @@ class adm_object_t
     allocation_site_t* allocation_site;
     uint64_t allocation_pc;
     std::string var_name;
-    std::string file_name;
-    std::string func_name;
-    uint32_t line_num;
     uint32_t data_type_size;
     uint32_t range_count;
 
@@ -201,7 +198,7 @@ class adm_object_t
 
     adm_meta_t meta;
 
-    adm_object_t(): object_id(0), allocation_site(NULL), allocation_pc(0), line_num(0), data_type_size(0), range_count(0) {}
+    adm_object_t(): object_id(0), allocation_site(NULL), data_type_size(0), range_count(0) {}
 
     adm_object_t(int object_id1, allocation_site_t* allocation_site1, uint32_t data_type_size1): 
 	object_id(object_id1), allocation_site(allocation_site1), data_type_size(data_type_size1), range_count(0) {}
@@ -219,18 +216,6 @@ class adm_object_t
     std::string get_var_name() const noexcept { return var_name; };
 
     void set_var_name(std::string varname) {var_name = varname; };
-
-    std::string get_file_name() const noexcept { return file_name; };
-
-    void set_file_name(std::string filename) noexcept { file_name=filename; };
-
-    std::string get_func_name() const noexcept { return func_name; };
-
-    void set_func_name(std::string funcname) noexcept { func_name=funcname; };
-
-    uint32_t get_line_num() const noexcept { return line_num; };
-
-    void set_line_num(const uint64_t linenum) noexcept { line_num=linenum; };
 
     uint32_t get_data_type_size() const noexcept { return data_type_size; };
 

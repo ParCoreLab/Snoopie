@@ -1497,9 +1497,6 @@ void *recv_thread_fun(void *args)
                 allocation_pc = range->get_allocation_pc();
                 if(object_exists(allocation_pc)) {
                         varname = get_object_var_name(allocation_pc);
-                        filename = get_object_file_name(allocation_pc);
-                        funcname = get_object_func_name(allocation_pc);
-                        linenum = get_object_line_num(allocation_pc);
                         dev_id = range->get_device_id();
                         data_type_size = get_object_data_type_size(allocation_pc);
                         index_in_object = range->get_index_in_object();
@@ -1516,9 +1513,6 @@ void *recv_thread_fun(void *args)
               << "\"object_variable_name\": \"" << varname << "\", "
               << "\"malloc_index_in_object\": " << index_in_object << ", "
               << "\"element_index_in_malloc\": " << index_in_malloc << ", "
-              << "\"object_allocation_file_name\": \"" << filename << "\", "
-              << "\"object_allocation_func_name\": \"" << funcname << "\", "
-              << "\"object_allocation_line_num\": " << linenum << ", "
               << "\"object_allocation_device_id\": " << dev_id << ", "
               << "\"thread_index\": " << ma->thread_index << ", "
               << "\"lane_id\": " << ma->lane_id << ", "
