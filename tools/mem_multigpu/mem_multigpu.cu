@@ -59,7 +59,7 @@
 #include "common.h"
 #include "util.h"
 
-#include "nvshmem.h"
+#include <nvshmem.h>
 
 #define HEX(x)                                                          \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \

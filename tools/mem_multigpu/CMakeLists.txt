@@ -11,6 +11,8 @@ set_target_properties(mem_multigpu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_target_properties(mem_multigpu PROPERTIES CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
+target_include_directories(mem_multigpu PRIVATE $ENV{NVSHMEM_HOME}/include)
+
 target_link_libraries(mem_multigpu
         cuda
         zstd
