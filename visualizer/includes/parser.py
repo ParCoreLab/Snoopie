@@ -191,7 +191,6 @@ tables = {
 
 
 def get_pid(filename: str) -> int:
-    global _pid
     if filename.endswith(".txt"):
         # one of address_range_log_pid.txt, codeline_log_pid.txt, data_object_log_pid.txt, mem_alloc_site_log_pid.txt
         beforepid = filename.rfind("_")
@@ -202,7 +201,7 @@ def get_pid(filename: str) -> int:
     else:
         # snoopie-log-pid or snoopie-log-pid.zstd
         last = -4 if filename.endswith(".zst") else -1
-        beforepid = filename.rfind("-")
+        beforepid = filename.rfind("_")
         slice = filename[beforepid + 1 : last]
         if not slice.isdigit():
             return -1
@@ -261,6 +260,7 @@ def read_data(
                 for line in f:
                     parse_line(line, gbs)
         else:
+            # TODO: Check if we need get pid in teh case of a single file?
             for line in file:
                 parse_line(line, gbs)
         CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(
@@ -273,9 +273,7 @@ def read_data(
             if u is None:
                 continue
             if u not in SnoopieObject.all_objects:
-                tmp = SnoopieObject(
-                    name.var_name, id.obj_id, name.call_stack
-                )
+                tmp = SnoopieObject(name.var_name, id.obj_id, name.call_stack)
                 SnoopieObject.all_objects[u] = tmp
             so: SnoopieObject = SnoopieObject.all_objects[u]
             so.add_op(op)
