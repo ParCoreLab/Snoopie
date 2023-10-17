@@ -568,7 +568,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
     std::string nccl_filename;
     std::string nccl_dirname;
     if (!profiled_nccl_file.empty()) {
-      cout << "profiled_nccl_file is not empty\n";
       std::vector<stacktrace_frame> trace = generate_trace();
       allocation_site_t *call_site = root;
       allocation_site_t *parent = NULL;
@@ -629,9 +628,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
           nccl_dirname = path;
         }
       }
-    } else {
-      cout << "profiled_nccl_file is empty\n";
-    }
+    } 
 
     std::string prev_valid_file_name;
     std::string prev_valid_dir_name;
