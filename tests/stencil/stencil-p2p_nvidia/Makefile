@@ -12,12 +12,12 @@ else
 endif
 NVCC_FLAGS += -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt  -std=c++14
 jacobi: Makefile jacobi.cu
-	#$(NVCC) $(NVCC_FLAGS) $(GENCODE_FLAGS) jacobi.cu -o jacobi
-	g++ -g -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o wrapper.o -lineinfo
-	nvcc -g -shared --generate-line-info -o libwrapper.so wrapper.o -lineinfo
+	@#$(NVCC) $(NVCC_FLAGS) $(GENCODE_FLAGS) jacobi.cu -o jacobi
+	@# g++ -g -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o wrapper.o -lineinfo
+	@# nvcc -g -shared --generate-line-info -o libwrapper.so wrapper.o -lineinfo
 	$(NVCC) -cubin $(NVCC_FLAGS) jacobi.cu
 	nvdisasm --print-line-info jacobi.cubin > testfile.txt
-	$(NVCC) $(NVCC_FLAGS) jacobi.cu -o jacobi -L. -lwrapper -lineinfo
+	$(NVCC) $(NVCC_FLAGS) jacobi.cu -o jacobi -lineinfo
 
 .PHONY.: clean
 clean:
