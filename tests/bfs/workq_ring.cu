@@ -55,7 +55,7 @@ __device__ int pull_size;
 __device__ int offset;
 
 // update flags after pulling
-__device__ void update_pull_flags(int device_id, int N_GPU, volatile int *flags,
+__device__ void update_pull_flags(int device_id, int n_GPU, volatile int *flags,
                                   volatile int *flags_prev,
                                   volatile int *flags_next) {
   flags[F_PULL] = 0;
@@ -68,7 +68,7 @@ __device__ void update_pull_flags(int device_id, int N_GPU, volatile int *flags,
 }
 
 // update flags after pushing
-__device__ void update_push_flags(int device_id, int N_GPU,
+__device__ void update_push_flags(int device_id, int n_GPU,
                                   int discovered_vertices_num,
                                   volatile int *flags, volatile int *flags_prev,
                                   volatile int *flags_next) {
@@ -90,7 +90,7 @@ __device__ void update_push_flags(int device_id, int N_GPU,
 
 // pull everything, without offloading
 __device__ void pull_all(int vert_start, int vert_end, int *global_queue,
-                         int *global_queue_prev, int *local_in_queue, int N_GPU,
+                         int *global_queue_prev, int *local_in_queue, int n_GPU,
                          int tid, int num_threads, int *result) {
   for (int v = 0; v < pull_size; v += num_threads) {
     if (v + tid < pull_size) {
@@ -118,7 +118,7 @@ __device__ void pull_all(int vert_start, int vert_end, int *global_queue,
 // pull up to the threshold limit
 __device__ void pull_with_offload(int vert_start, int vert_end,
                                   int *global_queue, int *global_queue_prev,
-                                  int *local_in_queue, int threshold, int N_GPU,
+                                  int *local_in_queue, int threshold, int n_GPU,
                                   int tid, int num_threads) {
   for (int v = 0; v < pull_size; v += num_threads) {
     if (v + tid < pull_size) {
@@ -185,7 +185,7 @@ kernel_workq(int *v_adj_list, int *v_adj_begin, int *v_adj_length,
              int num_all_vert, int vert_start, int vert_end, int *result,
              int *global_queue, int *global_queue_prev, int *queue_to_push,
              int *local_in_queue, int *local_out_queue, int off_threshold,
-             int comm_threshold, int device_id, int N_GPU, volatile int *flags,
+             int comm_threshold, int device_id, int n_GPU, volatile int *flags,
              volatile int *flags_prev, volatile int *flags_next,
              volatile int **all_flags, int prev, int next, int *metadata) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -463,6 +463,7 @@ int workq_ring(int *adj_list, int *adj_begin, int *adj_length, int num_vertices,
   int comm_threshold = (COMM_THRESH == -1) ? num_vertices : COMM_THRESH;
 
   cudaStream_t streams[N_GPU];
+  // cudaStream_t *streams = (cudaStream_t *) malloc(N_GPU * sizeof(cudaStream_t));
 
   // if (verbose) printf("Time start \n");
   // --- START MEASURE TIME ---
@@ -481,6 +482,7 @@ int workq_ring(int *adj_list, int *adj_begin, int *adj_length, int num_vertices,
 
     int prev = (device == 0) ? N_GPU - 1 : device - 1;
     int next = (device == N_GPU - 1) ? 0 : device + 1;
+    int n_GPU = N_GPU;
 
     void *kernelArgs[] = {(void *)&v_adj_list[device],
                           (void *)&v_adj_begin[device],
@@ -497,7 +499,7 @@ int workq_ring(int *adj_list, int *adj_begin, int *adj_length, int num_vertices,
                           (void *)&off_threshold,
                           (void *)&comm_threshold,
                           (void *)&device,
-                          (void *)&N_GPU,
+                          (void *)&n_GPU,
                           (void *)&flags[device],
                           (void *)&flags[prev],
                           (void *)&flags[next],
@@ -508,13 +510,13 @@ int workq_ring(int *adj_list, int *adj_begin, int *adj_length, int num_vertices,
 
     CUDA_CHECK(cudaLaunchCooperativeKernel(
         (void *)kernel_workq, blocks, threads, kernelArgs, 0, streams[device]));
+    kernelCheckErrs("Cooperative Kernel Launch");
   }
 
   // if (verbose) printf("Sync start \n");
 
   for (int device = N_GPU - 1; device >= 0; device--) {
     CUDA_CHECK(cudaSetDevice(device));
-    // CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaStreamSynchronize(streams[device]));
     // if (verbose) printf("Sync GPU %d done \n", device);
   }

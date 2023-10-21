@@ -20,7 +20,8 @@ using namespace std;
 
 int BLOCKS = 0;
 int THREADS = 0;
-int N_GPU = 0;
+// int N_GPU = 0;
+#define N_GPU 4
 float OFF_THRESH = 0.0;
 int COMM_THRESH = -1;
 int runs;
@@ -44,6 +45,15 @@ inline void gpuAssert(cudaError_t code, const char *file, int line,
       exit(code);
   }
 }
+
+#define kernelCheckErrs(msg) \
+do { \
+      cudaError_t err = cudaGetLastError(); \
+          if (err != cudaSuccess) { \
+                    fprintf(stderr, "CUDA error: %s in %s at line %d\n", cudaGetErrorString(err), msg, __LINE__); \
+                            exit(EXIT_FAILURE); \
+                                } \
+} while (0)
 
 struct graph_t {
   int *v_adj_list;
@@ -160,7 +170,7 @@ void run_all_bfs(graph_t *graph, int start_vertex) {
 
     for (int i = 0; i < num_bfs; i++) {
       int next_runtime =
-          run_bfs(bfs_functions[i], graph, vertex, expected, runs);
+          run_bfs(bfs_functions[0], graph, vertex, expected, runs);
 
       if (next_runtime == -1) {
         // Wrong result
@@ -678,7 +688,7 @@ int main(int argc, char *argv[]) {
       runs = atoi(optarg);
       break;
     case 'n':
-      N_GPU = atoi(optarg);
+      // N_GPU = atoi(optarg);
       break;
     case 'm':
       METHOD = atoi(optarg);
@@ -737,8 +747,9 @@ int main(int argc, char *argv[]) {
   struct timeval t1, t2;
   long long time;
 
-  if (N_GPU == 0)
-    cudaGetDeviceCount(&N_GPU);
+
+  // if (N_GPU == 0)
+  //   cudaGetDeviceCount(&N_GPU);
 
   gettimeofday(&t1, NULL);
 
@@ -787,7 +798,7 @@ int main(int argc, char *argv[]) {
       gettimeofday(&t2, NULL);
       time = get_elapsed_time(&t1, &t2);
       if (verbose)
-        printf("CPU=%lld\n", time);
+        printf("CPU time=%lld\n", time);
 
       // if (metis) {
       //     int *result = new int[graph->num_vertices];
