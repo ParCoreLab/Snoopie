@@ -25,7 +25,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define _GNU_SOURCE
 #include <assert.h>
 #include <dlfcn.h>
 #include <iostream>
@@ -417,7 +416,6 @@ void printNTree(allocation_site_t *x, vector<bool> flag, int depth = 0,
     cout << endl;
   }
 
-  int it = 0;
   x = x->get_first_child();
   // Recursive call for the
   // children allocation_sites
@@ -1158,9 +1156,9 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       object_nodes.push_back(
           new adm_object_t(parent->get_object_id(), parent, 8));
     }
-    adm_range_t *range;
+
     if (parent) {
-      range = adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(),
+      adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(),
                                ma.deviceID, "", ADM_STATE_ALLOC);
       range_nodes.push_back(new adm_range_t(
           ma.pointer, ma.bytesize, parent->get_object_id(), ma.deviceID));
@@ -1305,10 +1303,9 @@ void *nvshmem_malloc(size_t size) {
         new adm_object_t(parent->get_object_id(), parent, 8));
   }
 
-  adm_range_t *range;
   MemoryAllocation ma;
   if (parent) {
-    range = adm_range_insert((uint64_t)allocated_memory, size, parent->get_pc(),
+    adm_range_insert((uint64_t)allocated_memory, size, parent->get_pc(),
                              deviceID, "", ADM_STATE_ALLOC);
     range_nodes.push_back(new adm_range_t((uint64_t)allocated_memory, size,
                                           parent->get_object_id(), deviceID));
