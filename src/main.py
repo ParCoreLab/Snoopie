@@ -62,6 +62,10 @@ def main():
     )
 
     parser.add_argument(
+        "--disable-logs", action="store_true", help="Disable storing the logs into a log file (debugging flag)"
+    )
+
+    parser.add_argument(
         "--disable-code-attribution",
         action="store_false",
         help='Disable Code Attribution (can be helpful in cases where a ".cubin" file cannot be generated)',
@@ -77,6 +81,9 @@ def run_snoopie(args):
 
     if (args.verbose):
         env["TOOL_VERBOSE"] = "1"
+
+    if (args.disable_logs):
+        env["SILENT"] = "1"
 
     if (args.disable_code_attribution):
         env["CODE_ATTRIBUTION"] = "0"
@@ -98,6 +105,7 @@ def run_snoopie(args):
 
     if (args.kernel_name):
         env["KERNEL_NAME"] = args.kernel_name
+
 
     cmd = " ".join(args.command)
 

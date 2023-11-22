@@ -16,12 +16,12 @@ jacobi: Makefile jacobi.cu
 	@# g++ -g -c -Wall -Werror -fPIC wrapper.cpp  -L/usr/local/cuda/lib64 -lcudart -I/usr/local/cuda/include -o wrapper.o -lineinfo
 	@# nvcc -g -shared --generate-line-info -o libwrapper.so wrapper.o -lineinfo
 	$(NVCC) -cubin $(NVCC_FLAGS) jacobi.cu
-	nvdisasm --print-line-info jacobi.cubin > testfile.txt
+	nvdisasm --print-line-info jacobi.cubin > memop_to_line.txt
 	$(NVCC) $(NVCC_FLAGS) jacobi.cu -o jacobi -lineinfo
 
 .PHONY.: clean
 clean:
-	rm -f jacobi jacobi.qdrep jacobi.cubin libwrapper.so testfile.txt wrapper.o *zst *txt
+	rm -f jacobi jacobi.qdrep jacobi.cubin libwrapper.so memop_to_line.txt wrapper.o *zst *txt
 
 sanitize: jacobi
 	compute-sanitizer ./jacobi -niter 10

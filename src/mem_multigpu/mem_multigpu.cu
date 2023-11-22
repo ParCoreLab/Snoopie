@@ -272,7 +272,7 @@ inline std::string &trim(std::string &s, const char *t = whitespace) {
 void memop_to_line() {
   // open a file in read mode.
   ifstream infile;
-  infile.open("testfile.txt");
+  infile.open("memop_to_line.txt");
 
   if (!infile) {
     cerr << "Please generate a cubin file using nvcc -cubin "
@@ -626,7 +626,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
           nccl_dirname = path;
         }
       }
-    } 
+    }
 
     std::string prev_valid_file_name;
     std::string prev_valid_dir_name;

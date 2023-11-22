@@ -16,7 +16,7 @@ NVCC_FLAGS += -g -G $(GENCODE_FLAGS) -std=c++17
 LD_FLAGS = -L$(CUDA_HOME)/lib64 -lcudart -lnvToolsExt -lnccl
 all_reduce: Makefile all_reduce.cu
 	$(NVCC) -cubin -lineinfo all_reduce.cu -o all_reduce.cubin
-	nvdisasm --print-line-info all_reduce.cubin > testfile.txt
+	nvdisasm --print-line-info all_reduce.cubin > memop_to_line.txt
 	$(NVCC) $(NVCC_FLAGS) all_reduce.cu $(LD_FLAGS) -o all_reduce
 
 .PHONY.: clean

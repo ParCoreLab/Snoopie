@@ -21,10 +21,10 @@ main: libwrapper.so main.o
 
 main.o: main.cu
 	#nvcc -cubin -lineinfo main.cu
-	#nvdisasm --print-line-info main.cubin > testfile.txt
+	#nvdisasm --print-line-info main.cubin > memop_to_line.txt
 	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $< -lineinfo
 	cuobjdump $@ -xelf all
-	nvdisasm --print-line-info main*.sm_80.cubin > testfile.txt
+	nvdisasm --print-line-info main*.sm_80.cubin > memop_to_line.txt
 
 main.ptx: main.cu
 	$(NVCC) --ptx $(NVCC_NV_FLAGS) -o $@ $< $(NVCC_NV_LDFLAGS)

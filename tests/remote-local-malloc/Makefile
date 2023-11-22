@@ -8,7 +8,7 @@ all:
 	nvcc --ptx $(NVCC_FLAGS)  -o main.o main.cu -lineinfo
 	nvcc --ptx $(NVCC_LDFLAGS) -o main.ptx   main.o   -lineinfo
 	nvcc -cubin -lineinfo main.cu
-	nvdisasm --print-line-info main.cubin > testfile.txt
+	nvdisasm --print-line-info main.cubin > memop_to_line.txt
 
 clean:
 	rm -f main *ptx *cubin *txt *.o
