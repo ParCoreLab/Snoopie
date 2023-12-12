@@ -476,6 +476,10 @@ void nvbit_at_init() {
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
 
+  if (silent) {
+    logger.turnoff();
+  }
+
   log_time("Bgn Snoopie");
 }
 
@@ -1573,14 +1577,16 @@ void nvbit_at_ctx_term(CUcontext ctx) {
 }
 
 void nvbit_at_term() {
-  if (!silent) {
-    if (object_attribution)
-      adm_ranges_print();
-    adm_line_table_print();
+  if (silent) {
+    return;
   }
-  vector<bool> flag(100, true);
-  cout << "Tree of data objects\n";
-  printNTree(root, flag);
+
+  if (object_attribution)
+    adm_ranges_print();
+  adm_line_table_print();
+  // vector<bool> flag(100, true);
+  // cout << "Tree of data objects\n";
+  // printNTree(root, flag);
 
   ofstream object_outfile;
   string object_str("mem_alloc_site_log_");

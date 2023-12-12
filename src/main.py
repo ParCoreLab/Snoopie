@@ -114,6 +114,9 @@ def run_snoopie(args):
     snooped_command.wait()
     print(f"Finished Execution of {cmd}")
 
+    if (args.disable_logs):
+        return
+
     print(f"Creating results file")
     log_files = glob.glob(f"*{snooped_command.pid}*")
     os.mkdir(f"./results-{snooped_command.pid}")
@@ -121,7 +124,7 @@ def run_snoopie(args):
     for f in log_files:
         shutil.move(f, f"./results-{snooped_command.pid}")
 
-    shutil.make_archive(f"./results-{snooped_command.pid}", "zip", f"./results-{snooped_command.pid}")
+    shutil.make_archive(f"./results-{snooped_command.pid}", "zip", root_dir="./", base_dir=f"./results-{snooped_command.pid}")
     shutil.rmtree(f"./results-{snooped_command.pid}")
 
 if __name__ == "__main__":

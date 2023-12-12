@@ -58,7 +58,8 @@ void write_to_stream(ZSTD_CStream *cs, std::string msg, void *buffIn,
 
 class Logger {
 private:
-  FILE *fout;
+  std::string filename;
+  FILE *fout = NULL;
   size_t buffInSize;
   size_t buffOutSize;
   void *buffIn;
@@ -69,6 +70,7 @@ private:
 
 public:
   Logger(std::string filename) {
+    this->filename = filename;
     off = false;
     cs = ZSTD_createCStream();
 
@@ -79,7 +81,6 @@ public:
     buffIn = malloc(buffInSize);
     buffOutSize = ZSTD_CStreamOutSize();
     buffOut = malloc(buffOutSize);
-    fout = fopen(filename.c_str(), "wb");
   }
 
   ~Logger() {
@@ -99,8 +100,13 @@ public:
   }
 
   void log(std::string msg) {
-    if (off)
+    if (off) {
       return;
+    }
+
+    if (fout == NULL) {
+      fout = fopen(filename.c_str(), "wb");
+    }
 
     log_mutex.lock();
     write_to_stream(cs, msg, buffIn, buffOut, buffInSize, buffOutSize, fout);
