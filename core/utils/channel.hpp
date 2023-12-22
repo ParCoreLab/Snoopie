@@ -27,310 +27,335 @@
 
 #pragma once
 
+#include "utils.h"
 #include <assert.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "utils.h"
 
 #define ULL unsigned long long int
-// #define USE_ASYNC_STREAM
+#define USE_ASYNC_STREAM
 
 #ifndef MEMTINGS2
 #define MEMTINGS2
 typedef struct {
-    int dev_id;
+  int dev_id;
 
-    int lane_id;
-    int func_id;
-    int opcode_id;
-    uint64_t addrs[32];
+  int lane_id;
+  int func_id;
+  int opcode_id;
+  uint64_t addrs[32];
 
-    int global_index;
-    uint64_t thread_index;
+  int global_index;
+  uint64_t thread_index;
 } mem_access_t;
 #endif
 
 #ifndef MEMTINGS
 #define MEMTINGS
-struct MemoryAllocation
-{
+struct MemoryAllocation {
   int deviceID;
   uint64_t pointer;
   uint64_t bytesize;
 };
 #endif
 
-
 class ChannelDev {
-  private:
-    int id;
-    volatile int* doorbell;
+private:
+  int id;
+  volatile int *doorbell;
+  volatile int *buffisfull;
 
-    uint8_t* buff;
-    uint8_t* buff_end;
+  uint8_t *buff;
+  uint8_t *buff_end;
 
-    /* head/tail pointers */
-    uint8_t* volatile buff_write_head_ptr;
-    uint8_t* volatile buff_write_tail_ptr;
+  /* head/tail pointers */
+  uint8_t *volatile buff_write_head_ptr;
+  uint8_t *volatile buff_write_tail_ptr;
 
-    MemoryAllocation* mallocs_record;
-    bool on_dev_filtering = true;
-    
+  MemoryAllocation *mallocs_record;
+  bool on_dev_filtering = true;
 
-    uint64_t no_mallocs = 0;
+  uint64_t no_mallocs = 0;
 
-  public:
-    ChannelDev() {
-    }
+public:
+  ChannelDev() {}
 
-    __device__ __forceinline__ void push(void* packet, uint32_t nbytes, int this_device) {
-        assert(nbytes != 0);
+  __device__ __forceinline__ void push(void *packet, uint32_t nbytes,
+                                       int this_device) {
+    assert(nbytes != 0);
 
-        uint8_t* curr_ptr = NULL;
+    uint8_t *curr_ptr = NULL;
 
-        
-        mem_access_t* mc = (mem_access_t*) packet;
+    mem_access_t *mc = (mem_access_t *)packet;
 
-        // TODO: CHECK all packets, if any of them is a remote address, allow to push, otherwise skip
+    // TODO: CHECK all packets, if any of them is a remote address, allow to
+    // push, otherwise skip
 
-         bool found_remote = false;
+    bool found_remote = false;
 
-         if (mc->lane_id != -1 && on_dev_filtering) {
-           for (int i = 0; i < 32; i++) {
-             uint64_t ptr = mc->addrs[i];
+    if (mc->lane_id != -1 && on_dev_filtering) {
+      for (int i = 0; i < 32; i++) {
+        uint64_t ptr = mc->addrs[i];
 
-             if (found_remote) break;
+        if (found_remote)
+          break;
 
+        for (int j = 0; j < no_mallocs; j++) {
+          MemoryAllocation ma = mallocs_record[j];
+          if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize) {
 
-             for (int j = 0; j < no_mallocs; j++) {
-               MemoryAllocation ma = mallocs_record[j];
-               if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
-               {
-
-                 if (ma.deviceID != this_device) {
-                   found_remote = true;
-                   break;
-                 }
-               }
-
-               // check if ptr falls within nvshmem's peer memory address space
-               if (0x0000012020000000 <= ptr && ptr <= 0x0000020020000000) {
-                 found_remote = true;
-               }
-               
-             }
-           }
-
-           if (!found_remote) {
-             return;
-           }
-         }
-
-        while (curr_ptr == NULL) {
-            curr_ptr =
-                (uint8_t*)atomicAdd((ULL*)&buff_write_head_ptr, (ULL)nbytes);
-
-            /* if the current position plus nbytes is after buff_end, the
-             * buffer is full.
-             * Many warps could find condition true, but only the first warp
-             * will find true the condition after. */
-            if (curr_ptr + nbytes > buff_end) {
-                /* I am the first warp that found the buffer full and
-                 * I am the one responsible for flushing the buffer out */
-                if (curr_ptr <= buff_end) {
-                    /* wait until everyone completed to write */
-                    while (buff_write_tail_ptr != curr_ptr) {
-                    }
-
-                    /* flush buffer */
-                    flush();
-                } else {
-                    /* waiting for buffer to flush */
-                    while (buff_write_head_ptr > buff_end) {
-                    }
-                }
-                curr_ptr = NULL;
+            if (ma.deviceID != this_device) {
+              found_remote = true;
+              break;
             }
+          }
+
+          // check if ptr falls within nvshmem's peer memory address space
+          if (0x0000012020000000 <= ptr && ptr <= 0x0000020020000000) {
+            found_remote = true;
+          }
         }
+      }
 
-        memcpy(curr_ptr, packet, nbytes);
-        atomicAdd((ULL*)&buff_write_tail_ptr, (ULL)nbytes);
+      if (!found_remote) {
+        return;
+      }
     }
 
-    __device__ __forceinline__ void flush() {
-        uint32_t nbytes = (uint32_t)(buff_write_tail_ptr - buff);
-        // printf("FLUSH CHANNEL#%d: buffer bytes %d\n", id, nbytes);
-        if (nbytes == 0) {
-            return;
+    while (curr_ptr == NULL) {
+      curr_ptr = (uint8_t *)atomicAdd((ULL *)&buff_write_head_ptr, (ULL)nbytes);
+
+      /* if the current position plus nbytes is after buff_end, the
+       * buffer is full.
+       * Many warps could find condition true, but only the first warp
+       * will find true the condition after. */
+      if (curr_ptr + nbytes > buff_end) {
+        /* I am the first warp that found the buffer full and
+         * I am the one responsible for flushing the buffer out */
+        if (curr_ptr <= buff_end) {
+          /* wait until everyone completed to write */
+          while (buff_write_tail_ptr != curr_ptr) {
+          }
+
+          /* flush buffer */
+          flush();
+        } else {
+          /* waiting for buffer to flush */
+          while (buff_write_head_ptr > buff_end) {
+          }
         }
-
-        /* make sure everything is visible in memory */
-        __threadfence_system();
-
-        assert(*doorbell == 0);
-        /* notify current buffer has something*/
-        *doorbell = nbytes;
-
-        /* wait for host to release the doorbell */
-        while (*doorbell != 0)
-            ;
-
-        /* reset head/tail */
-        buff_write_tail_ptr = buff;
-        __threadfence();
-        buff_write_head_ptr = buff;
-
-        // printf("FLUSH CHANNEL#%d: DONE\n", id);
-    }
-  
-    void add_malloc(MemoryAllocation ma) {
-      mallocs_record[no_mallocs++] = ma;
+        curr_ptr = NULL;
+      }
     }
 
-  private:
-    /* called by the ChannelHost init */
-    void init(int id, int* h_doorbell, int buff_size, bool on_dev_filtering) {
-	this->on_dev_filtering = on_dev_filtering;
-        CUDA_SAFECALL(
-            cudaHostGetDevicePointer((void**)&doorbell, (void*)h_doorbell, 0));
+    memcpy(curr_ptr, packet, nbytes);
+    atomicAdd((ULL *)&buff_write_tail_ptr, (ULL)nbytes);
+
+    // if (nbytes != 0) {
+    //   return;
+    // }
+  }
+
+  __device__ __forceinline__ void flush() {
+    uint32_t nbytes = (uint32_t)(buff_write_tail_ptr - buff);
+    // printf("FLUSH CHANNEL#%d: buffer bytes %d\n", id, nbytes);
+    if (nbytes == 0) {
+      return;
+    }
+
+    /* make sure everything is visible in memory */
+    __threadfence_system();
+
+    assert(*doorbell == 0);
+    /* notify current buffer has something*/
+    *doorbell = nbytes;
+
+    /* wait for host to release the doorbell */
+    while (*doorbell != 0)
+      ;
+
+    /* reset head/tail */
+    buff_write_tail_ptr = buff;
+    __threadfence();
+    buff_write_head_ptr = buff;
+
+    // printf("FLUSH CHANNEL#%d: DONE\n", id);
+  }
+
+  void add_malloc(MemoryAllocation ma) { mallocs_record[no_mallocs++] = ma; }
+
+private:
+  /* called by the ChannelHost init */
+  void init(int id, int *h_doorbell, int *h_buffisfull, int buff_size,
+            bool on_dev_filtering) {
+    this->on_dev_filtering = on_dev_filtering;
+    CUDA_SAFECALL(
+        cudaHostGetDevicePointer((void **)&doorbell, (void *)h_doorbell, 0));
+    CUDA_SAFECALL(cudaHostGetDevicePointer((void **)&buffisfull,
+                                           (void *)h_buffisfull, 0));
 
 /* allocate large buffer */
 #ifdef USE_ASYNC_STREAM
-        CUDA_SAFECALL(cudaMalloc((void**)&buff, buff_size));
+    CUDA_SAFECALL(cudaMalloc((void **)&buff, buff_size));
 #else
-        CUDA_SAFECALL(cudaMallocManaged((void**)&buff, buff_size));
+    CUDA_SAFECALL(cudaMallocManaged((void **)&buff, buff_size));
 #endif
-        CUDA_SAFECALL(cudaMallocManaged((void **)&mallocs_record, buff_size));
-        buff_write_head_ptr = buff;
-        buff_write_tail_ptr = buff;
-        buff_end = buff + buff_size;
-        this->id = id;
-    }
+    CUDA_SAFECALL(cudaMallocManaged((void **)&mallocs_record, buff_size));
+    buff_write_head_ptr = buff;
+    buff_write_tail_ptr = buff;
+    buff_end = buff + buff_size;
+    this->id = id;
+  }
 
-
-    friend class ChannelHost;
+  friend class ChannelHost;
 };
 
 class ChannelHost {
-  private:
-    volatile int* doorbell;
+private:
+  volatile int *doorbell;
+  volatile int *buffisfull;
 
-    cudaStream_t stream;
-    ChannelDev* ch_dev;
+  cudaStream_t stream;
+  ChannelDev *ch_dev;
 
-    /* pointers to device buffer */
-    uint8_t* dev_buff_read_head;
-    uint8_t* dev_buff;
+  /* pointers to device buffer */
+  uint8_t *dev_buff_read_head;
+  uint8_t *dev_buff;
 
-    /* receiving thread */
-    pthread_t thread;
-    volatile bool thread_started;
+  uint8_t *hdev_buff;
 
-  public:
-    int id;
-    int buff_size;
+  /* receiving thread */
+  pthread_t thread;
+  volatile bool thread_started;
 
-  public:
-    ChannelHost() {}
+public:
+  int id;
+  int buff_size;
 
-    void init(int id, int buff_size, ChannelDev* ch_dev,
-              void* (*thread_fun)(void*), bool on_dev_filtering, void* args = NULL) {
-        this->buff_size = buff_size;
-        this->id = id;
-        /* get device properties */
-        cudaDeviceProp prop;
-        int device = 0;
-        cudaGetDeviceProperties(&prop, device);
-        if (prop.canMapHostMemory == 0) {
-            CUDA_SAFECALL(cudaSetDeviceFlags(cudaDeviceMapHost));
-        }
+public:
+  ChannelHost() {}
 
-#ifdef USE_ASYNC_STREAM
-        /* create stream that will read memory with highest possible priority */
-        int priority_high, priority_low;
-        CUDA_SAFECALL(
-            cudaDeviceGetStreamPriorityRange(&priority_low, &priority_high));
-        CUDA_SAFECALL(cudaStreamCreateWithPriority(
-            &stream, cudaStreamNonBlocking, priority_high));
-#endif
-
-        /* create doorbell */
-        CUDA_SAFECALL(
-            cudaHostAlloc((void**)&doorbell, sizeof(int), cudaHostAllocMapped));
-        /* set doorbell to zero */
-        *doorbell = 0;
-
-        /* initialize device channel */
-        this->ch_dev = ch_dev;
-        ch_dev->init(id, (int*)doorbell, buff_size, on_dev_filtering);
-
-        dev_buff = ch_dev->buff;
-        dev_buff_read_head = dev_buff;
-        if (thread_fun != NULL) {
-            thread_started = true;
-            pthread_create(&thread, NULL, (void* (*)(void*))thread_fun, args);
-        } else {
-            thread_started = false;
-        }
+  void init(int id, int buff_size, ChannelDev *ch_dev,
+            void *(*thread_fun)(void *), bool on_dev_filtering,
+            void *args = NULL) {
+    this->buff_size = buff_size;
+    this->id = id;
+    /* get device properties */
+    cudaDeviceProp prop;
+    int device = 0;
+    cudaGetDeviceProperties(&prop, device);
+    if (prop.canMapHostMemory == 0) {
+      CUDA_SAFECALL(cudaSetDeviceFlags(cudaDeviceMapHost));
     }
 
-    /* when used in nvbit we don't want to dealloc because
-     * when modules are unloaded the driver automatically
-     * deallocates CUDA malloc, so further deallocs done
-     * here will result in errors */
-    void destroy(bool dealloc) {
-        if (thread_started) {
-            thread_started = false;
-            pthread_join(thread, NULL);
-        }
-        if (dealloc) {
 #ifdef USE_ASYNC_STREAM
-            CUDA_SAFECALL(cudaStreamDestroy(stream));
+    /* create stream that will read memory with highest possible priority */
+    int priority_high, priority_low;
+    CUDA_SAFECALL(
+        cudaDeviceGetStreamPriorityRange(&priority_low, &priority_high));
+    CUDA_SAFECALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
+                                               priority_high));
 #endif
-            CUDA_SAFECALL(cudaFree((int*)doorbell));
-            CUDA_SAFECALL(cudaFree(ch_dev->buff));
-        }
+
+    /* create doorbell */
+    CUDA_SAFECALL(
+        cudaHostAlloc((void **)&doorbell, sizeof(int), cudaHostAllocMapped));
+    CUDA_SAFECALL(
+        cudaHostAlloc((void **)&buffisfull, sizeof(int), cudaHostAllocMapped));
+    CUDA_SAFECALL(
+        cudaHostAlloc((void **)&hdev_buff, buff_size, cudaHostAllocMapped));
+    /* set doorbell to zero */
+    *doorbell = 0;
+    *buffisfull = 0;
+
+    /* initialize device channel */
+    this->ch_dev = ch_dev;
+    ch_dev->init(id, (int *)doorbell, (int *)buffisfull, buff_size,
+                 on_dev_filtering);
+
+    dev_buff = ch_dev->buff;
+    dev_buff_read_head = hdev_buff;
+    if (thread_fun != NULL) {
+      thread_started = true;
+      pthread_create(&thread, NULL, (void *(*)(void *))thread_fun, args);
+    } else {
+      thread_started = false;
     }
+  }
 
-    bool is_active() { return thread_started; }
-
-    uint32_t recv(void* buff, uint32_t max_buff_size) {
-        assert(max_buff_size > 0);
-        assert(doorbell != NULL);
-        uint32_t buff_nbytes = *doorbell;
-        if (buff_nbytes == 0) {
-            return 0;
-        }
-        int nbytes = buff_nbytes;
-
-        // printf("HOST TO RECEIVE nbytes %d - bytes left %d\n", nbytes, 0);
-        if (buff_nbytes > max_buff_size) {
-            nbytes = max_buff_size;
-        }
+  /* when used in nvbit we don't want to dealloc because
+   * when modules are unloaded the driver automatically
+   * deallocates CUDA malloc, so further deallocs done
+   * here will result in errors */
+  void destroy(bool dealloc) {
+    if (thread_started) {
+      thread_started = false;
+      pthread_join(thread, NULL);
+    }
+    if (dealloc) {
 #ifdef USE_ASYNC_STREAM
-        CUDA_SAFECALL(cudaMemcpyAsync(buff, dev_buff_read_head, nbytes,
-                                      cudaMemcpyDeviceToHost, stream));
-        CUDA_SAFECALL(cudaStreamSynchronize(stream));
+      CUDA_SAFECALL(cudaStreamDestroy(stream));
+#endif
+      CUDA_SAFECALL(cudaFree((int *)doorbell));
+      CUDA_SAFECALL(cudaFree((int *)buffisfull));
+      CUDA_SAFECALL(cudaFree(ch_dev->buff));
+    }
+  }
+
+  bool is_active() { return thread_started; }
+
+  void load_dev_buff() {
+    // wait until signaled from the device
+    while (*doorbell == 0)
+      ;
+
+    *buffisfull = *doorbell;
+
+#ifdef USE_ASYNC_STREAM
+    CUDA_SAFECALL(cudaMemcpyAsync(hdev_buff, dev_buff, buff_size,
+                                  cudaMemcpyDeviceToHost, stream));
+    CUDA_SAFECALL(cudaStreamSynchronize(stream));
 #else
-        memcpy(buff, dev_buff_read_head, nbytes);
+    memcpy(hdev_buff, dev_buff, buff_size);
 #endif
-        int bytes_left = buff_nbytes - nbytes;
-        assert(bytes_left >= 0);
-        if (bytes_left > 0) {
-            dev_buff_read_head += nbytes;
-        } else {
-            dev_buff_read_head = dev_buff;
-        }
 
-        *doorbell = bytes_left;
-        // printf("HOST RECEIVED nbytes %d - bytes left %d\n", nbytes, bytes_left);
-        return nbytes;
+    *doorbell = 0;
+  }
+
+  uint32_t recv(void *buff, uint32_t max_buff_size) {
+    assert(max_buff_size > 0);
+    assert(buffisfull != NULL);
+    uint32_t buff_nbytes = *buffisfull;
+    if (buff_nbytes == 0) {
+      // only attempt to load device buffer when host buffer is empty
+      load_dev_buff();
+      return 0;
+    }
+    int nbytes = buff_nbytes;
+
+    // printf("HOST TO RECEIVE nbytes %d - bytes left %d\n", nbytes, 0);
+    if (buff_nbytes > max_buff_size) {
+      nbytes = max_buff_size;
+    }
+    memcpy(buff, dev_buff_read_head, nbytes);
+    // #endif
+    int bytes_left = buff_nbytes - nbytes;
+    assert(bytes_left >= 0);
+    if (bytes_left > 0) {
+      dev_buff_read_head += nbytes;
+    } else {
+      dev_buff_read_head = hdev_buff;
     }
 
-    pthread_t get_thread() { return thread; }
+    *buffisfull = bytes_left;
+    // printf("HOST RECEIVED nbytes %d - bytes left %d\n", nbytes, bytes_left);
+    return nbytes;
+  }
 
-    friend class MultiChannelHost;
+  pthread_t get_thread() { return thread; }
+
+  friend class MultiChannelHost;
 };
