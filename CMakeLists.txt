@@ -70,9 +70,9 @@ set(MPIRUN mpirun)
 
 #execute_process(COMMAND nvdisasm --print-line-info jacobi.sm_80.cubin
 #  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia
-#  OUTPUT_FILE testfile.txt)
+#  OUTPUT_FILE memop_to_line.txt)
 
-#execute_process(COMMAND cp testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
+#execute_process(COMMAND cp memop_to_line.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
 #  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia)
 
 #add_custom_target(jacobi_object
@@ -86,30 +86,30 @@ set(MPIRUN mpirun)
 
 add_custom_target(nvshmem-multi-files_test_mapping
   COMMAND nvcc -cubin -rdc=true -lineinfo device-initiated-direct-access.cu
-  COMMAND nvdisasm --print-line-info device-initiated-direct-access.cubin > testfile.txt
+  COMMAND nvdisasm --print-line-info device-initiated-direct-access.cubin > memop_to_line.txt
   COMMAND nvcc -cubin -rdc=true -lineinfo simple1.cu
-  COMMAND nvdisasm --print-line-info simple1.cubin >> testfile.txt
+  COMMAND nvdisasm --print-line-info simple1.cubin >> memop_to_line.txt
   COMMAND nvcc -cubin -rdc=true -lineinfo simple2.cu
-  COMMAND nvdisasm --print-line-info simple2.cubin >> testfile.txt
+  COMMAND nvdisasm --print-line-info simple2.cubin >> memop_to_line.txt
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files)
 
 add_custom_target(nvshmem-multi-files_test
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/obj-testcases/nvshmem-multi-files
   DEPENDS nvshmem-multi-files_test_mapping
-  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/obj-testcases/nvshmem-multi-files
+  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files/memop_to_line.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/obj-testcases/nvshmem-multi-files
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/obj-testcases/nvshmem-multi-files/*.cubin
   COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x NOBANNER=1 -x LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" -x KERNEL_NAME=all -x CODE_ATTRIBUTION=1 -np ${NP} ./nvshmem-multi-files -n 32
 )
 
 add_custom_target(bfs_test_mapping
   COMMAND nvcc -cubin -DHAVE_CUB -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt -std=c++14 bfs_basic.cu
-  COMMAND nvdisasm --print-line-info bfs_basic.cubin > testfile.txt
+  COMMAND nvdisasm --print-line-info bfs_basic.cubin > memop_to_line.txt
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/bfs)
 
 add_custom_target(bfs_test
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/bfs
   DEPENDS bfs_test_mapping
-  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/bfs/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/bfs
+  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/bfs/memop_to_line.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/bfs
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/bfs/*.cubin
   COMMAND if [ ! -d "gupta2" ] \; then wget https://suitesparse-collection-website.herokuapp.com/MM/Gupta/gupta2.tar.gz && tar -xf gupta2.tar.gz \; fi \;
   #COMMAND tar -xf gupta2.tar.gz
@@ -122,26 +122,26 @@ add_custom_target(bfs_test
 add_custom_target(stencil_nvshmem_nvidia_test_mapping
 	COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I$ENV{NVSHMEM_HOME}/include -I$ENV{MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo
   COMMAND cuobjdump jacobi.o -xelf all
-  COMMAND nvdisasm --print-line-info jacobi.sm_80.cubin > testfile.txt
+  COMMAND nvdisasm --print-line-info jacobi.sm_80.cubin > memop_to_line.txt
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia)
 
 add_custom_target(stencil_nvshmem_nvidia_test
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
   DEPENDS stencil_nvshmem_nvidia_test_mapping
-  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
+  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/memop_to_line.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.o ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/*.cubin
   COMMAND ${MPIRUN} --oversubscribe -x NVSHMEM_NGPUS=2 -x KERNEL_NAME=all -x LD_LIBRARY_PATH=/usr/local/cuda/lib64:.:$ENV{NVSHMEM_HOME}/lib:$$LD_LIBRARY_PATH -x LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" -x CODE_ATTRIBUTION=1 -np ${NP} ./stencil-cmake-nvidia -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 add_custom_target(stencil_p2p_base_test_mapping
   COMMAND nvcc -cubin -DHAVE_CUB -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt  -std=c++14 jacobi.cu
-  COMMAND nvdisasm --print-line-info jacobi.cubin > testfile.txt
+  COMMAND nvdisasm --print-line-info jacobi.cubin > memop_to_line.txt
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base)
 
 add_custom_target(stencil_p2p_base_test
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
   DEPENDS stencil_p2p_base_test_mapping
-  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
+  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/memop_to_line.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/*.cubin
   COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
@@ -149,13 +149,13 @@ add_custom_target(stencil_p2p_base_test
 
 add_custom_target(stencil_tb_singlestream_test_mapping
   COMMAND nvcc -cubin -DHAVE_CUB -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt  -std=c++14 jacobi.cu
-  COMMAND nvdisasm --print-line-info jacobi.cubin > testfile.txt
+  COMMAND nvdisasm --print-line-info jacobi.cubin > memop_to_line.txt
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream)
 
 add_custom_target(stencil_tb_singlestream_test
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-tb-singlestream
   DEPENDS stencil_tb_singlestream_test_mapping
-  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream/testfile.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-tb-singlestream
+  COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream/memop_to_line.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-tb-singlestream
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-tb-singlestream/*.cubin
   COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-tb_singlestream -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )

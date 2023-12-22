@@ -278,7 +278,7 @@ void memop_to_line() {
     cerr << "Please generate a cubin file using nvcc -cubin "
             "-lineinfo command and run nvdisasm --print-line-info "
             "on the generated cubin file with the output directed to "
-            "testfile.txt"
+            "memop_to_line.txt"
          << endl;
     exit(1);
   }
