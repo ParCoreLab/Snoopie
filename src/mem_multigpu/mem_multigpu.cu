@@ -531,6 +531,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 
     std::string curr_kernel_name = nvbit_get_func_name(ctx, f);
 
+    std::cerr << "kernel " << curr_kernel_name << " is launched\n";
+    std::cerr << "call stack:\n";
+    print_trace();
     std::size_t parenthes_pos = curr_kernel_name.find_first_of('(');
 
     if (parenthes_pos != std::string::npos)
@@ -1447,8 +1450,8 @@ void *recv_thread_fun(void *args) {
           }
 
           // ignore operations on the same device
-          if (mem_device_id == ma->dev_id)
-            continue;
+          //if (mem_device_id == ma->dev_id)
+            //continue;
 
           if (mem_device_id == -1)
             continue;
@@ -1542,6 +1545,8 @@ void nvbit_at_ctx_init(CUcontext ctx) {
   ctx_state_map[ctx] = ctx_state;
   cudaMallocManaged(&ctx_state->channel_dev, sizeof(ChannelDev));
 
+  if(on_dev_filtering)
+	  std::cerr << "on_dev_filtering is active";
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
                                ctx_state->channel_dev, recv_thread_fun,
                                on_dev_filtering, ctx);

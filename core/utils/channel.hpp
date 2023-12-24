@@ -99,6 +99,7 @@ class ChannelDev {
          bool found_remote = false;
 
          if (mc->lane_id != -1 && on_dev_filtering) {
+	   //fprintf(stderr, "on_dev_filtering is active\n");
            for (int i = 0; i < 32; i++) {
              uint64_t ptr = mc->addrs[i];
 
