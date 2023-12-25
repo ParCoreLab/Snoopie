@@ -65,8 +65,14 @@ struct MemoryAllocation {
 class ChannelDev {
 private:
   int id;
-  volatile int *doorbell;
-  volatile int *buffisfull;
+  volatile int *doorbellA;
+  volatile int *doorbellB;
+
+  uint8_t *buffA;
+  uint8_t *buffB;
+
+  // True for A, false for B;
+  bool *currentBuff;
 
   uint8_t *buff;
   uint8_t *buff_end;
@@ -160,8 +166,10 @@ public:
   }
 
   __device__ __forceinline__ void flush() {
+
     uint32_t nbytes = (uint32_t)(buff_write_tail_ptr - buff);
-    // printf("FLUSH CHANNEL#%d: buffer bytes %d\n", id, nbytes);
+    // printf("FLUSH CHANNEL#%d: buffer bytes %d, currentBuff: %d\n", id,
+    // nbytes, *currentBuff);
     if (nbytes == 0) {
       return;
     }
@@ -169,18 +177,40 @@ public:
     /* make sure everything is visible in memory */
     __threadfence_system();
 
-    assert(*doorbell == 0);
-    /* notify current buffer has something*/
-    *doorbell = nbytes;
+    if (*currentBuff) {
+      assert(*doorbellA == 0);
+    } else {
+      assert(*doorbellB == 0);
+    }
 
+    /* notify current buffer has something*/
+    if (*currentBuff) {
+      *doorbellA = nbytes;
+    } else {
+      *doorbellB = nbytes;
+    }
+
+    *currentBuff = !*currentBuff;
     /* wait for host to release the doorbell */
-    while (*doorbell != 0)
-      ;
+
+    if (*currentBuff) {
+      while (*doorbellA != 0)
+        ;
+    } else {
+      while (*doorbellB != 0)
+        ;
+    }
 
     /* reset head/tail */
-    buff_write_tail_ptr = buff;
-    __threadfence();
-    buff_write_head_ptr = buff;
+    if (*currentBuff) {
+      buff_write_tail_ptr = buffA;
+      __threadfence();
+      buff_write_head_ptr = buffA;
+    } else {
+      buff_write_tail_ptr = buffB;
+      __threadfence();
+      buff_write_head_ptr = buffB;
+    }
 
     // printf("FLUSH CHANNEL#%d: DONE\n", id);
   }
@@ -189,21 +219,26 @@ public:
 
 private:
   /* called by the ChannelHost init */
-  void init(int id, int *h_doorbell, int *h_buffisfull, int buff_size,
+  void init(int id, int *h_doorbellA, int *h_doorbellB, int buff_size,
             bool on_dev_filtering) {
     this->on_dev_filtering = on_dev_filtering;
     CUDA_SAFECALL(
-        cudaHostGetDevicePointer((void **)&doorbell, (void *)h_doorbell, 0));
-    CUDA_SAFECALL(cudaHostGetDevicePointer((void **)&buffisfull,
-                                           (void *)h_buffisfull, 0));
+        cudaHostGetDevicePointer((void **)&doorbellA, (void *)h_doorbellA, 0));
+    CUDA_SAFECALL(
+        cudaHostGetDevicePointer((void **)&doorbellB, (void *)h_doorbellB, 0));
 
 /* allocate large buffer */
 #ifdef USE_ASYNC_STREAM
-    CUDA_SAFECALL(cudaMalloc((void **)&buff, buff_size));
+    CUDA_SAFECALL(cudaMalloc((void **)&buffA, buff_size));
+    CUDA_SAFECALL(cudaMalloc((void **)&buffB, buff_size));
+    CUDA_SAFECALL(cudaMalloc((void **)&currentBuff, sizeof(bool)));
+    CUDA_SAFECALL(cudaMemset((void **)&currentBuff, 1, sizeof(bool)));
 #else
-    CUDA_SAFECALL(cudaMallocManaged((void **)&buff, buff_size));
+    CUDA_SAFECALL(cudaMallocManaged((void **)&buffA, buff_size));
+    CUDA_SAFECALL(cudaMallocManaged((void **)&buffB, buff_size));
 #endif
     CUDA_SAFECALL(cudaMallocManaged((void **)&mallocs_record, buff_size));
+    buff = buffB;
     buff_write_head_ptr = buff;
     buff_write_tail_ptr = buff;
     buff_end = buff + buff_size;
@@ -215,15 +250,21 @@ private:
 
 class ChannelHost {
 private:
-  volatile int *doorbell;
-  volatile int *buffisfull;
+  volatile int *doorbellA;
+  volatile int *doorbellB;
+
+  volatile int *h_doorbellA;
+  volatile int *h_doorbellB;
+
+  volatile int *h_currentBuff;
 
   cudaStream_t stream;
   ChannelDev *ch_dev;
 
   /* pointers to device buffer */
   uint8_t *dev_buff_read_head;
-  uint8_t *dev_buff;
+  uint8_t *dev_buffA;
+  uint8_t *dev_buffB;
 
   uint8_t *hdev_buff;
 
@@ -262,21 +303,32 @@ public:
 
     /* create doorbell */
     CUDA_SAFECALL(
-        cudaHostAlloc((void **)&doorbell, sizeof(int), cudaHostAllocMapped));
+        cudaHostAlloc((void **)&doorbellA, sizeof(int), cudaHostAllocMapped));
     CUDA_SAFECALL(
-        cudaHostAlloc((void **)&buffisfull, sizeof(int), cudaHostAllocMapped));
+        cudaHostAlloc((void **)&doorbellB, sizeof(int), cudaHostAllocMapped));
+    CUDA_SAFECALL(
+        cudaHostAlloc((void **)&h_doorbellA, sizeof(int), cudaHostAllocMapped));
+    CUDA_SAFECALL(
+        cudaHostAlloc((void **)&h_doorbellB, sizeof(int), cudaHostAllocMapped));
+    CUDA_SAFECALL(cudaHostAlloc((void **)&h_currentBuff, sizeof(int),
+                                cudaHostAllocMapped));
     CUDA_SAFECALL(
         cudaHostAlloc((void **)&hdev_buff, buff_size, cudaHostAllocMapped));
     /* set doorbell to zero */
-    *doorbell = 0;
-    *buffisfull = 0;
+    *doorbellA = 0;
+    *doorbellB = 0;
+    *h_doorbellA = 0;
+    *h_doorbellB = 0;
+    *h_currentBuff = 1;
 
     /* initialize device channel */
     this->ch_dev = ch_dev;
-    ch_dev->init(id, (int *)doorbell, (int *)buffisfull, buff_size,
+    ch_dev->init(id, (int *)doorbellA, (int *)doorbellB, buff_size,
                  on_dev_filtering);
 
-    dev_buff = ch_dev->buff;
+    dev_buffA = ch_dev->buffA;
+    dev_buffB = ch_dev->buffB;
+
     dev_buff_read_head = hdev_buff;
     if (thread_fun != NULL) {
       thread_started = true;
@@ -299,8 +351,8 @@ public:
 #ifdef USE_ASYNC_STREAM
       CUDA_SAFECALL(cudaStreamDestroy(stream));
 #endif
-      CUDA_SAFECALL(cudaFree((int *)doorbell));
-      CUDA_SAFECALL(cudaFree((int *)buffisfull));
+      CUDA_SAFECALL(cudaFree((int *)doorbellA));
+      CUDA_SAFECALL(cudaFree((int *)h_doorbellA));
       CUDA_SAFECALL(cudaFree(ch_dev->buff));
     }
   }
@@ -308,32 +360,64 @@ public:
   bool is_active() { return thread_started; }
 
   void load_dev_buff() {
+    *h_currentBuff = !*h_currentBuff;
     // wait until signaled from the device
-    while (*doorbell == 0)
-      ;
 
-    *buffisfull = *doorbell;
+    if (*h_currentBuff) {
+      while (*doorbellA == 0)
+        ;
+    } else {
+      while (*doorbellB == 0)
+        ;
+    }
 
+    if (*h_currentBuff) {
+      *h_doorbellA = *doorbellA;
+    } else {
+      *h_doorbellB = *doorbellB;
+    }
+
+    if (*h_currentBuff) {
 #ifdef USE_ASYNC_STREAM
-    CUDA_SAFECALL(cudaMemcpyAsync(hdev_buff, dev_buff, buff_size,
-                                  cudaMemcpyDeviceToHost, stream));
-    CUDA_SAFECALL(cudaStreamSynchronize(stream));
+      CUDA_SAFECALL(cudaMemcpyAsync(hdev_buff, dev_buffA, buff_size,
+                                    cudaMemcpyDeviceToHost, stream));
+      CUDA_SAFECALL(cudaStreamSynchronize(stream));
 #else
-    memcpy(hdev_buff, dev_buff, buff_size);
+      memcpy(hdev_buff, dev_buffA, buff_size);
 #endif
+    } else {
+#ifdef USE_ASYNC_STREAM
+      CUDA_SAFECALL(cudaMemcpyAsync(hdev_buff, dev_buffB, buff_size,
+                                    cudaMemcpyDeviceToHost, stream));
+      CUDA_SAFECALL(cudaStreamSynchronize(stream));
+#else
+      memcpy(hdev_buff, dev_buffB, buff_size);
+#endif
+    }
 
-    *doorbell = 0;
+    if (*h_currentBuff) {
+      *doorbellA = 0;
+    } else {
+      *doorbellB = 0;
+    }
   }
 
   uint32_t recv(void *buff, uint32_t max_buff_size) {
     assert(max_buff_size > 0);
-    assert(buffisfull != NULL);
-    uint32_t buff_nbytes = *buffisfull;
+    assert(h_doorbellA != NULL);
+    uint32_t buff_nbytes;
+    if (*h_currentBuff) {
+      buff_nbytes = *h_doorbellA;
+    } else {
+      buff_nbytes = *h_doorbellB;
+    }
+
     if (buff_nbytes == 0) {
       // only attempt to load device buffer when host buffer is empty
       load_dev_buff();
       return 0;
     }
+
     int nbytes = buff_nbytes;
 
     // printf("HOST TO RECEIVE nbytes %d - bytes left %d\n", nbytes, 0);
@@ -350,7 +434,11 @@ public:
       dev_buff_read_head = hdev_buff;
     }
 
-    *buffisfull = bytes_left;
+    if (*h_currentBuff) {
+      *h_doorbellA = bytes_left;
+    } else {
+      *h_doorbellB = bytes_left;
+    }
     // printf("HOST RECEIVED nbytes %d - bytes left %d\n", nbytes, bytes_left);
     return nbytes;
   }
