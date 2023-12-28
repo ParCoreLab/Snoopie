@@ -92,8 +92,10 @@ public:
       exit(13);
     }
 
-    fwrite(buffOut, 1, output.pos, fout);
-    fclose(fout);
+    if (fout != NULL) {
+      fwrite(buffOut, 1, output.pos, fout);
+      fclose(fout);
+    }
 
     free(buffOut);
     free(buffIn);
