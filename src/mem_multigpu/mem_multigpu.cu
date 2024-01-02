@@ -1416,6 +1416,7 @@ void *recv_thread_fun(void *args) {
           done = true;
           break;
         }
+
         adm_range_t *range = nullptr; // adm_range_find(ma.addrs[0]);
         uint64_t allocation_pc = 0;   // obj->get_allocation_pc();
         std::string varname;
@@ -1586,12 +1587,10 @@ void nvbit_at_term() {
     return;
   }
 
-  if (object_attribution)
+  if (object_attribution) {
     adm_ranges_print();
+  }
   adm_line_table_print();
-  // vector<bool> flag(100, true);
-  // cout << "Tree of data objects\n";
-  // printNTree(root, flag);
 
   ofstream object_outfile;
   string object_str("mem_alloc_site_log_");

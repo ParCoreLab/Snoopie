@@ -21,6 +21,18 @@ def main():
     )
 
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Only print the list of enviorment variables that would've been used",
+    )
+
+    parser.add_argument(
+        "--dry-run-mpi",
+        action="store_true",
+        help="Only print the list of enviorment variables that would've been used and their mpirun command",
+    )
+
+    parser.add_argument(
         "--nvshmem-version",
         choices=["2.7", "2.8", "2.9"],
         metavar="NVSHMEM_VERSION",
@@ -75,37 +87,58 @@ def main():
 
     run_snoopie(args)
 
+
+
+
 def run_snoopie(args):
-    env = os.environ.copy()
-    env["LD_PRELOAD"] = env["SNOOPIE_PATH"]
+    env  = os.environ.copy()
+    nenv = os.environ.copy()
+    nenv.clear()
+
+    nenv["LD_PRELOAD"] = env["SNOOPIE_PATH"]
 
     if (args.verbose):
-        env["TOOL_VERBOSE"] = "1"
+        nenv["TOOL_VERBOSE"] = "1"
 
     if (args.disable_logs):
-        env["SILENT"] = "1"
+        nenv["SILENT"] = "1"
 
     if (args.disable_code_attribution):
-        env["CODE_ATTRIBUTION"] = "0"
+        nenv["CODE_ATTRIBUTION"] = "0"
 
     if (args.sample_size):
-        env["SAMPLE_SIZE"] = args.sample_size
+        nenv["SAMPLE_SIZE"] = args.sample_size
 
     if (args.filtering_location == "device"):
-        env["ON_DEVICE_FILTERING"] = "1"
+        nenv["ON_DEVICE_FILTERING"] = "1"
 
     if (args.filtering_location == "host"):
-        env["ON_DEVICE_FILTERING"] = "0"
+        nenv["ON_DEVICE_FILTERING"] = "0"
 
     if (args.nvshmem_ngpus):
-        env["NVSHMEM_NGPUS"] = args.nvshmem_ngpus
+        nenv["NVSHMEM_NGPUS"] = args.nvshmem_ngpus
 
     if (args.nvshmem_version):
-        env["NVSHMEM_VERSION"] = args.nvshmem_version
+        nenv["NVSHMEM_VERSION"] = args.nvshmem_version
 
     if (args.kernel_name):
-        env["KERNEL_NAME"] = args.kernel_name
+        nenv["KERNEL_NAME"] = args.kernel_name
 
+    if (args.dry_run):
+        for key, val in nenv.items():
+            print(f"{key}=\"{val}\"", end=" ")
+        print()
+
+        return
+
+    if (args.dry_run_mpi):
+        print("mpirun", end=" ")
+        for key, val in nenv.items():
+            print(f"-x {key}=\"{val}\"", end=" ")
+        print()
+        return
+
+    env.update(nenv)
 
     cmd = " ".join(args.command)
 

@@ -163,5 +163,4 @@ add_custom_target(stencil_tb_singlestream_test
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-tb-singlestream/*.cubin
   COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-tb_singlestream -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
-
 #add_dependencies(stencil_nvshmem_nvidia_test ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia/jacobi_mapping)
