@@ -117,13 +117,13 @@ add_custom_target(bfs_test
   COMMAND echo "native run"
   COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH ./bfs -f gupta2/gupta2.mtx -n 2 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
   COMMAND echo "profiled run"
-  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD=../../src/mem_multigpu/libmem_multigpu.so KERNEL_NAME="all" CODE_ATTRIBUTION=1 ./bfs -f gupta2/gupta2.mtx -n 2 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1 
+  COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD=../../src/mem_multigpu/libmem_multigpu.so KERNEL_NAME="all" CODE_ATTRIBUTION=1 ./bfs -f gupta2/gupta2.mtx -n 2 -b 10 -t 512 -v 0 -m 0 -r 1 -o 1
 )
 
 add_custom_target(stencil_nvshmem_nvidia_test_mapping
-	COMMAND cuobjdump ./stencil-cmake-nvidia -xelf all
-	#COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I$ENV{NVSHMEM_HOME}/include -I$ENV{MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo
-	#COMMAND cuobjdump jacobi.o -xelf all
+        COMMAND cuobjdump ./stencil-cmake-nvidia -xelf all
+        #COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I$ENV{NVSHMEM_HOME}/include -I$ENV{MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo
+        #COMMAND cuobjdump jacobi.o -xelf all
   COMMAND nvdisasm --print-line-info stencil-cmake-nvidia*.cubin > memop_to_line.txt
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-nvshmem_nvidia)
 
@@ -149,7 +149,6 @@ add_custom_target(stencil_p2p_base_test
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base/*.cubin
   COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
-
 
 add_custom_target(stencil_tb_singlestream_test_mapping
   COMMAND cuobjdump ./stencil-tb_singlestream -xelf all
