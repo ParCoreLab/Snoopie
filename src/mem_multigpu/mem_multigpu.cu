@@ -43,6 +43,13 @@
 #include <adm_memory.h>
 #include <adm_splay.h>
 #include <cpptrace/cpptrace.hpp>
+
+#include "Python.h"
+#include "ndarrayobject.h"
+#include <pybind11/pybind11.h>
+#include <pybind11/embed.h>
+#include <pybind11/pytypes.h>
+
 #include <iostream>
 
 /* every tool needs to include this once */
@@ -72,12 +79,18 @@
 
 #include "adm.h"
 
+namespace py = pybind11;
 using namespace cpptrace;
 using namespace adamant;
 using namespace std;
 
 #define CHILD 1
 #define SIBLING 2
+
+py::object orig_array_func;
+py::object orig_zeros_func;
+py::object orig_empty_like_func;
+py::object orig_float32_func;
 
 int object_counter = 0;
 
@@ -162,6 +175,316 @@ int sample_size;
 std::map<std::string, int> opcode_to_id_map;
 std::map<int, std::string> id_to_opcode_map;
 std::vector<MemoryAllocation> mem_allocs;
+
+PYBIND11_MODULE(example, m) {
+	py::object np = py::module::import("numpy");
+	auto my_injection = [](py::object obj, std::string func_name) 
+	{
+		if(func_name == "array") {	
+			orig_array_func = obj.attr(func_name.c_str());
+
+			obj.attr(func_name.c_str()) = py::cpp_function([](const py::args &args/*, const py::kwargs &kwargs*/) {
+			std::cerr << "np.array is intercepted\n";
+			py::object traceback = py::module::import("traceback");
+			py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+			py::object walk_stack = traceback.attr("walk_stack");
+			py::object summary = extract_summary(walk_stack(py::none()));
+
+			for (py::handle frame : summary) {
+				std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+			}
+
+			py::object allocated_mem = orig_array_func(args/*, kwargs*/);
+			PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+
+			npy_intp size;
+                	long *dptr;  /* could make this any variable type */
+                		//size = PyArray_SIZE(allocated_mem_ptr);
+			PyArrayObject * obj_arr = (PyArrayObject *)allocated_mem_ptr;
+//#if 0
+                	dptr = (long *) PyArray_DATA(allocated_mem_ptr);
+			long *base_ptr = (long *) PyArray_BASE(allocated_mem_ptr);
+			int typ=PyArray_TYPE(allocated_mem_ptr);
+			long element_size = 0;
+
+			switch(typ) {
+				case NPY_BYTE:
+				case NPY_BOOL:
+				//case NPY_INT8:
+				case NPY_UBYTE:
+					element_size = 1;
+				break;
+				case NPY_SHORT:
+				//case NPY_INT16:
+				case NPY_USHORT:
+				//case NPY_UINT16:
+					element_size = 2;
+				break;
+				case NPY_INT:
+				case NPY_FLOAT:
+				//case NPY_INT32:
+				case NPY_UINT:
+				//case NPY_UINT32:
+    					element_size = 4;
+    				break;
+				case NPY_LONG:
+				case NPY_LONGLONG:
+				case NPY_DOUBLE:
+				//case NPY_INT64:	
+    					element_size = 8;
+    				break;
+				default:
+					std::cerr << "unknown type " << typ << "\n";
+			}
+			long element_count = 1;
+			for(int i = 0; i < obj_arr->nd; i++) {
+				element_count *= obj_arr->dimensions[i];
+			}	
+			long memory_size = element_count * element_size;
+                	//fprintf(stderr, "offset of data in ndarray: %lx and %lx and %lx and %lx and %d,%lx and %d,%lx and %d,%lx, nd: %d, length in dim0: %ld, length in dim1: %ld, data_type: %d, memory_size: %ld\n", allocated_mem_ptr, allocated_mem_ptr->ob_type, dptr, base_ptr, *dptr, dptr, *(dptr+1), (dptr+1), *(dptr+2), (dptr+2), obj_arr->nd, obj_arr->dimensions[0], obj_arr->dimensions[1], typ, memory_size);
+                	for (int i = 0; i < element_count; i++) {
+                           	std::cerr << *(dptr+i) << ", " << dptr+i << "\n";	
+                	}
+			fprintf(stderr, "\n");
+			return /*py::reinterpret_borrow<py::object>(allocated_mem_ptr);*/allocated_mem;//orig_array_func(args/*, kwargs*/);
+		});
+	} else if(func_name == "zeros") {
+		std::cerr << "zeros is injected\n";
+		orig_zeros_func = obj.attr(func_name.c_str());
+		obj.attr(func_name.c_str()) = py::cpp_function([](const py::args &args/*, const py::kwargs &kwargs*/) {	
+			std::cerr << "zeros is intercepted\n";
+			py::object traceback = py::module::import("traceback");
+			py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+			py::object walk_stack = traceback.attr("walk_stack");
+			py::object summary = extract_summary(walk_stack(py::none()));
+		
+			for (py::handle frame : summary) {
+				std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                        }
+
+			py::object allocated_mem = orig_zeros_func(args/*, kwargs*/);
+
+                        PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+
+			npy_intp size;
+                        long *dptr;  /* could make this any variable type */
+                        //size = PyArray_SIZE(allocated_mem_ptr);
+                        PyArrayObject * obj_arr = (PyArrayObject *)allocated_mem_ptr;
+
+			dptr = (long *) PyArray_DATA(allocated_mem_ptr);
+                        long *base_ptr = (long *) PyArray_BASE(allocated_mem_ptr);
+                        int typ=PyArray_TYPE(allocated_mem_ptr);
+                        long element_size = 0;
+                        switch(typ) {
+				case NPY_BYTE:
+				case NPY_BOOL:
+				//case NPY_INT8:
+				case NPY_UBYTE:
+				//case NPY_UINT8:
+					element_size = 1;
+				break;
+				case NPY_SHORT: 
+				//case NPY_INT16:
+				case NPY_USHORT: 
+				//case NPY_UINT16:
+					element_size = 2;
+				break;
+				case NPY_INT:
+				case NPY_FLOAT: 
+                                //case NPY_INT32:
+                                case NPY_UINT:   
+                                //case NPY_UINT32:
+					element_size = 4;
+				break;
+				case NPY_LONG:   
+				case NPY_LONGLONG:
+				case NPY_DOUBLE:  
+				//case NPY_INT64: 
+					element_size = 8;
+				break;
+				default:
+					std::cerr << "unknown type " << typ << "\n";
+			}
+			long element_count = 1;
+			for(int i = 0; i < obj_arr->nd; i++) {
+				element_count *= obj_arr->dimensions[i];
+                        }
+
+			long memory_size = element_count * element_size;
+                        //fprintf(stderr, "offset of data in ndarray: %lx and %lx and %lx and %lx and %d,%lx and %d,%lx and %d,%lx, nd: %d, length in dim0: %ld, length in dim1: %ld, data_type: %d, memory_size: %ld\n", allocated_mem_ptr, allocated_mem_ptr->ob_type, dptr, base_ptr, *dptr, dptr, *(dptr+1), (dptr+1), *(dptr+2), (dptr+2), obj_arr->nd, obj_arr->dimensions[0], obj_arr->dimensions[1], typ, memory_size);
+			std::cerr << "content of intercepted zeros data\n";
+			long iter_count = element_count < 20 ? element_count : 20;
+			for (int i = 0; i < iter_count; i++) {
+				std::cerr << *(dptr+i) << ", " << dptr+i << "\n";
+			}  
+
+			fprintf(stderr, "\n");	
+			return allocated_mem;//orig_zeros_func(args/*, kwargs*/);
+		});
+
+	} else if(func_name == "empty_like") {
+			std::cerr << "empty_like is injected\n";
+                        orig_empty_like_func = obj.attr(func_name.c_str());
+
+			obj.attr(func_name.c_str()) = py::cpp_function([](const py::args &args/*, const py::kwargs &kwargs*/) {
+				std::cerr << "empty_like is intercepted\n";
+                                py::object traceback = py::module::import("traceback");
+                                py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                py::object walk_stack = traceback.attr("walk_stack");
+                                py::object summary = extract_summary(walk_stack(py::none()));
+				
+				for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                }
+
+				py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+
+				npy_intp size;
+                                long *dptr;  /* could make this any variable type */
+                                //size = PyArray_SIZE(allocated_mem_ptr);
+                                PyArrayObject * obj_arr = (PyArrayObject *)allocated_mem_ptr;
+//#if 0
+                                dptr = (long *) PyArray_DATA(allocated_mem_ptr);
+                                long *base_ptr = (long *) PyArray_BASE(allocated_mem_ptr);
+                                int typ=PyArray_TYPE(allocated_mem_ptr);
+				long element_size = 0;
+				
+				switch(typ) {
+                                        case NPY_BYTE:
+                                        case NPY_BOOL:
+                                        //case NPY_INT8:
+                                        case NPY_UBYTE:  
+                                        //case NPY_UINT8:
+                                                element_size = 1;
+                                        break;
+                                        case NPY_SHORT:
+                                        //case NPY_INT16:
+                                        case NPY_USHORT:
+                                        //case NPY_UINT16:
+                                                element_size = 2;
+                                        break;
+                                        case NPY_INT:
+                                        case NPY_FLOAT:
+                                        //case NPY_INT32:
+                                        case NPY_UINT:
+                                        //case NPY_UINT32:
+                                                element_size = 4;
+                                        break;
+                                        case NPY_LONG:
+                                        case NPY_LONGLONG:
+                                        case NPY_DOUBLE:  
+                                        //case NPY_INT64:
+
+                                                element_size = 8;
+                                                break;
+                                        default:
+                                                std::cerr << "unknown type " << typ << "\n";
+                                }
+
+				long element_count = 1;
+                                for(int i = 0; i < obj_arr->nd; i++) {
+                                        element_count *= obj_arr->dimensions[i];
+                                }
+                                long memory_size = element_count * element_size;
+                                //fprintf(stderr, "offset of data in ndarray: %lx and %lx and %lx and %lx and %d,%lx and %d,%lx and %d,%lx, nd: %d, length in dim0: %ld, length in dim1: %ld, data_type: %d, memory_size: %ld\n", allocated_mem_ptr, allocated_mem_ptr->ob_type, dptr, base_ptr, *dptr, dptr, *(dptr+1), (dptr+1), *(dptr+2), (dptr+2), obj_arr->nd, obj_arr->dimensions[0], obj_arr->dimensions[1], typ, memory_size);
+				std::cerr << "content of intercepted empty_like data\n";
+				long iter_count = element_count < 20 ? element_count : 20;
+				for (int i = 0; i < iter_count; i++) {
+                                        std::cerr << *(dptr+i) << ", " << dptr+i << "\n";
+                                }
+
+				fprintf(stderr, "\n");	
+
+                                return allocated_mem;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+		} else if(func_name == "float32") {
+			std::cerr << "float32 is injected\n";
+                        orig_float32_func = obj.attr(func_name.c_str());
+
+                        obj.attr(func_name.c_str()) = py::cpp_function([](const py::args &args/*, const py::kwargs &kwargs*/) {
+                        //std::cout << msg.cast<std::string>();
+                                std::cerr << "float32 is intercepted\n";
+                                py::object traceback = py::module::import("traceback");
+                                py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                py::object walk_stack = traceback.attr("walk_stack");
+                                py::object summary = extract_summary(walk_stack(py::none()));
+//#if 0
+                                for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                }
+				
+				py::object allocated_mem = orig_float32_func(args/*, kwargs*/);
+
+                                PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+
+				npy_intp size;
+                                long *dptr;  /* could make this any variable type */
+                                //size = PyArray_SIZE(allocated_mem_ptr);
+                                PyArrayObject * obj_arr = (PyArrayObject *)allocated_mem_ptr;
+//#if 0
+                                dptr = (long *) PyArray_DATA(allocated_mem_ptr);
+                                long *base_ptr = (long *) PyArray_BASE(allocated_mem_ptr);
+                                int typ=PyArray_TYPE(allocated_mem_ptr);
+                                long element_size = 0;
+
+				switch(typ) {
+                                        case NPY_BYTE:
+                                        case NPY_BOOL:
+                                        //case NPY_INT8:
+                                        case NPY_UBYTE:
+                                        //case NPY_UINT8:
+                                                element_size = 1;
+                                        break;
+                                        case NPY_SHORT:
+                                        //case NPY_INT16:
+                                        case NPY_USHORT:
+                                        //case NPY_UINT16:
+                                                element_size = 2;
+                                        break;
+                                        case NPY_INT: 
+                                        case NPY_FLOAT:
+                                        //case NPY_INT32:
+                                        case NPY_UINT:
+                                        //case NPY_UINT32:
+                                                element_size = 4;
+                                        break;
+                                        case NPY_LONG:
+                                        case NPY_LONGLONG:
+                                        case NPY_DOUBLE:
+                                        //case NPY_INT64:
+
+                                                element_size = 8;
+                                                break;
+                                        default:
+                                                std::cerr << "unknown type " << typ << "\n";
+                                }
+				
+				long element_count = 1;
+                                for(int i = 0; i < obj_arr->nd; i++) {
+                                        element_count *= obj_arr->dimensions[i];
+                                }
+                                long memory_size = element_count * element_size;
+                                //fprintf(stderr, "offset of data in ndarray: %lx and %lx and %lx and %lx and %d,%lx and %d,%lx and %d,%lx, nd: %d, length in dim0: %ld, length in dim1: %ld, data_type: %d, memory_size: %ld\n", allocated_mem_ptr, allocated_mem_ptr->ob_type, dptr, base_ptr, *dptr, dptr, *(dptr+1), (dptr+1), *(dptr+2), (dptr+2), obj_arr->nd, obj_arr->dimensions[0], obj_arr->dimensions[1], typ, memory_size);
+                                std::cerr << "content of intercepted float32 data\n";
+                                long iter_count = element_count < 20 ? element_count : 20;
+                                for (int i = 0; i < iter_count; i++) {
+                                        std::cerr << *(dptr+i) << ", " << dptr+i << "\n";
+                                }		
+
+				fprintf(stderr, "\n");
+
+                                return allocated_mem;
+			});
+		}
+	};	    
+	my_injection(np, "array");
+	my_injection(np, "empty_like");
+	my_injection(np, "zeros");
+	my_injection(np, "float32");
+	std::cerr << "until here\n";
+}
 
 void log_time(string msg) {
   if (!time_log)

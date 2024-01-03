@@ -15,7 +15,9 @@ target_link_libraries(mem_multigpu
         cuda
         zstd
         cpptrace
-        nvbit::nvbit)
+        nvbit::nvbit
+	-L/home/msasongko17/anaconda3/envs/my_env/lib/python3.6/config-3.6m-x86_64-linux-gnu -L/home/msasongko17/anaconda3/envs/my_env/lib -lpython3.6m
+	)
 
 
 get_target_property(library_includes cpptrace INTERFACE_INCLUDE_DIRECTORIES)
@@ -28,6 +30,7 @@ set_source_files_properties(inject_funcs.cu PROPERTIES COMPILE_FLAGS -maxrregcou
 target_compile_options(mem_multigpu PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
       -allow-unsupported-compiler
       --keep-device-functions
+      -I/home/msasongko17/anaconda3/envs/my_env/include/python3.6m -I/home/msasongko17/.local/include/python3.6m -I/home/msasongko17/anaconda3/envs/my_env/lib/python3.6/site-packages/numpy/core/include/numpy
         >)
 
 target_link_options(mem_multigpu PRIVATE $<DEVICE_LINK:

@@ -42,6 +42,7 @@ enable_language(CUDA)
 #find_package(NVSHMEM REQUIRED)
 find_package(MPI REQUIRED)
 find_package(NVBIT REQUIRED)
+find_package(Python REQUIRED)
 
 find_package(OpenMP REQUIRED)
 list(APPEND CMAKE_CUDA_FLAGS "-Xcompiler -fopenmp")
