@@ -176,7 +176,7 @@ std::map<std::string, int> opcode_to_id_map;
 std::map<int, std::string> id_to_opcode_map;
 std::vector<MemoryAllocation> mem_allocs;
 
-PYBIND11_MODULE(example, m) {
+PYBIND11_MODULE(libmem_multigpu, m) {
 	py::object np = py::module::import("numpy");
 	auto my_injection = [](py::object obj, std::string func_name) 
 	{
