@@ -813,8 +813,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 
     std::string curr_kernel_name = nvbit_get_func_name(ctx, f);
 
-    std::cerr << "kernel " << curr_kernel_name << " is launched\n";
-    std::cerr << "call stack:\n";
+    //std::cerr << "kernel " << curr_kernel_name << " is launched\n";
+    //std::cerr << "call stack:\n";
     //print_trace();
     std::size_t parenthes_pos = curr_kernel_name.find_first_of('(');
 
@@ -1733,8 +1733,8 @@ void *recv_thread_fun(void *args) {
           }
 
           // ignore operations on the same device
-          //if (mem_device_id == ma->dev_id)
-            //continue;
+          if (mem_device_id == ma->dev_id)
+            continue;
 
           if (mem_device_id == -1)
             continue;
