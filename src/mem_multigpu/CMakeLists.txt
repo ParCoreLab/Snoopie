@@ -1,5 +1,5 @@
 find_package(ZSTD REQUIRED)
-
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
 
 add_library(mem_multigpu SHARED
   mem_multigpu.cu
@@ -16,7 +16,8 @@ target_link_libraries(mem_multigpu
         zstd
         cpptrace
         nvbit::nvbit
-	-L/home/msasongko17/anaconda3/envs/my_env/lib/python3.6/config-3.6m-x86_64-linux-gnu -L/home/msasongko17/anaconda3/envs/my_env/lib -lpython3.6m
+	Python3::NumPy
+	Python3::Python
 	-fno-lto
 	-lutil
 	)
@@ -25,14 +26,13 @@ target_link_libraries(mem_multigpu
 get_target_property(library_includes cpptrace INTERFACE_INCLUDE_DIRECTORIES)
 
 target_include_directories(mem_multigpu SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_include_directories(mem_multigpu PRIVATE ${library_includes})
 
 set_source_files_properties(inject_funcs.cu PROPERTIES COMPILE_FLAGS -maxrregcount=24 -Xptxas=-astoolspatch --keep-device-functions)
 
 target_compile_options(mem_multigpu PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
       -allow-unsupported-compiler
       --keep-device-functions
-      -I/home/msasongko17/anaconda3/envs/my_env/include/python3.6m -I/home/msasongko17/.local/include/python3.6m -I/home/msasongko17/anaconda3/envs/my_env/lib/python3.6/site-packages/numpy/core/include/numpy
+      #-I/home/msasongko17/anaconda3/envs/my_env/include/python3.6m -I/home/msasongko17/.local/include/python3.6m -I/home/msasongko17/anaconda3/envs/my_env/lib/python3.6/site-packages/numpy/core/include/numpy
       >)
 
 target_link_options(mem_multigpu PRIVATE $<DEVICE_LINK:

@@ -45,7 +45,8 @@
 #include <cpptrace/cpptrace.hpp>
 
 #include "Python.h"
-#include "ndarrayobject.h"
+//#include "ndarrayobject.h"
+#include <numpy/ndarrayobject.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/embed.h>
 #include <pybind11/pytypes.h>
