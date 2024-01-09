@@ -175,6 +175,14 @@ std::map<std::string, int> opcode_to_id_map;
 std::map<int, std::string> id_to_opcode_map;
 std::vector<MemoryAllocation> mem_allocs;
 
+allocation_site_t *search_at_level(allocation_site_t *allocation_site,
+                                   uint64_t pc) {
+  if (allocation_site == NULL || allocation_site->get_pc() == pc)
+    return allocation_site;
+
+  return search_at_level(allocation_site->get_next_sibling(), pc);
+}
+
 PYBIND11_MODULE(libmem_multigpu, m) {
 	py::object traceback = py::module::import("traceback");
 	py::object nb = py::module::import("numba");
@@ -199,12 +207,82 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                 py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                 py::object walk_stack = traceback.attr("walk_stack");
                                 py::object summary = extract_summary(walk_stack(py::none()));
-//#if 0
-				std::cerr << "before call stack printing\n";
-                                for (py::handle frame : summary) {
-                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
-                                }
-				std::cerr << "after call stack printing\n";
+				std::vector<py::handle> stack_vec;
+
+				allocation_site_t *allocation_site = NULL;
+                                allocation_site_t *parent = NULL;	
+
+				for (py::handle frame : summary) {
+					stack_vec.push_back(frame);
+                                        //std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                        //std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
+                                        //int lineno = frame.attr("lineno").attr("__int__")().cast<int>();
+                                        //std::string key_str = filename + ":" + std::to_string(lineno);
+                                        //uint64_t key_num = std::hash<std::string>()(key_str);
+					if (root == NULL) {
+                                        	std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
+                                        	uint64_t key_num = std::hash<std::string>()(filename);
+                                        	root = new allocation_site_t(key_num);
+                                        	allocation_site = root;
+                                	}
+                                }	
+				parent = root;
+				allocation_site = root->get_first_child();	
+
+				std::cerr << "before call stack printing1\n";
+				for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+					std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+					std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+                                        int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+                                        std::string key_str = filename + ":" + std::to_string(lineno);
+                                        uint64_t key_num = std::hash<std::string>()(key_str);
+					std::string func_name = itr->attr("name").attr("__str__")().cast<std::string>();
+
+					allocation_line_t *line = allocation_line_table->find(key_num);
+      					if (line == NULL) {
+        					allocation_line_table->insert(new allocation_line_t(
+            						key_num, func_name, filename, lineno));
+      					}	
+					allocation_site_t *temp = allocation_site;
+					allocation_site = search_at_level(allocation_site, key_num);
+
+					if (allocation_site == NULL) {
+        					if (temp != NULL) {
+							while (temp->get_next_sibling() != NULL)
+            							temp = temp->get_next_sibling();
+          						temp->set_next_sibling(new allocation_site_t(key_num));
+
+							allocation_site = temp->get_next_sibling();
+							allocation_site->set_parent(temp->get_parent());
+						} else {
+							parent->set_first_child(new allocation_site_t(key_num));
+							allocation_site = parent->get_first_child();
+							allocation_site->set_parent(parent);
+						}
+					}
+					parent = allocation_site;
+					allocation_site = allocation_site->get_first_child();
+				}
+
+				std::string filename;
+    				if (parent) {
+					filename = allocation_line_table->find(parent->get_pc())->get_file_name();
+					while (filename.find(/*str1*/ "/numba/cuda") != string::npos) {
+						parent = parent->get_parent();
+						if (parent)
+							filename = allocation_line_table->find(parent->get_pc())->get_file_name();
+						else
+							break;
+					}
+				}
+
+				if (parent && parent->get_object_id() == 0) {
+					parent->set_object_id(++object_counter);
+					object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+				}
+	
+				std::cerr << "after call stack printing1\n";
 
 				//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
 
@@ -224,6 +302,17 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				//fprintf(stderr, "offset value: %lx\n", offset_val);
 				PyObject* alloc_size_obj = PyObject_GetAttrString(result, "alloc_size");
 				unsigned long long alloc_size_val = PyLong_AsUnsignedLongLongMask(alloc_size_obj);
+
+				if (parent) {
+                                        int deviceID = -1;
+                                        cudaGetDevice(&deviceID);
+
+                                        adm_range_insert(offset_val, alloc_size_val, parent->get_pc(),
+                                                deviceID, "", ADM_STATE_ALLOC);
+                                        range_nodes.push_back(new adm_range_t(
+                                                offset_val, alloc_size_val, parent->get_object_id(), deviceID));
+                                }	
+
 				fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
                                 return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
@@ -415,6 +504,7 @@ int64_t find_nvshmem_dev_of_ptr(int mype, uint64_t mem_addr, int nvshmem_ngpus,
   return -1;
 }
 
+#if 0
 allocation_site_t *search_at_level(allocation_site_t *allocation_site,
                                    uint64_t pc) {
   if (allocation_site == NULL || allocation_site->get_pc() == pc)
@@ -422,6 +512,7 @@ allocation_site_t *search_at_level(allocation_site_t *allocation_site,
 
   return search_at_level(allocation_site->get_next_sibling(), pc);
 }
+#endif
 
 uint64_t normalise_nvshmem_ptr(uint64_t mem_addr) {
   return mem_addr & 0x0000F0FFFFFFFFF;
@@ -724,7 +815,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 
     std::cerr << "kernel " << curr_kernel_name << " is launched\n";
     std::cerr << "call stack:\n";
-    print_trace();
+    //print_trace();
     std::size_t parenthes_pos = curr_kernel_name.find_first_of('(');
 
     if (parenthes_pos != std::string::npos)
@@ -1167,7 +1258,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       ctx_map_pair.second->channel_dev->add_malloc(ma);
     }
   } else if (cbid == API_CUDA_cuMemAllocHost_v2) {
-    print_trace();
+    //print_trace();
     std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
     cuMemAllocHost_v2_params *p = (cuMemAllocHost_v2_params *)params;
     std::stringstream ss;
