@@ -35,6 +35,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cpptrace)
 
+include(FetchContent)
+FetchContent_Declare(
+  pybind11
+  GIT_REPOSITORY https://github.com/pybind/pybind11.git
+  GIT_TAG        stable # <HASH or TAG>
+)
+FetchContent_MakeAvailable(pybind11)
+
 enable_language(CUDA)
 
 #set(NVSHMEM_DIR "./cmake/nvshmem")
