@@ -8,6 +8,8 @@ add_library(mem_multigpu SHARED
   obj_database.cu
         )
 
+set_target_properties(mem_multigpu PROPERTIES OUTPUT_NAME "mem_multigpu")
+
 set_target_properties(mem_multigpu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_target_properties(mem_multigpu PROPERTIES CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
@@ -46,6 +48,6 @@ target_link_options(mem_multigpu PRIVATE $<DEVICE_LINK:
       --keep-device-functions
       >)
 
-pybind11_extension(mem_multigpu)
+#pybind11_extension(mem_multigpu)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
