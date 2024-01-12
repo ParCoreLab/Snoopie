@@ -182,20 +182,20 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
         if owned_objs == None:
             continue
         for owned_obj in owned_objs:
-            related_accesses: List[OpInfoRow] = [
+            related_accesses: List[OpInfoRowCombined] = [
                 i for i in owned_obj.ops 
-                if i.running_dev_id in gpu_filter 
-                and i.mem_dev_id == source_dev_id
-                and i.op_code in allowed_ops ]
+                if i.key.running_dev_id in gpu_filter 
+                and i.key.mem_dev_id == source_dev_id
+                and i.key.op_code in allowed_ops ]
     
             if len(related_accesses) == 0:
                 break
 
-            related_dict: Dict[str, List[OpInfoRow]] = {}
+            related_dict: Dict[str, List[OpInfoRowCombined]] = {}
             for i in related_accesses:
-                if i.addr not in related_dict:
-                    related_dict[i.addr] = []
-                related_dict[i.addr].append(i)
+                if i.key.addr not in related_dict:
+                    related_dict[i.key.addr] = []
+                related_dict[i.key.addr].append(i)
 
             # get object informations here
             id_info, name_info = related_accesses[0].get_obj_info()
@@ -212,30 +212,31 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
                 hex_addr = str.format('0x{:016x}', int(offset, 16) + i)
                 # st.write(f"{hex_addr}, {hex_addr in related_dict}")
                 if hex_addr not in related_dict: continue
-                filtered_addrs: List[OpInfoRow] = related_dict[hex_addr]
+                filtered_addrs: List[OpInfoRowCombined] = related_dict[hex_addr]
                 if len(filtered_addrs) > 0:
                     dict_details = {"by_dev": {}, "by_op": {}, "by_line": {}, "combined": {}}
-                    for j in filtered_addrs:
+                    for _j in filtered_addrs:
+                        j = _j.key
                         dev = f"GPU{j.running_dev_id}"
                         op = j.op_code
                         line_info = j.get_line_info()
                         tmp = dict_details["by_dev"].get(dev, 0)
-                        dict_details["by_dev"][dev] = tmp + 1
+                        dict_details["by_dev"][dev] = tmp + _j.value.count
                         tmp = dict_details["by_op"].get(op, 0)
-                        dict_details["by_op"][op] = tmp + 1
+                        dict_details["by_op"][op] = tmp + _j.value.count
 
                         # tmp = dict_details["by_line"].get(line_info, 0)
                         # dict_details["by_line"][line_info] = tmp + 1
 
                         combined_info = f"{dev}, {op}, {str(line_info)}"
                         tmp = dict_details["combined"].get(combined_info, 0)
-                        dict_details["combined"][combined_info] = tmp + 1
+                        dict_details["combined"][combined_info] = tmp + _j.value.count
                     html_details = "<br>"
                     for key, value in dict_details["combined"].items():
                         html_details += " " * 8 + str(key) + ": " + str(value) + "<br>"
-                    for _key, value in dict_details["by_line"].items():
-                        
+                    for _key, value in dict_details["by_line"].items():                        
                         pass
+
                     obj[-1].append((hex_addr, html_details))
                     object_map[-1].append(len(filtered_addrs))
                 else:
@@ -611,10 +612,11 @@ def main():
             table_lines = []
             by_var_name_onclick: List[LineInfo] = []
             to_filter = OpInfoRow.filter_by_device_and_ops(allowed_ops=ops_to_display, allowed_mem_devs=[i for i in range(gpu_num)], allowed_running_devs=[i])
-            table_instr.append(("total", len(to_filter), "-"))
-            table_objs.append(("-","total", len(to_filter), "-"))
+            len_to_filter = sum([i.value.count for i in to_filter])
+            table_instr.append(("total", len_to_filter, "-"))
+            table_objs.append(("-","total", len_to_filter, "-"))
             for peer_gpu in other_gpus:
-                ops_accessed: List[OpInfoRow] = [op for op in to_filter if op.mem_dev_id == peer_gpu]
+                ops_accessed: List[OpInfoRowCombined] = [op for op in to_filter if op.key.mem_dev_id == peer_gpu]
                 # st.json([                {
                 #     "op_code": i.op_code,
                 #     "code_line_index": i.code_line_index,
@@ -625,10 +627,11 @@ def main():
                 by_op_type = {}
                 by_var_name: Dict[LineInfo, int] = {}
                 by_lines = {}
-                for op in ops_accessed:
+                for _op in ops_accessed:
+                    op = _op.key
                     if op.op_code not in by_op_type.keys():
                         by_op_type[op.op_code] = 0
-                    by_op_type[op.op_code] = by_op_type[op.op_code] + 1
+                    by_op_type[op.op_code] = by_op_type[op.op_code] + _op.value.count
                     op_id_info, op_name_info = op.get_obj_info()
                     if op_id_info is None or op_name_info is None:
                         continue
@@ -636,23 +639,23 @@ def main():
                     if line_info not in by_var_name.keys():
                         by_var_name[line_info] = 0
                         by_var_name_onclick.append(line_info)
-                    by_var_name[line_info] = by_var_name[line_info] + 1
+                    by_var_name[line_info] = by_var_name[line_info] + _op.value.count
                     line_display_str = ""
                     line_display_str = f"{line_info.codeline_info.file}: line{line_info.codeline_info.code_linenum}"
                     if line_display_str not in by_lines:
                         by_lines[line_display_str] = 0
-                    by_lines[line_display_str] = by_lines[line_display_str] + 1
+                    by_lines[line_display_str] = by_lines[line_display_str] + _op.value.count
                     reverse_table_lineinfo[line_display_str] = line_info
                     
                     tmp = op.code_line_index
                     if tmp not in ops_by_line_info["by_line_index"]:
                         ops_by_line_info["by_line_index"][tmp] = 0
-                    ops_by_line_info["by_line_index"][tmp] += 1
+                    ops_by_line_info["by_line_index"][tmp] += _op.value.count
         
                     tmp = line_info.codeline_info.combined_filepath()
                     if tmp not in ops_by_line_info["by_file"]:
                         ops_by_line_info["by_file"][tmp] = 0
-                    ops_by_line_info["by_file"][tmp] += 1
+                    ops_by_line_info["by_file"][tmp] += _op.value.count
 
                     tmp2 = line_info.codeline_info.code_linenum
                     if tmp not in ops_by_line_info["by_file_linenum"]:
@@ -661,7 +664,7 @@ def main():
                         ops_by_line_info["by_file_linenum"][tmp][tmp2] = []
                     ops_by_line_info["by_file_linenum"][tmp][tmp2].append(line_info)
 
-                    ops_by_line_info["total"] += 1
+                    ops_by_line_info["total"] += _op.value.count
 
 
                 for key, value in by_op_type.items():
@@ -829,13 +832,14 @@ def show_sidebar():
                     pair_label = src_label + "-" + target_label
                     width = 0.0
                     #TODO we can also do the samething with linedata to get filtered result by gpu
-                    filtered_ops = [p for p in OpInfoRow.table()
+                    filtered_ops = [OpInfoRowCombined(p, v) for p, v in OpInfoRow.table().items()
                                     if p.op_code in ops_to_display
                                     and p.mem_dev_id == j
                                     and p.running_dev_id == i
                                     and (p.get_line_info() is not None)
                                     and (p.get_line_info()).check_correct_line(file_to_vis, linenum)]
-                    width = len(filtered_ops)
+                    filtered_ops_len = sum([k.value.count for k in filtered_ops])
+                    width = filtered_ops_len
                     widths[i].append(width)
 
             df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype('int')
@@ -1084,9 +1088,10 @@ def continue_main():
     print("C")
     setup_globals()
     print("B")
-    check_src_code_folder()
-    print("D")
-    read_code()
+    if st.session_state.check_source_code:
+        check_src_code_folder()
+        print("D")
+        read_code()
     print("BEFORE MAIN")
     # st.json(SnoopieObject.get_display_dict())
     # st.json([{
@@ -1097,13 +1102,14 @@ def continue_main():
     # if i.mem_dev_id == 2 and i.running_dev_id == 0])
     main()
 
-    st.markdown("""---""")
-    choose_src_code_file()
-    st.markdown("""---""")
-    if (file_to_vis is not None):
-    # and file_to_vis in ops_by_line_info["by_file"]
-    # and file_to_vis in ops_by_line_info["by_file_linenum"]
-        show_code()
+    if st.session_state.check_source_code:
+        st.markdown("""---""")
+        choose_src_code_file()
+        st.markdown("""---""")
+        if (file_to_vis is not None):
+        # and file_to_vis in ops_by_line_info["by_file"]
+        # and file_to_vis in ops_by_line_info["by_file_linenum"]
+            show_code()
 
         
 

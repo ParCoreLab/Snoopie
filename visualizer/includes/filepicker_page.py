@@ -60,6 +60,9 @@ def filepicker_page():
     )
 
     _sampling_period = st.number_input("Sampling Period", 0, 100, 10)
+
+    _no_source_code = st.checkbox("Check source code")
+
     filepicker_button = st.button("Start")
 
     if (
@@ -80,6 +83,7 @@ def filepicker_page():
         st.session_state.sampling_period = _sampling_period
         st.session_state.gpu_num = _gpu_num
         st.session_state.home_folder = _home_folder
+        st.session_state.check_source_code = _no_source_code
 
         st.session_state.show_filepicker = False
         setup_globals()

@@ -5,9 +5,14 @@ from .streamlit_globals import setup_globals
 import os
 import pickle
 from io import TextIOWrapper
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Literal, Any
+import pandas as pd
+from functools import partial
 
-tables = {}
+tables: Dict[
+    Literal["op_info", "func_info", "offset_info", "obj_info", "codeline_info"],
+    Dict[Literal["starts_with", "parser"], Any],
+] = {}
 
 current_table = None
 
@@ -19,12 +24,19 @@ _pid = -1
 
 def change_table(line: str):
     global current_table, _table_keys
-    for key in tables.keys():
-        if line.startswith(tables[key]["starts_with"]):
-            current_table = key
-            _table_keys = line.strip().split(",")
-            return True
+    next_key = get_next_table(line)
+    if next_key is not None and next_key != current_table:
+        current_table = next_key
+        _table_keys = line.strip().split(",")
+        return True
     return False
+
+
+def get_next_table(df: pd.DataFrame) -> str | None:
+    for key in tables.keys():
+        if df.keys()[0] == tables[key]["starts_with"]:
+            return key
+    return None
 
 
 def parse_line(line: str, gbs: tuple):
@@ -40,6 +52,22 @@ def parse_line(line: str, gbs: tuple):
         tables[current_table]["parser"](line, gbs)
 
 
+def parse_file(file: TextIOWrapper, filename: str, gbs: tuple):
+    print("parsing file", filename)
+    df = pd.read_csv(file)
+    print("df successfully read")
+    key = get_next_table(df)
+    print("key:", key)
+    if key is None:
+        raise Exception(f"Could not match {filename}: {df.keys()} to any logfile type")
+    fnc: function = tables[key]["parser"]
+    i = 0
+    for index, row in df.iterrows():
+        if i % 1e10 == 0:
+            print(fnc, row)
+        i += 1
+        fnc(row, gbs=gbs)
+
 def isInt_try(v):
     try:
         i = int(v)
@@ -48,111 +76,39 @@ def isInt_try(v):
     return True
 
 
-def parse_codeline_info(line: str, gbs: tuple):
+def parse_codeline_info(line: pd.Series, gbs: tuple):
     _, ops = gbs
-    if change_table(line):
-        return
-    if current_table != "codeline_info":
-        return
-    data = {}
+    data = {**{k.strip(): v for k, v in line.items()}}
     data["pid"] = _pid
-    vals = line.strip().split(",")  # change this later
-    for index in range(len(_table_keys)):
-        if isInt_try(vals[index]):
-            data[_table_keys[index].strip()] = int(vals[index])
-        else:
-            data[_table_keys[index].strip()] = vals[index]
-
     CodeLineInfoRow(**data)
 
 
-def parse_obj_info(line: str, gbs: tuple):
+def parse_obj_info(line: pd.Series, gbs: tuple):
     _, ops = gbs
-    if change_table(line):
-        return
-    if current_table != "obj_info":
-        return
-    data = {}
+    data = {k.strip(): v for k, v in line.items()}
     data["pid"] = _pid
-    vals = line.strip().split(",")  # change this later
-    for index in range(len(_table_keys)):
-        if isInt_try(vals[index]):
-            data[_table_keys[index].strip()] = int(vals[index])
-        else:
-            data[_table_keys[index].strip()] = vals[index]
-
     ObjNameRow(**data)
 
 
-def parse_offset_info(line: str, gbs: tuple):
+def parse_offset_info(line: pd.Series, gbs: tuple):
     _, ops = gbs
-    if change_table(line):
-        return
-    if current_table != "offset_info":
-        return
-    data = {}
+    data = {k.strip(): v for k, v in line.items()}
     data["pid"] = _pid
-    vals = line.strip().split(",")  # change this later
-    for index in range(len(_table_keys)):
-        if isInt_try(vals[index]):
-            data[_table_keys[index].strip()] = int(vals[index])
-        else:
-            data[_table_keys[index].strip()] = vals[index]
-
     _devices.add(data["dev_id"])
     ObjIdRow(**data)
 
 
-def parse_func_info(line: str, gbs: tuple):
+def parse_func_info(line: pd.Series, gbs: tuple):
     _, ops = gbs
-    if change_table(line):
-        return
-    if current_table != "func_info":
-        return
-    data = {}
-
-    # since function name contains "," we need to be careful
-    # assume filepath does not contain ","
-
-    sep = [-1, -1, -1]
-    sep[0] = line.find(",", 0)
-    while True:
-        i1 = line.find(",", max(sep[1], sep[0]) + 1)
-        if i1 == -1:
-            break
-        i2 = line.find(",", i1 + 1)
-        if i2 == -1:
-            # sep[1] = sep[2]
-            # sep[2] = i1
-            break
-        sep[1] = i1
-        sep[2] = i2
-    split_data = (
-        line[: sep[0]].strip(),
-        line[sep[0] + 1 : sep[1]].strip(),
-        line[sep[1] + 1 : sep[2]].strip(),
-        line[sep[2] + 1 :].strip(),
-    )
-    FunctionInfoRow(
-        _pid, int(split_data[0]), split_data[1], split_data[2], int(split_data[3])
-    )
-
-
-def parse_op_info(line: str, gbs: tuple):
-    _, ops = gbs
-    if change_table(line):
-        return
-    if current_table != "op_info":
-        return
-
-    data = {}
+    data = {k.strip(): v for k, v in line.items()}
     data["pid"] = _pid
-    vals = line.strip().split(",")  # change this later
-    for index in range(len(_table_keys)):
-        if isInt_try(vals[index]):
-            data[_table_keys[index].strip()] = int(vals[index])
-        else:
-            data[_table_keys[index].strip()] = vals[index]
+    FunctionInfoRow(**data)
+
+
+def parse_op_info(line: pd.Series, gbs: tuple):
+    _, ops = gbs
+    data = {k.strip(): v for k, v in line.items()}
+    data["pid"] = _pid
 
     address = data["addr"]
     obj_offset = data["obj_offset"]
@@ -170,6 +126,7 @@ def parse_op_info(line: str, gbs: tuple):
         mem_range = 8
     elif "128" in operation:
         mem_range = 16
+    data["mem_range"] = mem_range
 
     ops.add(operation)
     new_row = OpInfoRow(**data)
@@ -182,10 +139,10 @@ def parse_op_info(line: str, gbs: tuple):
 
 
 tables = {
-    "op_info": {"starts_with": "op_code", "parser": parse_op_info},
-    "func_info": {"starts_with": "pc", "parser": parse_func_info},
-    "offset_info": {"starts_with": "offset", "parser": parse_offset_info},
-    "obj_info": {"starts_with": "obj_id", "parser": parse_obj_info},
+    "op_info": {"starts_with": "op_code", "parser": parse_op_info},  # snoopie_log
+    "func_info": {"starts_with": "pc", "parser": parse_func_info},  # mem_alloc_site
+    "offset_info": {"starts_with": "offset", "parser": parse_offset_info},  # addr_range
+    "obj_info": {"starts_with": "obj_id", "parser": parse_obj_info},  # data_obj_log
     "codeline_info": {"starts_with": "code_line_index", "parser": parse_codeline_info},
 }
 
@@ -238,16 +195,18 @@ def read_data(
 
     if os.path.isfile(pickle_filename):
         with open(pickle_filename, "rb") as f:
+        # set gpu num and ops here
+        # pickle_file = 0  
             pickle_file = pickle.load(f)
-            # if len(pickle_file) > 6:
-            #     new_pickle_file = pickle_file[:5]
-            #     new_pickle_file.append(pickle_file[6])
-            #     pickle_file = new_pickle_file
-            for item in pickle_file:
-                pass
-                # print(item)
-                # print()
-            print("Data loaded from " + pickle_filename)
+        # # if len(pickle_file) > 6:
+        # #     new_pickle_file = pickle_file[:5]
+        # #     new_pickle_file.append(pickle_file[6])
+        # #     pickle_file = new_pickle_file
+        # for item in pickle_file:
+        #     pass
+        #     # print(item)
+        #     # print()
+        # print("Data loaded from " + pickle_filename)
 
     reading_data = 0
     opkeys = []
@@ -258,30 +217,29 @@ def read_data(
         if isinstance(file, list):
             for f, fn in zip(file, filename):
                 _pid = get_pid(fn)
-                for line in f:
-                    parse_line(line, gbs)
+                parse_file(f, fn, gbs)
         else:
-            for line in file:
-                parse_line(line, gbs)
-        CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(
-            CodeLineInfoRow.table()
-        )
+            _pid = get_pid(filename)
+            parse_file(file, filename, gbs)
+        if st.session_state.check_source_code:
+            CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(
+                CodeLineInfoRow.table()
+            )
         ts = set()
-        for op in OpInfoRow._table:
+        for op in list(OpInfoRow._table.keys()):
             id, name = op.get_obj_info()
             u: UniqueObject = op.get_unique_obj()
             if u is None:
                 continue
             if u not in SnoopieObject.all_objects:
-                tmp = SnoopieObject(
-                    name.var_name, id.obj_id, name.call_stack
-                )
+                tmp = SnoopieObject(name.var_name, id.obj_id, name.call_stack)
                 SnoopieObject.all_objects[u] = tmp
             so: SnoopieObject = SnoopieObject.all_objects[u]
             so.add_op(op)
             so.add_addres_range(id)
-            op.related_object = so
-
+            val = OpInfoRow._table[op]
+            OpInfoRow._table[op] = OpInfoRowCombined(op, OpInfoRowValue(val.count, so))
+        print(len(OpInfoRow.table()))
         tempdev = deepcopy(_devices)
         if -1 in tempdev:
             tempdev.remove(-1)
@@ -307,6 +265,7 @@ def read_data(
             pickle.dump(all_data, pf)
             print("Data saved to " + pickle_filename)
     else:
+        # pass
         (
             OpInfoRow._table,
             SnoopieObject.all_objects,
@@ -320,6 +279,6 @@ def read_data(
             ops,
         ) = pickle_file
 
-        st.session_state.gpu_num = gpu_num
+        # st.session_state.gpu_num = gpu_num
 
     return gpu_num, ops
