@@ -66,6 +66,9 @@
 #include "common.h"
 #include "util.h"
 
+#include <sys/syscall.h>
+#define gettid() syscall(SYS_gettid)
+
 #define HEX(x)                                                                 \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x        \
        << std::dec
@@ -185,6 +188,54 @@ allocation_site_t *search_at_level(allocation_site_t *allocation_site,
     return allocation_site;
 
   return search_at_level(allocation_site->get_next_sibling(), pc);
+}
+
+std::map<unsigned long long, PyObject*> cur_tensorto_func;
+int tensorto_func_count = 0;
+
+py::object tensorto_func (const py::args &args, const py::kwargs &kwargs) {
+	std::cerr << "torch.to is intercepted in process " << getpid() << " and thread " << gettid() << "\n";
+#if 0
+	py::object parent = args[0];
+	PyObject* parent_obj = parent.ptr();
+	PyObject* data_ptr_obj = PyObject_GetAttrString(parent_obj, "data_ptr");
+	if(data_ptr_obj == NULL)
+		std::cerr << "data_ptr attribute in parent is not found\n";
+	else
+		std::cerr << "data_ptr attribute in parent is found\n";
+#endif
+	py::object traceback = py::module::import("traceback");
+	py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+	py::object walk_stack = traceback.attr("walk_stack");
+	py::object summary = extract_summary(walk_stack(py::none()));
+	//#if 0
+	std::cerr << "before call stack printing\n";
+	for (py::handle frame : summary) {
+		std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+	}
+	std::cerr << "after call stack printing\n";
+
+	//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+	//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+	PyObject* result = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+	//#if 0
+	PyObject* ptr_obj = PyObject_GetAttrString(result, "data_ptr");
+	std::cerr << "here 4\n";
+	PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+	unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+	//fprintf(stderr, "offset value: %lx\n", offset_val);
+	PyObject* size_obj = PyObject_GetAttrString(result, "__len__");
+	PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+	unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
+
+	PyObject* elem_size_obj = PyObject_GetAttrString(result, "element_size");
+	PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+	unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+	unsigned long long alloc_size_val = element_count * element_size;
+	fprintf(stderr, "to func call captured, offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+	//#endif
+	return py::reinterpret_borrow<py::object>(result);
 }
 
 PYBIND11_MODULE(libmem_multigpu, m) {
@@ -478,60 +529,27 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				unsigned long long alloc_size_val = element_count * element_size;
 				fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
 				orig_torchto_func = PyObject_GetAttrString(result, "to"); 
-#if 0
-				npy_intp size;
-                		long *dptr;  /* could make this any variable type */
-                		//size = PyArray_SIZE(allocated_mem_ptr);
-				//PyArrayObject * obj_arr = (PyArrayObject *)allocated_mem_ptr;
-				PyArrayObject * obj_arr = (PyArrayObject *)result;
-//#if 0
-                		//dptr = (long *) PyArray_DATA(allocated_mem_ptr);
-				dptr = (long *) PyArray_DATA(result);
-				//long *base_ptr = (long *) PyArray_BASE(allocated_mem_ptr);
-				//int typ=PyArray_TYPE(allocated_mem_ptr);
-				int typ=PyArray_TYPE(result);
-				long element_size = 0;
-				switch(typ) {
-					case NPY_BYTE:
-					case NPY_BOOL:
-					//case NPY_INT8:
-					case NPY_UBYTE:
-					//case NPY_UINT8:
-                                                element_size = 1;
-                                        break;
-					case NPY_SHORT:
-					//case NPY_INT16:
-					case NPY_USHORT:
-					//case NPY_UINT16:
-						element_size = 2;
-                                        break;
-					case NPY_INT:
-					case NPY_FLOAT:
-					//case NPY_INT32:
-					case NPY_UINT:
-					//case NPY_UINT32:
-    						element_size = 4;
-    					break;
-					case NPY_LONG:
-					case NPY_LONGLONG:
-					case NPY_DOUBLE:
-					//case NPY_INT64:
-					
-    						element_size = 8;
-    						break;
-					default:
-						std::cerr << "unknown type " << typ << "\n";
-				}
-				long element_count = 1;
-				for(int i = 0; i < obj_arr->nd; i++) {
-					element_count *= obj_arr->dimensions[i];
-				}	
-				long memory_size = element_count * element_size;
-				fprintf(stderr, "offset of pinned_array: %lx, size of object: %ld\n", dptr, memory_size);		
-#endif
 				py::object result_obj = py::reinterpret_borrow<py::object>(result);
-				result_obj.attr("to") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
-					std::cerr << "torch.to is intercepted\n";
+				//result_obj.attr("to") = py::cpp_function(tensorto_func);
+//#if 0
+				result_obj.attr("to") = py::cpp_function([&result](const py::args &args, const py::kwargs &kwargs) {
+#if 0
+					std::cerr << "here 1\n";
+					PyObject * result_obj_ptr = result;	
+					std::cerr << "here 2\n";
+					PyObject* data_ptr_obj = PyObject_GetAttrString(result_obj_ptr, "data_ptr");
+					std::cerr << "here 3\n";
+					PyObject* data_ptr_val_obj = PyObject_CallNoArgs(data_ptr_obj);
+					fprintf(stderr, "torch.to is intercepted from object with offset %lx\n", PyLong_AsUnsignedLongLongMask(data_ptr_val_obj));
+#endif
+					py::object parent = args[0];
+					PyObject* parent_obj = parent.ptr();
+					unsigned long long first_arg = PyLong_AsUnsignedLongLongMask(parent_obj);
+					fprintf(stderr, "first_arg: %ld\n", first_arg);
+					py::object kparent = kwargs[0];
+					//PyObject* kparent_obj = kparent.ptr;
+                                        //unsigned long long first_kwarg = PyLong_AsUnsignedLongLongMask(kparent_obj);
+					//fprintf(stderr, "first_kwarg: %ld\n", first_kwarg);
                                 	py::object traceback = py::module::import("traceback");
                                 	py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                 	py::object walk_stack = traceback.attr("walk_stack");
@@ -565,6 +583,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 //#endif
 					return py::reinterpret_borrow<py::object>(result);
 				});
+//#endif
                                 return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
 		} 
