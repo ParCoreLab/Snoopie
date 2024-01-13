@@ -529,6 +529,16 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                 PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
                                 unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
 				unsigned long long alloc_size_val = element_count * element_size;
+
+				PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                if (PyBool_Check(is_cuda_obj)) {
+					if(is_cuda_obj == Py_True) {
+						fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val);
+					} else {
+						fprintf(stderr, "Object with offset value %lx is a CPU object\n", offset_val);
+					}
+				}
+
 				fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
 				py::object result_obj = py::reinterpret_borrow<py::object>(result);
 				PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to"); 
@@ -546,11 +556,24 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					fprintf(stderr, "torch.to is intercepted from object with offset %lx\n", PyLong_AsUnsignedLongLongMask(data_ptr_val_obj));
 #endif
 #if 0
-					py::object parent = args[0];
-					PyObject* parent_obj = parent.ptr();
-					unsigned long long first_arg = PyLong_AsUnsignedLongLongMask(parent_obj);
-					fprintf(stderr, "first_arg: %ld\n", first_arg);
-					py::object kparent = kwargs[0];
+					char *mem_location = NULL;
+					if(args.size() > 0) {
+						PyObject* arg_obj = args[0].ptr();
+						PyObject* type_obj = PyObject_GetAttrString(arg_obj, "type");
+						if (PyUnicode_Check(type_obj)) {
+    							PyObject * temp_bytes = PyUnicode_AsEncodedString(type_obj, "UTF-8", "strict"); // Owned reference
+    							if (temp_bytes != NULL) {
+        							const char *s1 = PyBytes_AS_STRING(temp_bytes); // Borrowed pointer
+        							mem_location = strdup(s1);
+        							Py_DECREF(temp_bytes);
+    							}
+						}
+						//const char* obj_loc = PyString_AsString(type_obj);
+						//fprintf(stderr, "to argument: %s\n", obj_loc);
+						//unsigned long long first_arg = PyLong_AsUnsignedLongLongMask(parent_obj);
+						//fprintf(stderr, "first_arg of to func: %ld\n", first_arg);
+					}
+					//py::object kparent = kwargs[0];
 #endif
 					//PyObject* kparent_obj = kparent.ptr;
                                         //unsigned long long first_kwarg = PyLong_AsUnsignedLongLongMask(kparent_obj);
@@ -586,6 +609,22 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                 	unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
                                 	unsigned long long alloc_size_val = element_count * element_size;
                                 	fprintf(stderr, "to func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
+#if 0
+					if(mem_location != NULL) {
+						if(strcmp(mem_location, "cuda") == 0) {
+							fprintf(stderr, "record the allocated memory\n");
+						}
+						free(mem_location);
+					}
+#endif
+					PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                	if (PyBool_Check(is_cuda_obj)) {
+                                        	if(is_cuda_obj == Py_True) {
+                                                	fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val1);
+                                        	} else {
+                                                	fprintf(stderr, "Object with offset value %lx is a CPU object\n", offset_val1);
+                                        	}
+                                	}
 //#endif
 					return py::reinterpret_borrow<py::object>(result1);
 				});
