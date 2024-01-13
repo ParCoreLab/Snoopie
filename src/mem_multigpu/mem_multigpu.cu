@@ -95,7 +95,7 @@ PyObject* orig_cudadevicendarray_func;
 PyObject* orig_cudadevicerecord_func;
 PyObject* orig_cudapinnedarray_func;
 PyObject* orig_torch_cuda_func;
-PyObject* orig_torchtensor_func;
+//PyObject* orig_torchtensor_func;
 //PyObject* orig_torchto_func;
 
 int object_counter = 0;
@@ -495,9 +495,9 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 		} else if(func_name == "tensor") {
 			std::cerr << "torch.tensor is injected\n";
                         PyObject* mod = obj.ptr();
-			orig_torchtensor_func = PyObject_GetAttrString(mod, "tensor");		
+			PyObject* orig_torchtensor_func = PyObject_GetAttrString(mod, "tensor");		
 
-			obj.attr("tensor") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
+			obj.attr("tensor") = py::cpp_function([orig_torchtensor_func](const py::args &args, const py::kwargs &kwargs) {
                         //std::cout << msg.cast<std::string>();
 				std::cerr << "torch.tensor is intercepted\n";
                                 py::object traceback = py::module::import("traceback");
@@ -531,11 +531,12 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				unsigned long long alloc_size_val = element_count * element_size;
 				fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
 				py::object result_obj = py::reinterpret_borrow<py::object>(result);
-				if (cur_tensorto_func.find(offset_val) == cur_tensorto_func.end()) {
+				//if (cur_tensorto_func.find(offset_val) == cur_tensorto_func.end()) {
 				PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to"); 
 				//result_obj.attr("to") = py::cpp_function(tensorto_func);
 //#if 0
-				cur_tensorto_func[offset_val] = py::cpp_function([offset_val, orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+				//cur_tensorto_func[offset_val] = py::cpp_function([offset_val, orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+				result_obj.attr("to") = py::cpp_function([offset_val, orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
 #if 0
 					std::cerr << "here 1\n";
 					PyObject * result_obj_ptr = result;	
@@ -575,7 +576,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                 	PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
                                 	std::cerr << "here 4\n";
                                 	PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
-                                	unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+                                	unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
                                 	//fprintf(stderr, "offset value: %lx\n", offset_val);
                                 	PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
                                 	PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
@@ -585,10 +586,11 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                 	PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
                                 	unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
                                 	unsigned long long alloc_size_val = element_count * element_size;
-                                	fprintf(stderr, "to func call captured, offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+                                	fprintf(stderr, "to func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
 //#endif
 					return py::reinterpret_borrow<py::object>(result1);
 				});
+#if 0
 				PyObject *callable = cur_tensorto_func[offset_val].ptr();
 				if(PyCallable_Check(callable)) {
 					std::cerr << "tensorto is callable\n";
@@ -596,8 +598,9 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					if(setattr_flag == 0)
 						std::cerr << "attribution setting succeeded\n";
 				}
+#endif
 				//result_obj.attr("to") = cur_tensorto_func[offset_val];
-				}
+				//}
 //#endif
                                 return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
