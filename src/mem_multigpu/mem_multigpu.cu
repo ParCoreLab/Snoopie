@@ -531,12 +531,11 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				unsigned long long alloc_size_val = element_count * element_size;
 				fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
 				py::object result_obj = py::reinterpret_borrow<py::object>(result);
-				//if (cur_tensorto_func.find(offset_val) == cur_tensorto_func.end()) {
 				PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to"); 
 				//result_obj.attr("to") = py::cpp_function(tensorto_func);
 //#if 0
 				//cur_tensorto_func[offset_val] = py::cpp_function([offset_val, orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
-				result_obj.attr("to") = py::cpp_function([offset_val, orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+				result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
 #if 0
 					std::cerr << "here 1\n";
 					PyObject * result_obj_ptr = result;	
@@ -566,7 +565,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                         	std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
                                 	}
                                 	std::cerr << "after call stack printing\n";
-					fprintf(stderr, "offset_val: %lx\n", offset_val);
+					//fprintf(stderr, "offset_val: %lx\n", offset_val);
 
                                 	//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
 
@@ -602,6 +601,62 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				//result_obj.attr("to") = cur_tensorto_func[offset_val];
 				//}
 //#endif
+				PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+				result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+#if 0
+					std::cerr << "here 1\n";
+					PyObject * result_obj_ptr = result;	
+					std::cerr << "here 2\n";
+					PyObject* data_ptr_obj = PyObject_GetAttrString(result_obj_ptr, "data_ptr");
+					std::cerr << "here 3\n";
+					PyObject* data_ptr_val_obj = PyObject_CallNoArgs(data_ptr_obj);
+					fprintf(stderr, "torch.to is intercepted from object with offset %lx\n", PyLong_AsUnsignedLongLongMask(data_ptr_val_obj));
+#endif
+#if 0
+					py::object parent = args[0];
+					PyObject* parent_obj = parent.ptr();
+					unsigned long long first_arg = PyLong_AsUnsignedLongLongMask(parent_obj);
+					fprintf(stderr, "first_arg: %ld\n", first_arg);
+					py::object kparent = kwargs[0];
+#endif
+					//PyObject* kparent_obj = kparent.ptr;
+                                        //unsigned long long first_kwarg = PyLong_AsUnsignedLongLongMask(kparent_obj);
+					//fprintf(stderr, "first_kwarg: %ld\n", first_kwarg);
+                                	py::object traceback = py::module::import("traceback");
+                                	py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                	py::object walk_stack = traceback.attr("walk_stack");
+                                	py::object summary = extract_summary(walk_stack(py::none()));
+//#if 0
+                                	std::cerr << "before call stack printing\n";
+                                	for (py::handle frame : summary) {
+                                        	std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                	}
+                                	std::cerr << "after call stack printing\n";
+					//fprintf(stderr, "offset_val: %lx\n", offset_val);
+
+                                	//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                	//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                	PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+//#if 0
+                                	PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
+                                	std::cerr << "here 4\n";
+                                	PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+                                	unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+                                	//fprintf(stderr, "offset value: %lx\n", offset_val);
+                                	PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
+                                	PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+                                	unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
+
+                                	PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
+                                	PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+                                	unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+                                	unsigned long long alloc_size_val = element_count * element_size;
+                                	fprintf(stderr, "cuda func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
+//#endif
+					return py::reinterpret_borrow<py::object>(result1);
+				});	
+		
                                 return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
 		} 
