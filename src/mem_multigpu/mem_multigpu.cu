@@ -543,15 +543,335 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 								//std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
 
 								stack_vec.push_back(frame);
-								root_frame = frame;
-#if 0
-								if (root == NULL) {
-									std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
-									uint64_t key_num = std::hash<std::string>()(filename);
-									root = new allocation_site_t(key_num);
-									allocation_site = root;
+								root_frame = frame;                          
+							}
+
+							if (root == NULL) {
+								pthread_mutex_lock(&mutex_pytorch);
+								std::string filename = root_frame.attr("filename").attr("__str__")().cast<std::string>();
+								uint64_t key_num = std::hash<std::string>()(filename);
+								root = new allocation_site_t(key_num);
+								allocation_site = root;
+								pthread_mutex_unlock(&mutex_pytorch);
+							}      
+							parent = root;
+							allocation_site = root->get_first_child();	
+
+							for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+								//std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+								std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+								int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+								std::string key_str = filename + ":" + std::to_string(lineno);
+								uint64_t key_num = std::hash<std::string>()(key_str);
+								std::string func_name = itr->attr("name").attr("__str__")().cast<std::string>();
+
+								allocation_line_t *line = allocation_line_table->find(key_num);
+								if (line == NULL) {
+									allocation_line_table->insert(new allocation_line_t(
+												key_num, func_name, filename, lineno));
+								}      
+								allocation_site_t *temp = allocation_site;
+								allocation_site = search_at_level(allocation_site, key_num);
+
+								if (allocation_site == NULL) {
+									if (temp != NULL) {
+										while (temp->get_next_sibling() != NULL)
+											temp = temp->get_next_sibling();
+										temp->set_next_sibling(new allocation_site_t(key_num));
+
+										allocation_site = temp->get_next_sibling();
+										allocation_site->set_parent(temp->get_parent());
+									} else {
+										parent->set_first_child(new allocation_site_t(key_num));
+										allocation_site = parent->get_first_child();
+										allocation_site->set_parent(parent);
+									}
 								}
-#endif                          
+								parent = allocation_site;
+								allocation_site = allocation_site->get_first_child();
+							}	
+
+							if (parent) {
+								if (parent->get_object_id() == 0) {
+									parent->set_object_id(++object_counter);
+									object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+								}
+								int deviceID = -1;
+								cudaGetDevice(&deviceID);
+
+								adm_range_insert(offset_val, alloc_size_val, parent->get_pc(),
+										deviceID, "", ADM_STATE_ALLOC);
+								range_nodes.push_back(new adm_range_t(
+											offset_val, alloc_size_val, parent->get_object_id(), deviceID));
+							}
+						} 
+					}
+
+					fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
+					py::object result_obj = py::reinterpret_borrow<py::object>(result);
+					PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to"); 
+					result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+							//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+							//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+							PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+							//#if 0
+							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
+							std::cerr << "here 4\n";
+							PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+							//fprintf(stderr, "offset value: %lx\n", offset_val);
+							PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
+							PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
+
+							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
+							PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+							unsigned long long alloc_size_val = element_count * element_size;
+							fprintf(stderr, "to func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
+							PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+							if (PyBool_Check(is_cuda_obj)) {
+								if(is_cuda_obj == Py_True) {
+									//fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val1);
+
+									py::object traceback = py::module::import("traceback");
+									py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+									py::object walk_stack = traceback.attr("walk_stack");
+									py::object summary = extract_summary(walk_stack(py::none()));
+									std::vector<py::handle> stack_vec;
+									allocation_site_t *allocation_site = NULL;
+									allocation_site_t *parent = NULL;
+
+									//std::cerr << "before call stack printing\n";
+									py::handle root_frame;
+									for (py::handle frame : summary) {
+										//std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+										stack_vec.push_back(frame);
+										root_frame = frame;
+									}
+
+									if (root == NULL) {
+										pthread_mutex_lock(&mutex_pytorch);
+										std::string filename = root_frame.attr("filename").attr("__str__")().cast<std::string>();
+										uint64_t key_num = std::hash<std::string>()(filename);
+										root = new allocation_site_t(key_num);
+										allocation_site = root;
+										pthread_mutex_unlock(&mutex_pytorch);
+									}
+									parent = root;
+									allocation_site = root->get_first_child();
+
+									for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+										std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+										std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+										int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+										std::string key_str = filename + ":" + std::to_string(lineno);
+										uint64_t key_num = std::hash<std::string>()(key_str);
+										std::string func_name = itr->attr("name").attr("__str__")().cast<std::string>();
+
+										allocation_line_t *line = allocation_line_table->find(key_num);
+										if (line == NULL) {
+											allocation_line_table->insert(new allocation_line_t(
+														key_num, func_name, filename, lineno));
+										}
+										allocation_site_t *temp = allocation_site;
+										allocation_site = search_at_level(allocation_site, key_num);
+
+										if (allocation_site == NULL) {
+											if (temp != NULL) {
+												while (temp->get_next_sibling() != NULL)
+													temp = temp->get_next_sibling();
+												temp->set_next_sibling(new allocation_site_t(key_num));
+
+												allocation_site = temp->get_next_sibling();
+												allocation_site->set_parent(temp->get_parent());
+											} else {
+												parent->set_first_child(new allocation_site_t(key_num));
+												allocation_site = parent->get_first_child();
+												allocation_site->set_parent(parent);
+											}
+										}
+										parent = allocation_site;
+										allocation_site = allocation_site->get_first_child();
+									}	
+
+									if (parent) {
+										if (parent->get_object_id() == 0) {
+											parent->set_object_id(++object_counter);
+											object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+										}
+										int deviceID = -1;
+										cudaGetDevice(&deviceID);
+
+										adm_range_insert(offset_val1, alloc_size_val, parent->get_pc(),
+												deviceID, "", ADM_STATE_ALLOC);
+										range_nodes.push_back(new adm_range_t(
+													offset_val1, alloc_size_val, parent->get_object_id(), deviceID));
+									}	
+
+								} else {
+									fprintf(stderr, "Object with offset value %lx is a CPU object\n", offset_val1);
+								}
+							}
+							//#endif
+							return py::reinterpret_borrow<py::object>(result1);
+					});
+					PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+					result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+							std::cerr << "tensor.cuda is intercepted\n";
+							//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+							PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+							//#if 0
+							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
+							std::cerr << "here 4\n";
+							PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+							//fprintf(stderr, "offset value: %lx\n", offset_val);
+							PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
+							PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
+
+							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
+							PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+							unsigned long long alloc_size_val = element_count * element_size;
+							fprintf(stderr, "cuda func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
+							//#endif
+							//fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val1);
+
+							py::object traceback = py::module::import("traceback");
+							py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+							py::object walk_stack = traceback.attr("walk_stack");
+							py::object summary = extract_summary(walk_stack(py::none()));
+							std::vector<py::handle> stack_vec;
+							allocation_site_t *allocation_site = NULL;
+							allocation_site_t *parent = NULL;
+
+							//std::cerr << "before call stack printing\n";
+							py::handle root_frame;
+							for (py::handle frame : summary) {
+								//std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+								stack_vec.push_back(frame);
+								root_frame = frame;
+							}
+
+							if (root == NULL) {
+								pthread_mutex_lock(&mutex_pytorch);
+								std::string filename = root_frame.attr("filename").attr("__str__")().cast<std::string>();
+								uint64_t key_num = std::hash<std::string>()(filename);
+								root = new allocation_site_t(key_num);
+								allocation_site = root;
+								pthread_mutex_unlock(&mutex_pytorch);
+							}
+							parent = root;
+							allocation_site = root->get_first_child();
+
+							for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+								std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+								std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+								int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+								std::string key_str = filename + ":" + std::to_string(lineno);
+								uint64_t key_num = std::hash<std::string>()(key_str);
+								std::string func_name = itr->attr("name").attr("__str__")().cast<std::string>();
+
+								allocation_line_t *line = allocation_line_table->find(key_num);
+								if (line == NULL) {
+									allocation_line_table->insert(new allocation_line_t(
+												key_num, func_name, filename, lineno));
+								}
+								allocation_site_t *temp = allocation_site;
+								allocation_site = search_at_level(allocation_site, key_num);
+
+								if (allocation_site == NULL) {
+									if (temp != NULL) {
+										while (temp->get_next_sibling() != NULL)
+											temp = temp->get_next_sibling();
+										temp->set_next_sibling(new allocation_site_t(key_num));
+
+										allocation_site = temp->get_next_sibling();
+										allocation_site->set_parent(temp->get_parent());
+									} else {
+										parent->set_first_child(new allocation_site_t(key_num));
+										allocation_site = parent->get_first_child();
+										allocation_site->set_parent(parent);
+									}
+								}
+								parent = allocation_site;
+								allocation_site = allocation_site->get_first_child();
+							}	
+
+							if (parent) {
+								if (parent->get_object_id() == 0) {
+									parent->set_object_id(++object_counter);
+									object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+								}
+								int deviceID = -1;
+								cudaGetDevice(&deviceID);
+
+								adm_range_insert(offset_val1, alloc_size_val, parent->get_pc(),
+										deviceID, "", ADM_STATE_ALLOC);
+								range_nodes.push_back(new adm_range_t(
+											offset_val1, alloc_size_val, parent->get_object_id(), deviceID));
+							}	
+							return py::reinterpret_borrow<py::object>(result1);
+					});	
+
+					return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+			});
+		} else if(func_name == "randn") {
+			std::cerr << "torch.randn is injected\n";
+			PyObject* mod = obj.ptr();
+			PyObject* orig_torchrandn_func = PyObject_GetAttrString(mod, "randn");		
+
+			obj.attr("randn") = py::cpp_function([orig_torchrandn_func](const py::args &args, const py::kwargs &kwargs) {
+					//std::cout << msg.cast<std::string>();
+					std::cerr << "torch.randn is intercepted\n";
+					//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+					//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+					PyObject* result = PyObject_Call(orig_torchrandn_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+					PyObject* ptr_obj = PyObject_GetAttrString(result, "data_ptr");
+					std::cerr << "here 4\n";
+					PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+					unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+					//fprintf(stderr, "offset value: %lx\n", offset_val);
+					PyObject* size_obj = PyObject_GetAttrString(result, "__len__");
+					PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+					unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
+
+					PyObject* elem_size_obj = PyObject_GetAttrString(result, "element_size");
+					PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+					unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+					unsigned long long alloc_size_val = element_count * element_size;
+
+					PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+					if (PyBool_Check(is_cuda_obj)) {
+						if(is_cuda_obj == Py_True) {
+							//fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val);
+							py::object traceback = py::module::import("traceback");
+							py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+							py::object walk_stack = traceback.attr("walk_stack");
+							py::object summary = extract_summary(walk_stack(py::none()));
+							//#if 0
+							std::vector<py::handle> stack_vec;
+							allocation_site_t *allocation_site = NULL;
+							allocation_site_t *parent = NULL;
+
+							std::cerr << "before call stack printing\n";
+							py::handle root_frame;
+							for (py::handle frame : summary) {
+								//std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+								stack_vec.push_back(frame);
+								root_frame = frame;
 							}
 
 							if (root == NULL) {
@@ -745,22 +1065,18 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							//#endif
 							return py::reinterpret_borrow<py::object>(result1);
 					});
-#if 0
-					PyObject *callable = cur_tensorto_func[offset_val].ptr();
-					if(PyCallable_Check(callable)) {
-						std::cerr << "tensorto is callable\n";
-						int setattr_flag = PyObject_SetAttrString(result, "to", callable);
-						if(setattr_flag == 0)
-							std::cerr << "attribution setting succeeded\n";
-					}
-#endif
-					//result_obj.attr("to") = cur_tensorto_func[offset_val];
-					//}
-					//#endif
 					PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
 					result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
-							std::cerr << "tensor.cuda is intercepted\n";
-							//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+							py::object traceback = py::module::import("traceback");
+							py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+							py::object walk_stack = traceback.attr("walk_stack");
+							py::object summary = extract_summary(walk_stack(py::none()));
+							//#if 0
+							std::cerr << "before call stack printing\n";
+							for (py::handle frame : summary) {
+								std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+							}
+							std::cerr << "after call stack printing\n";
 							PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
 							//#if 0
 							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
@@ -778,97 +1094,15 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							unsigned long long alloc_size_val = element_count * element_size;
 							fprintf(stderr, "cuda func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
 							//#endif
-							//fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val1);
-
-							py::object traceback = py::module::import("traceback");
-							py::object extract_summary = traceback.attr("StackSummary").attr("extract");
-							py::object walk_stack = traceback.attr("walk_stack");
-							py::object summary = extract_summary(walk_stack(py::none()));
-							std::vector<py::handle> stack_vec;
-							allocation_site_t *allocation_site = NULL;
-							allocation_site_t *parent = NULL;
-
-							//std::cerr << "before call stack printing\n";
-							py::handle root_frame;
-							for (py::handle frame : summary) {
-								//std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
-
-								stack_vec.push_back(frame);
-								root_frame = frame;
-							}
-
-							if (root == NULL) {
-								pthread_mutex_lock(&mutex_pytorch);
-								std::string filename = root_frame.attr("filename").attr("__str__")().cast<std::string>();
-								uint64_t key_num = std::hash<std::string>()(filename);
-								root = new allocation_site_t(key_num);
-								allocation_site = root;
-								pthread_mutex_unlock(&mutex_pytorch);
-							}
-							parent = root;
-							allocation_site = root->get_first_child();
-
-							for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
-								std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
-
-								std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
-								int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
-								std::string key_str = filename + ":" + std::to_string(lineno);
-								uint64_t key_num = std::hash<std::string>()(key_str);
-								std::string func_name = itr->attr("name").attr("__str__")().cast<std::string>();
-
-								allocation_line_t *line = allocation_line_table->find(key_num);
-								if (line == NULL) {
-									allocation_line_table->insert(new allocation_line_t(
-												key_num, func_name, filename, lineno));
-								}
-								allocation_site_t *temp = allocation_site;
-								allocation_site = search_at_level(allocation_site, key_num);
-
-								if (allocation_site == NULL) {
-									if (temp != NULL) {
-										while (temp->get_next_sibling() != NULL)
-											temp = temp->get_next_sibling();
-										temp->set_next_sibling(new allocation_site_t(key_num));
-
-										allocation_site = temp->get_next_sibling();
-										allocation_site->set_parent(temp->get_parent());
-									} else {
-										parent->set_first_child(new allocation_site_t(key_num));
-										allocation_site = parent->get_first_child();
-										allocation_site->set_parent(parent);
-									}
-								}
-								parent = allocation_site;
-								allocation_site = allocation_site->get_first_child();
-							}	
-
-							if (parent) {
-								if (parent->get_object_id() == 0) {
-									parent->set_object_id(++object_counter);
-									object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
-								}
-								int deviceID = -1;
-								cudaGetDevice(&deviceID);
-
-								adm_range_insert(offset_val1, alloc_size_val, parent->get_pc(),
-										deviceID, "", ADM_STATE_ALLOC);
-								range_nodes.push_back(new adm_range_t(
-											offset_val1, alloc_size_val, parent->get_object_id(), deviceID));
-							}	
 							return py::reinterpret_borrow<py::object>(result1);
 					});	
 
 					return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
 			});
-		} 
+		}  
 	};	    
-	//my_injection(nb, "cuda.cudadrv.devicearray.DeviceNDArray");
-	//my_injection(nb, "cuda.cudadrv.devicearray.DeviceRecord");
-	//my_injection(nb, "cuda.pinned_array");
-	//my_injection(torch, "storage.UntypedStorage.cuda");
-	//my_injection(torch, "device");
 	my_injection(torch, "tensor");
+	my_injection(torch, "randn");
 	//my_injection(torch, "to");
 	std::cerr << "until here\n";
 }
