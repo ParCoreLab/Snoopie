@@ -155,6 +155,7 @@ void set_object_data_type_size(uint64_t pc, const uint32_t type_size);
 bool object_exists(uint64_t pc);
 /* lock */
 pthread_mutex_t mutex1;
+pthread_mutex_t mutex_pytorch;
 
 /* map to store context state */
 std::unordered_map<CUcontext, CTXstate *> ctx_state_map;
@@ -241,6 +242,10 @@ py::object tensorto_func (const py::args &args, const py::kwargs &kwargs) {
 #endif
 
 PYBIND11_MODULE(libmem_multigpu, m) {
+	pthread_mutexattr_t attr;
+  	pthread_mutexattr_init(&attr);
+ 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutex_init(&mutex_pytorch, &attr);
 	py::object traceback = py::module::import("traceback");
 	//py::object nb = py::module::import("numba");
 	py::object torch = py::module::import("torch");
@@ -505,10 +510,73 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                 py::object walk_stack = traceback.attr("walk_stack");
                                 py::object summary = extract_summary(walk_stack(py::none()));
 //#if 0
+				std::vector<py::handle> stack_vec;
+				allocation_site_t *allocation_site = NULL;
+                                allocation_site_t *parent = NULL;
+	
 				std::cerr << "before call stack printing\n";
+				py::handle root_frame;
                                 for (py::handle frame : summary) {
-                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                        //std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+					
+					stack_vec.push_back(frame);
+					root_frame = frame;
+#if 0
+					if (root == NULL) {
+                                        	std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
+                                        	uint64_t key_num = std::hash<std::string>()(filename);
+                                        	root = new allocation_site_t(key_num);
+                                        	allocation_site = root;
+                                	}
+#endif
                                 }
+
+				if (root == NULL) {
+					pthread_mutex_lock(&mutex_pytorch);
+					std::string filename = root_frame.attr("filename").attr("__str__")().cast<std::string>();
+					uint64_t key_num = std::hash<std::string>()(filename);
+					root = new allocation_site_t(key_num);
+					allocation_site = root;
+					pthread_mutex_unlock(&mutex_pytorch);
+                                }	
+				parent = root;
+				allocation_site = root->get_first_child();	
+
+				for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+					std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+					std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+                                        int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+                                        std::string key_str = filename + ":" + std::to_string(lineno);
+                                        uint64_t key_num = std::hash<std::string>()(key_str);
+					std::string func_name = itr->attr("name").attr("__str__")().cast<std::string>();
+
+					allocation_line_t *line = allocation_line_table->find(key_num);
+      					if (line == NULL) {
+        					allocation_line_table->insert(new allocation_line_t(
+            						key_num, func_name, filename, lineno));
+      					}	
+					allocation_site_t *temp = allocation_site;
+					allocation_site = search_at_level(allocation_site, key_num);
+
+					if (allocation_site == NULL) {
+        					if (temp != NULL) {
+							while (temp->get_next_sibling() != NULL)
+            							temp = temp->get_next_sibling();
+          						temp->set_next_sibling(new allocation_site_t(key_num));
+
+							allocation_site = temp->get_next_sibling();
+							allocation_site->set_parent(temp->get_parent());
+						} else {
+							parent->set_first_child(new allocation_site_t(key_num));
+							allocation_site = parent->get_first_child();
+							allocation_site->set_parent(parent);
+						}
+					}
+					parent = allocation_site;
+					allocation_site = allocation_site->get_first_child();
+				}	
+
 				std::cerr << "after call stack printing\n";
 
 				//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
@@ -533,10 +601,26 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
                                 if (PyBool_Check(is_cuda_obj)) {
 					if(is_cuda_obj == Py_True) {
-						fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val);
-					} else {
+						//fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val);
+						if (parent) {
+							if (parent->get_object_id() == 0) {
+								parent->set_object_id(++object_counter);
+                                        			object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+							}
+                                        		int deviceID = -1;
+                                        		cudaGetDevice(&deviceID);
+
+                                        		adm_range_insert(offset_val, alloc_size_val, parent->get_pc(),
+                                                		deviceID, "", ADM_STATE_ALLOC);
+                                        		range_nodes.push_back(new adm_range_t(
+                                                		offset_val, alloc_size_val, parent->get_object_id(), deviceID));
+                               			}
+					} 
+#if 0
+					else {
 						fprintf(stderr, "Object with offset value %lx is a CPU object\n", offset_val);
 					}
+#endif
 				}
 
 				fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
