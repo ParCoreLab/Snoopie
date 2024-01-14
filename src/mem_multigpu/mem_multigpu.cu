@@ -759,39 +759,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					//#endif
 					PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
 					result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
-#if 0
-							std::cerr << "here 1\n";
-							PyObject * result_obj_ptr = result;	
-							std::cerr << "here 2\n";
-							PyObject* data_ptr_obj = PyObject_GetAttrString(result_obj_ptr, "data_ptr");
-							std::cerr << "here 3\n";
-							PyObject* data_ptr_val_obj = PyObject_CallNoArgs(data_ptr_obj);
-							fprintf(stderr, "torch.to is intercepted from object with offset %lx\n", PyLong_AsUnsignedLongLongMask(data_ptr_val_obj));
-#endif
-#if 0
-							py::object parent = args[0];
-							PyObject* parent_obj = parent.ptr();
-							unsigned long long first_arg = PyLong_AsUnsignedLongLongMask(parent_obj);
-							fprintf(stderr, "first_arg: %ld\n", first_arg);
-							py::object kparent = kwargs[0];
-#endif
-							//PyObject* kparent_obj = kparent.ptr;
-							//unsigned long long first_kwarg = PyLong_AsUnsignedLongLongMask(kparent_obj);
-							//fprintf(stderr, "first_kwarg: %ld\n", first_kwarg);
-							py::object traceback = py::module::import("traceback");
-							py::object extract_summary = traceback.attr("StackSummary").attr("extract");
-							py::object walk_stack = traceback.attr("walk_stack");
-							py::object summary = extract_summary(walk_stack(py::none()));
-							//#if 0
-							std::cerr << "before call stack printing\n";
-							for (py::handle frame : summary) {
-								std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
-							}
-							std::cerr << "after call stack printing\n";
-							//fprintf(stderr, "offset_val: %lx\n", offset_val);
-
-							//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
-
+							std::cerr << "tensor.cuda is intercepted\n";
 							//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
 							PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
 							//#if 0
@@ -810,107 +778,90 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							unsigned long long alloc_size_val = element_count * element_size;
 							fprintf(stderr, "cuda func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
 							//#endif
+							//fprintf(stderr, "Object with offset value %lx is a GPU object\n", offset_val1);
+
+							py::object traceback = py::module::import("traceback");
+							py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+							py::object walk_stack = traceback.attr("walk_stack");
+							py::object summary = extract_summary(walk_stack(py::none()));
+							std::vector<py::handle> stack_vec;
+							allocation_site_t *allocation_site = NULL;
+							allocation_site_t *parent = NULL;
+
+							//std::cerr << "before call stack printing\n";
+							py::handle root_frame;
+							for (py::handle frame : summary) {
+								//std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+								stack_vec.push_back(frame);
+								root_frame = frame;
+							}
+
+							if (root == NULL) {
+								pthread_mutex_lock(&mutex_pytorch);
+								std::string filename = root_frame.attr("filename").attr("__str__")().cast<std::string>();
+								uint64_t key_num = std::hash<std::string>()(filename);
+								root = new allocation_site_t(key_num);
+								allocation_site = root;
+								pthread_mutex_unlock(&mutex_pytorch);
+							}
+							parent = root;
+							allocation_site = root->get_first_child();
+
+							for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+								std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
+
+								std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+								int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+								std::string key_str = filename + ":" + std::to_string(lineno);
+								uint64_t key_num = std::hash<std::string>()(key_str);
+								std::string func_name = itr->attr("name").attr("__str__")().cast<std::string>();
+
+								allocation_line_t *line = allocation_line_table->find(key_num);
+								if (line == NULL) {
+									allocation_line_table->insert(new allocation_line_t(
+												key_num, func_name, filename, lineno));
+								}
+								allocation_site_t *temp = allocation_site;
+								allocation_site = search_at_level(allocation_site, key_num);
+
+								if (allocation_site == NULL) {
+									if (temp != NULL) {
+										while (temp->get_next_sibling() != NULL)
+											temp = temp->get_next_sibling();
+										temp->set_next_sibling(new allocation_site_t(key_num));
+
+										allocation_site = temp->get_next_sibling();
+										allocation_site->set_parent(temp->get_parent());
+									} else {
+										parent->set_first_child(new allocation_site_t(key_num));
+										allocation_site = parent->get_first_child();
+										allocation_site->set_parent(parent);
+									}
+								}
+								parent = allocation_site;
+								allocation_site = allocation_site->get_first_child();
+							}	
+
+							if (parent) {
+								if (parent->get_object_id() == 0) {
+									parent->set_object_id(++object_counter);
+									object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
+								}
+								int deviceID = -1;
+								cudaGetDevice(&deviceID);
+
+								adm_range_insert(offset_val1, alloc_size_val, parent->get_pc(),
+										deviceID, "", ADM_STATE_ALLOC);
+								range_nodes.push_back(new adm_range_t(
+											offset_val1, alloc_size_val, parent->get_object_id(), deviceID));
+							}	
 							return py::reinterpret_borrow<py::object>(result1);
 					});	
 
 					return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
 			});
 		} 
-#if 0
-		else if(func_name == "to") {
-			std::cerr << "torch.to is injected\n";
-			PyObject* mod = obj.ptr();
-			orig_torchto_func = PyObject_GetAttrString(mod, "to");		
-
-			obj.attr("to") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
-					//std::cout << msg.cast<std::string>();
-					std::cerr << "torch.to is intercepted\n";
-					py::object traceback = py::module::import("traceback");
-					py::object extract_summary = traceback.attr("StackSummary").attr("extract");
-					py::object walk_stack = traceback.attr("walk_stack");
-					py::object summary = extract_summary(walk_stack(py::none()));
-					//#if 0
-					std::cerr << "before call stack printing\n";
-					for (py::handle frame : summary) {
-					std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
-					}
-					std::cerr << "after call stack printing\n";
-
-					//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
-
-					//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
-					PyObject* result = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
-
-					PyObject* ptr_obj = PyObject_GetAttrString(result, "data_ptr");
-					std::cerr << "here 4\n";
-					PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
-					unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
-					//fprintf(stderr, "offset value: %lx\n", offset_val);
-					PyObject* size_obj = PyObject_GetAttrString(result, "__len__");
-					PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
-					unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
-
-					PyObject* elem_size_obj = PyObject_GetAttrString(result, "element_size");
-					PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
-					unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
-					unsigned long long alloc_size_val = element_count * element_size;
-					fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
-#if 0
-					npy_intp size;
-					long *dptr;  /* could make this any variable type */
-					//size = PyArray_SIZE(allocated_mem_ptr);
-					//PyArrayObject * obj_arr = (PyArrayObject *)allocated_mem_ptr;
-					PyArrayObject * obj_arr = (PyArrayObject *)result;
-					//#if 0
-					//dptr = (long *) PyArray_DATA(allocated_mem_ptr);
-					dptr = (long *) PyArray_DATA(result);
-					//long *base_ptr = (long *) PyArray_BASE(allocated_mem_ptr);
-					//int typ=PyArray_TYPE(allocated_mem_ptr);
-					int typ=PyArray_TYPE(result);
-					long element_size = 0;
-					switch(typ) {
-						case NPY_BYTE:
-						case NPY_BOOL:
-							//case NPY_INT8:
-						case NPY_UBYTE:
-							//case NPY_UINT8:
-							element_size = 1;
-							break;
-						case NPY_SHORT:
-							//case NPY_INT16:
-						case NPY_USHORT:
-							//case NPY_UINT16:
-							element_size = 2;
-							break;
-						case NPY_INT:
-						case NPY_FLOAT:
-							//case NPY_INT32:
-						case NPY_UINT:
-							//case NPY_UINT32:
-							element_size = 4;
-							break;
-						case NPY_LONG:
-						case NPY_LONGLONG:
-						case NPY_DOUBLE:
-							//case NPY_INT64:
-
-							element_size = 8;
-							break;
-						default:
-							std::cerr << "unknown type " << typ << "\n";
-					}
-					long element_count = 1;
-					for(int i = 0; i < obj_arr->nd; i++) {
-						element_count *= obj_arr->dimensions[i];
-					}	
-					long memory_size = element_count * element_size;
-					fprintf(stderr, "offset of pinned_array: %lx, size of object: %ld\n", dptr, memory_size);		
-#endif
-					return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
-			});
-		} 
-#endif  
-		//ndif
 	};	    
 	//my_injection(nb, "cuda.cudadrv.devicearray.DeviceNDArray");
 	//my_injection(nb, "cuda.cudadrv.devicearray.DeviceRecord");
@@ -918,7 +869,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 	//my_injection(torch, "storage.UntypedStorage.cuda");
 	//my_injection(torch, "device");
 	my_injection(torch, "tensor");
-	my_injection(torch, "to");
+	//my_injection(torch, "to");
 	std::cerr << "until here\n";
 }
 
