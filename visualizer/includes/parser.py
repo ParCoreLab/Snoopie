@@ -1,13 +1,35 @@
-import streamlit as st
+import os
 from .tables import *
 from copy import deepcopy
-from .streamlit_globals import setup_globals
-import os
+from typing import List, Dict, Tuple, Literal, Any, NamedTuple
 import pickle
-from io import TextIOWrapper
-from typing import List, Dict, Tuple, Literal, Any
-import pandas as pd
 from functools import partial
+from io import TextIOWrapper
+import pandas as pd
+
+## DO NOT IMPORT STREAMLIT IF RUNNING FOR PROFILER
+PROFILE_KEY = "NO_STREAMLIT"
+no_pickle = False
+
+if PROFILE_KEY in os.environ and int(os.environ[PROFILE_KEY]) == 1:
+    no_pickle = True
+    class FakeStreamlitSessionState():
+        def __init__(self) -> None:
+            self.pickle_filename = ""
+            self.gpu_num = -1
+            self.check_source_code = False
+    class FakeStreamlit():
+        def __init__(self) -> None:
+            self.session_state = FakeStreamlitSessionState()
+        def experimental_rerun():
+            return
+    st = FakeStreamlit()
+    def setup_globals(*args, **kwargs):
+        return
+else:
+    import streamlit as st
+    from .streamlit_globals import setup_globals
+
 
 tables: Dict[
     Literal["op_info", "func_info", "offset_info", "obj_info", "codeline_info"],
@@ -62,6 +84,7 @@ def parse_file(file: TextIOWrapper, filename: str, gbs: tuple):
         raise Exception(f"Could not match {filename}: {df.keys()} to any logfile type")
     fnc: function = tables[key]["parser"]
     i = 0
+    #df.apply(partial(fnc, gbs=gbs),axis = 1)
     for index, row in df.iterrows():
         if i % 1e10 == 0:
             print(fnc, row)
@@ -158,9 +181,11 @@ def get_pid(filename: str) -> int:
         return int(slice)
     else:
         # snoopie-log-pid or snoopie-log-pid.zstd
-        last = -4 if filename.endswith(".zst") else -1
-        beforepid = filename.rfind("-")
-        slice = filename[beforepid + 1 : last]
+        beforepid = filename.rfind("_")
+        if filename.endswith(".zst"):
+            slice = filename[beforepid + 1 : -4]
+        else:
+            slice = filename[beforepid + 1:]
         if not slice.isdigit():
             return -1
         return int(slice)
@@ -193,7 +218,7 @@ def read_data(
 
     st.session_state.pickle_filename = pickle_filename
 
-    if os.path.isfile(pickle_filename):
+    if os.path.isfile(pickle_filename) and not no_pickle:
         with open(pickle_filename, "rb") as f:
         # set gpu num and ops here
         # pickle_file = 0  
@@ -227,6 +252,7 @@ def read_data(
             )
         ts = set()
         for op in list(OpInfoRow._table.keys()):
+            assert type(op) == type(OpInfoRowKey(-1,"","",-1,-1,-1,-1,-1,-1,"",-1))
             id, name = op.get_obj_info()
             u: UniqueObject = op.get_unique_obj()
             if u is None:
@@ -238,7 +264,7 @@ def read_data(
             so.add_op(op)
             so.add_addres_range(id)
             val = OpInfoRow._table[op]
-            OpInfoRow._table[op] = OpInfoRowCombined(op, OpInfoRowValue(val.count, so))
+            OpInfoRow._table[op] = OpInfoRowValue(val.count, so)
         print(len(OpInfoRow.table()))
         tempdev = deepcopy(_devices)
         if -1 in tempdev:

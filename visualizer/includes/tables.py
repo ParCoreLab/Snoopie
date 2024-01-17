@@ -1,6 +1,7 @@
 from typing import List, Dict, NamedTuple, Tuple, MutableSet
 from abc import ABC, abstractmethod
 import os
+import pandas as pd
 
 
 def quick_add_to_dict(d: Dict[any, Dict[any, any]], key1, key2, value):
@@ -69,7 +70,7 @@ class OpInfoRowKey(NamedTuple):
     def get_obj_info(self):
         obj_id_info: ObjIdRow | None = ObjIdRow.search(self.pid, self.obj_offset)
         if obj_id_info == None:
-            print("OBJ ID INFO NONE", self.obj_offset, self.pid)
+            # print("OBJ ID INFO NONE", self.obj_offset, self.pid)
             return None, None
         obj_name_info: ObjNameRow | None = ObjNameRow.search(
             self.pid, obj_id_info.obj_id
@@ -178,6 +179,7 @@ class OpInfoRow(Table):
     @staticmethod
     def get_total_accesses(ops: List[OpInfoRowCombined], memrange: bool) -> int:
         if not memrange:
+            print("OPS:", [i.value for i in ops])
             return sum([i.value.count for i in ops])
         _sum = 0
         for op in ops:
@@ -307,8 +309,8 @@ class SnoopieObject(UniqueObjectKeyable):
         self.ops: List[OpInfoRowCombined] = []
         # SnoopieObject.all_objects[k] = self
 
-    def add_op(self, op: OpInfoRowCombined):
-        self.ops.append(op)
+    def add_op(self, op: OpInfoRowKey):
+        self.ops.append(OpInfoRowCombined(op,OpInfoRow._table[op]))
 
     def add_addres_range(self, ar: ObjIdRow):
         key = ar.get_key()
@@ -318,6 +320,9 @@ class SnoopieObject(UniqueObjectKeyable):
 
     def __str__(self) -> str:
         return str(self.key)
+
+    def __repr__(self) -> str:
+        return "Snoopie Object: " + self.key.__repr__()
 
     @staticmethod
     def get_display_dict() -> List[Dict]:
@@ -361,6 +366,8 @@ class ObjNameRow(Table):
     def __init__(self, pid: int, obj_id: int, var_name: str, call_stack: str):
         super().__init__(pid)
         self.obj_id = obj_id
+        if pd.isna(var_name):
+            var_name = "none"
         self.var_name = var_name
         self.call_stack: CallStack = CallStack(self.pid, call_stack)
 
@@ -517,7 +524,7 @@ class LineInfo(UniqueObjectKeyable):
         ret = ""
         for i in self.call_stack:
             ret += i.func_name + " -> "
-        ret += self.obj_name_info.var_name
+        ret += str(self.obj_name_info.var_name)
         return ret
 
     @staticmethod

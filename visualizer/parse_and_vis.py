@@ -408,109 +408,142 @@ def main():
             )
         )
 
-    widths = []
     max_val = 0
-    for i in range(gpu_num):
-        src_label = "GPU" + str(i)
-        widths.append([])
-        for j in range(gpu_num):
-            target_label = "GPU" + str(j)
-            pair = src_label + "-" + target_label
-            filtered_ops = OpInfoRow.filter_by_device_and_ops(ops_to_display, [i], [j])
-            filtered_accesses = OpInfoRow.get_total_accesses(
-                filtered_ops, label_bytes == "bytes"
-            )
-            width = filtered_accesses * sampling_period
-            widths[i].append(width)
-            if width > max_val:
-                max_val = width
-    norm_ratio = max(max(widths)) / max_width
-    if norm_ratio == 0:
-        norm_ratio = 1
-    drawn = [[False] * gpu_num] * gpu_num
-
-    for i in range(gpu_num):
-        src_label = "GPU" + str(i)
-        for j in range(gpu_num):
-            # if (widths[i][j] > 0):
-            type = "curvedCW"
-            if drawn[j][i]:
-                type = "curvedCCW"
-            drawn[i][j] = True
-            if i == j:
-                continue
-            edges.append(
-                Edge(
-                    source=i,
-                    target=j,
-                    hidden=widths[i][j] == 0,
-                    color=pal2[i % len(pal2)],
-                    type=type,
-                    smooth={"enabled": True, "type": type, "roundness": 0.15},
-                    font={"face": "verdana", "size": font_size, "color": "#000000"},
-                    label=str(widths[i][j]),
-                    width=int(widths[i][j] / norm_ratio),
-                )
-            )
-
-    config = Config(
-        width=graph_width,
-        height=graph_height,
-        directed=True,
-        physics=False,
-        nodeHighlightBehavior=False,
-        staticGraph=True,
-        highlightColor="#F7A7A6",  # or "blue"
-        # **kwargs
-    )
-
-    cols = st.columns([7, 4])
-    # cols = st.columns([100, 1])
-
-    chosen_id_graph = None
-    with cols[0]:
-        chosen_id_graph = str(agraph(nodes=nodes, edges=edges, config=config))
-
-    cols_rows_name = ["GPU%d" % i for i in range(gpu_num)]
-
-    color_range = [0, max_val]
-
-    # modify_cell((H0: 0)) 2  != (H1: 0) 0
+    load_ops = {i for i in ops_to_display if i.startswith("LD")}
+    store_ops = {i for i in ops_to_display if i.startswith("ST")}
     chosen_point = None
-    with cols[1]:
-        color_title = "Data transfer<br>count"
-        if label_bytes != "":
-            color_title = "Transferred<br>bytes"
-        df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype(
-            "int"
-        )
-        fig = px.imshow(
-            df,
-            color_continuous_scale=colorscale,
-            labels=dict(x="Owner", y="Issued by", color=color_title),
-        )
-        fig.update_traces(colorbar=dict(lenmode="fraction", len=0.5, thickness=10))
-        fig.update_layout(
-            font_family="Open Sans, sans-serif",
-            # font_color="#fafafa",
-            # paper_bgcolor="#0e1117",
-            # paper_bgcolor="#e6e6e6",
-            font_color="#1a1a1a",
-            paper_bgcolor="#ffffff",
-        )
-        fig.update_yaxes(title_standoff=10)
+    chosen_id_graph = None
+    cols_rows_name = ["GPU%d" % i for i in range(gpu_num)]
+    def nodegraph_and_heatmap(ops_to_display = ops_to_display):
+        nonlocal chosen_point
+        nonlocal max_val
+        nonlocal chosen_id_graph
 
-        fig.layout.width = graph_width * (4.0 / 7.0)
-        fig.layout.height = graph_height
-        chosen_point = plotly_events(fig)
-        if len(chosen_point) > 0:
-            chosen_point = chosen_point[0]["pointNumber"]
-        else:
-            chosen_point = None
+        edges = []
+        widths = [] # List such that src_gpu - dest_gpu - total/load/store
+        for i in range(gpu_num):
+            src_label = "GPU" + str(i)
+            widths.append([])
+            for j in range(gpu_num):
+                target_label = "GPU" + str(j)
+                pair = src_label + "-" + target_label
+                filtered_ops = OpInfoRow.filter_by_device_and_ops(ops_to_display, [i], [j])
+                filtered_accesses = OpInfoRow.get_total_accesses(
+                    filtered_ops, label_bytes == "bytes"
+                )
+                width = filtered_accesses * sampling_period
+                widths[i].append(width)
+                if width > max_val:
+                    max_val = width
+        norm_ratio = max(max(widths)) / max_width
+        if norm_ratio == 0:
+            norm_ratio = 1
+        drawn = [[False] * gpu_num] * gpu_num
 
-    if chosen_point != None:
-        chosen_id_graph = chosen_point[0]
+        for i in range(gpu_num):
+            src_label = "GPU" + str(i)
+            for j in range(gpu_num):
+                # if (widths[i][j] > 0):
+                type = "curvedCW"
+                if drawn[j][i]:
+                    type = "curvedCCW"
+                drawn[i][j] = True
+                if i == j:
+                    continue
+                edges.append(
+                    Edge(
+                        source=i,
+                        target=j,
+                        hidden=widths[i][j] == 0,
+                        color=pal2[i % len(pal2)],
+                        type=type,
+                        smooth={"enabled": True, "type": type, "roundness": 0.15},
+                        font={"face": "verdana", "size": font_size, "color": "#000000"},
+                        label=str(widths[i][j]),
+                        width=int((widths[i][j]) / norm_ratio),
+                    )
+                )
+                
 
+        config = Config(
+            width=graph_width,
+            height=graph_height,
+            directed=True,
+            physics=False,
+            nodeHighlightBehavior=False,
+            staticGraph=True,
+            highlightColor="#F7A7A6",  # or "blue"
+            # **kwargs
+        )
+
+        cols = st.columns([7, 4])
+        # cols = st.columns([100, 1])
+
+        chosen_id_graph = None
+        with cols[0]:
+            chosen_id_graph = str(agraph(nodes=nodes, edges=edges, config=config))
+        color_range = [0, max_val]
+
+        # modify_cell((H0: 0)) 2  != (H1: 0) 0
+        
+        chosen_point = None
+        with cols[1]:
+            color_title = "Data transfer<br>count"
+            if label_bytes != "":
+                color_title = "Transferred<br>bytes"
+            df = pd.DataFrame(widths, columns=cols_rows_name, index=cols_rows_name).astype(
+                "int"
+            )
+            fig = px.imshow(
+                df,
+                color_continuous_scale=colorscale,
+                labels=dict(x="Owner", y="Issued by", color=color_title),
+            )
+            fig.update_traces(colorbar=dict(lenmode="fraction", len=0.5, thickness=10))
+            fig.update_layout(
+                font_family="Open Sans, sans-serif",
+                # font_color="#fafafa",
+                # paper_bgcolor="#0e1117",
+                # paper_bgcolor="#e6e6e6",
+                font_color="#1a1a1a",
+                paper_bgcolor="#ffffff",
+            )
+            fig.update_yaxes(title_standoff=10)
+
+            fig.layout.width = graph_width * (4.0 / 7.0)
+            fig.layout.height = graph_height
+            chosen_point = plotly_events(fig)
+            if len(chosen_point) > 0:
+                chosen_point = chosen_point[0]["pointNumber"]
+            else:
+                chosen_point = None
+
+        if chosen_point != None:
+            chosen_id_graph = chosen_point[0]
+
+    node_graph_infos = [
+        {
+            "title": "Total Accesses",
+            "ops": ops_to_display,
+        },
+        {
+            "title": "Load Accesses",
+            "ops": load_ops,
+        },
+        {
+            "title": "Store Accesses",
+            "ops": store_ops,
+        }
+    ]
+    node_graph_chooser = int(stx.tab_bar(
+        data=[
+            stx.TabBarItemData(id=str(i), title=node_graph_infos[i]["title"], description="")
+            for i in range(len(node_graph_infos))
+        ],
+        default=0,
+    ))
+    st.header(node_graph_infos[node_graph_chooser]["title"])
+    nodegraph_and_heatmap(ops_to_display=node_graph_infos[node_graph_chooser]["ops"])
     chosen_id_tab = stx.tab_bar(
         data=[
             stx.TabBarItemData(id=str(i), title="GPU" + str(i), description="")
@@ -525,10 +558,8 @@ def main():
 
     selected_rows = None
 
-    print("TEST 3 ASDASD")
     # object_view = get_object_view_data(gpu_filter=None, allowed_ops=ops_to_display)
     # print(object_view)
-    print("TEST 2 ASDASD")
     for i in range(gpu_num):
         if chosen_id_tab == str(i):
             st.markdown(
@@ -576,7 +607,7 @@ def main():
                 obj_names = []
                 for key in object_view[i].keys():
                     obj_data = object_view[i][key]
-                    print(obj_data)
+                    #print(obj_data)
                     obj_names.append(key)
                     obj_fig.add_trace(
                         go.Heatmap(
