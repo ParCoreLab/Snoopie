@@ -118,7 +118,8 @@ static allocation_site_t *root = NULL;
 
 static allocation_line_hash_table_t *allocation_line_table;
 
-namespace snoopie {
+namespace snoopie
+{
   std::vector<adm_range_t *> range_nodes;
 }
 
@@ -1602,7 +1603,7 @@ void *nvshmem_malloc(size_t size)
     adm_range_insert((uint64_t)allocated_memory, size, parent->get_pc(),
                      deviceID, "", ADM_STATE_ALLOC);
     snoopie::range_nodes.push_back(new adm_range_t((uint64_t)allocated_memory, size,
-                                          parent->get_object_id(), deviceID));
+                                                   parent->get_object_id(), deviceID));
     ma.deviceID = deviceID;
     ma.pointer = (uint64_t)allocated_memory;
     ma.bytesize = size;

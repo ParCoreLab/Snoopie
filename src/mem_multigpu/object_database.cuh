@@ -15,13 +15,14 @@
 
 using namespace adamant;
 
-namespace adamant {
-static adm_splay_tree_t *range_tree;
-static object_hash_table_t *object_table;
-static line_hash_table_t *line_table;
-static pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE> *range_nodes;
-static pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE> *ranges;
-static pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE> *objects;
+namespace adamant
+{
+    static adm_splay_tree_t *range_tree;
+    static object_hash_table_t *object_table;
+    static line_hash_table_t *line_table;
+    static pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE> *range_nodes;
+    static pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE> *ranges;
+    static pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE> *objects;
 }
 
 void initialize_line_table(int size);
