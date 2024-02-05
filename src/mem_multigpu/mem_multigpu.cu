@@ -284,7 +284,7 @@ PYBIND11_MODULE(libmem_multigpu, m)
                                                 offset_val, alloc_size_val, parent->get_object_id(), deviceID));
                                 }
 
-				fprintf(stderr, "offset value: %lx and allocation size: %lld\n", offset_val, alloc_size_val);
+				fprintf(stderr, "offset value: %llx and allocation size: %lld\n", offset_val, alloc_size_val);
                                 return py::reinterpret_borrow<py::object>(result); });
     }
     else if (func_name == "cuda.cudadrv.devicearray.DeviceRecord")
@@ -321,7 +321,7 @@ PYBIND11_MODULE(libmem_multigpu, m)
 				
 				PyObject* alloc_size_obj = PyObject_GetAttrString(result, "alloc_size");
 				unsigned long long alloc_size_val = PyLong_AsUnsignedLongLongMask(alloc_size_obj);
-				fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
+				fprintf(stderr, "offset value: %llx and allocation size: %llx\n", offset_val, alloc_size_val);
                                 return py::reinterpret_borrow<py::object>(result); });
     }
     else if (func_name == "cuda.pinned_array")
@@ -379,7 +379,7 @@ PYBIND11_MODULE(libmem_multigpu, m)
 					element_count *= obj_arr->dimensions[i];
 				}
 				long memory_size = element_count * element_size;
-				fprintf(stderr, "offset of pinned_array: %lx, size of object: %ld\n", dptr, memory_size);
+				fprintf(stderr, "offset of pinned_array: %p, size of object: %ld\n", dptr, memory_size);
                                 return py::reinterpret_borrow<py::object>(result); });
     }
   };
@@ -388,16 +388,6 @@ PYBIND11_MODULE(libmem_multigpu, m)
   my_injection(nb, "cuda.pinned_array");
   std::cerr << "until here\n";
 }
-
-#if 0
-allocation_site_t *search_at_level(allocation_site_t *allocation_site,
-                                   uint64_t pc) {
-  if (allocation_site == NULL || allocation_site->get_pc() == pc)
-    return allocation_site;
-
-  return search_at_level(allocation_site->get_next_sibling(), pc);
-}
-#endif
 
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;

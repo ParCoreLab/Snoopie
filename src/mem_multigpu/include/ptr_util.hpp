@@ -1,5 +1,7 @@
 #include <cstdint>
 #include <string>
+#include <vector>
+#include "util.h"
 
 #ifndef PTR_UTIL_H
 #define PTR_UTIL_H

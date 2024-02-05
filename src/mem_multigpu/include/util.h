@@ -42,6 +42,8 @@ struct MemoryAllocation {
 };
 #endif
 
+#ifndef UTIL_H
+#define UTIL_H
 struct CTXstate {
   /* context id */
   int id;
@@ -1459,3 +1461,5 @@ const char *find_cbid_name(nvbit_api_cuda_t cbid) {
     return "Invalid CUDA API";
   }
 }
+
+#endif // UTIL_H
