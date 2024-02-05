@@ -44,8 +44,6 @@
 #include <adm_splay.h>
 #include <cpptrace/cpptrace.hpp>
 
-#include "object_info.h"
-
 #include "Python.h"
 //#include "ndarrayobject.h"
 #include <numpy/ndarrayobject.h>
@@ -67,6 +65,9 @@
 /* contains definition of the mem_access_t structure */
 #include "common.h"
 #include "util.h"
+
+#include "object_info.h"
+#include "line_info.h"
 
 #define HEX(x)                                                                 \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x        \
@@ -127,22 +128,6 @@ Logger logger("snoopie_log_" + std::to_string(getpid()) + ".zst");
 std::map<std::string,
          std::tuple<std::string, std::vector<int>, std::vector<int>>>
     line_tracking;
-
-void initialize_object_table(int size);
-
-void initialize_line_table(int size);
-
-bool line_exists(int index);
-
-std::string get_line_file_name(int index);
-
-std::string get_line_dir_name(int index);
-
-std::string get_line_sass(int index);
-
-uint32_t get_line_line_num(int index);
-
-short get_line_estimated_status(int index);
 
 /* lock */
 pthread_mutex_t mutex1;
