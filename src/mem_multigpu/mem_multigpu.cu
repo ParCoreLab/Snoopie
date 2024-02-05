@@ -44,7 +44,6 @@
 #include <adm_splay.h>
 #include <cpptrace/cpptrace.hpp>
 
-
 #include "Python.h"
 #include <numpy/ndarrayobject.h>
 #include <pybind11/pybind11.h>
@@ -65,6 +64,7 @@
 /* contains definition of the mem_access_t structure */
 #include "common.h"
 #include "util.h"
+#include "ptr_util.hpp"
 
 #include "object_info.h"
 #include "line_info.h"
@@ -284,7 +284,7 @@ PYBIND11_MODULE(libmem_multigpu, m)
                                                 offset_val, alloc_size_val, parent->get_object_id(), deviceID));
                                 }
 
-				fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
+				fprintf(stderr, "offset value: %lx and allocation size: %lld\n", offset_val, alloc_size_val);
                                 return py::reinterpret_borrow<py::object>(result); });
     }
     else if (func_name == "cuda.cudadrv.devicearray.DeviceRecord")
@@ -345,8 +345,7 @@ PYBIND11_MODULE(libmem_multigpu, m)
 				std::cerr << "after call stack printing\n";
 
 				PyObject* result = PyObject_Call(orig_cudapinnedarray_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
-				npy_intp size;
-                		long *dptr;  /* could make this any variable type */
+        long *dptr;  /* could make this any variable type */
 				PyArrayObject * obj_arr = (PyArrayObject *)result;
 				dptr = (long *) PyArray_DATA(result);
 				int typ=PyArray_TYPE(result);
@@ -390,63 +389,6 @@ PYBIND11_MODULE(libmem_multigpu, m)
   std::cerr << "until here\n";
 }
 
-int64_t find_nvshmem_dev_of_ptr(int mype, uint64_t mem_addr, int nvshmem_ngpus,
-                                std::string version)
-{
-
-  int size = 15;
-
-  int region = -1;
-
-  // 0x000012020000000 is nvshmem's first address for a remote peer
-  uint64_t start = 0x000012020000000;
-
-  // 0x000010020000000 is nvshmem's address for the peer itself
-  uint64_t incrmnt = (uint64_t)0x000012020000000 - (uint64_t)0x000010020000000;
-
-  for (int i = 1; i <= size; i++)
-  {
-    uint64_t bottom = (uint64_t)start + (i - 1) * incrmnt;
-    uint64_t top = (uint64_t)start + i * incrmnt;
-    if ((uint64_t)bottom <= (uint64_t)mem_addr &&
-        (uint64_t)mem_addr < (uint64_t)top)
-    {
-      region = i - 1;
-      break;
-    }
-  }
-
-  if (region == -1)
-  {
-    return -1;
-  }
-
-  if (version == "2.9" || version == "2.8")
-  {
-    region += mype;
-  }
-
-  if (mype == region)
-  {
-    return (mype + 1) % nvshmem_ngpus;
-  }
-
-  for (int i = 0; i < size; i++)
-  {
-    if (mype == i)
-      continue;
-
-    if (region == 0)
-    {
-      return i % nvshmem_ngpus;
-    }
-
-    region--;
-  }
-
-  return -1;
-}
-
 #if 0
 allocation_site_t *search_at_level(allocation_site_t *allocation_site,
                                    uint64_t pc) {
@@ -456,25 +398,6 @@ allocation_site_t *search_at_level(allocation_site_t *allocation_site,
   return search_at_level(allocation_site->get_next_sibling(), pc);
 }
 #endif
-
-uint64_t normalise_nvshmem_ptr(uint64_t mem_addr)
-{
-  return mem_addr & 0x0000F0FFFFFFFFF;
-}
-
-int64_t find_dev_of_ptr(uint64_t ptr)
-{
-
-  for (MemoryAllocation ma : mem_allocs)
-  {
-    if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
-    {
-      return ma.deviceID;
-    }
-  }
-
-  return -1;
-}
 
 /* grid launch id, incremented at every launch */
 uint64_t grid_launch_id = 0;
@@ -739,7 +662,6 @@ void nvbit_at_init()
   {
     logger.turnoff();
   }
-
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
@@ -1065,7 +987,6 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func)
       cnt++;
     }
   }
-
 }
 
 __global__ void flush_channel(ChannelDev *ch_dev)
@@ -1752,7 +1673,6 @@ void *recv_thread_fun(void *args)
   int dev_id = -1;
   cudaGetDevice(&dev_id);
 
-
   ChannelHost *ch_host = &ctx_state->channel_host;
 
   pthread_mutex_unlock(&mutex1);
@@ -1822,7 +1742,7 @@ void *recv_thread_fun(void *args)
           if (ma->addrs[i] == 0x0)
             continue;
 
-          int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
+          int mem_device_id = find_dev_of_ptr(ma->addrs[i], mem_allocs);
 
           // nvshmem heap_base = 0x10020000000
           // ignore operations on memory locations not allocated by cudaMalloc
@@ -1912,11 +1832,9 @@ void *recv_thread_fun(void *args)
                << "," << 4 << std::endl;
           }
           logger.log(ss.str());
-          // memop_outfile << ss.str() << std::flush;
         }
         num_processed_bytes += sizeof(mem_access_t);
       }
-
     }
   }
 
