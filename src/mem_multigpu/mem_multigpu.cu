@@ -66,8 +66,7 @@
 #include "util.h"
 #include "ptr_util.hpp"
 
-#include "object_info.h"
-#include "line_info.h"
+#include "object_database.cuh"
 
 #define HEX(x)                                                          \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
@@ -119,7 +118,9 @@ static allocation_site_t *root = NULL;
 
 static allocation_line_hash_table_t *allocation_line_table;
 
-std::vector<adm_range_t *> range_nodes;
+namespace snoopie {
+  std::vector<adm_range_t *> range_nodes;
+}
 
 std::vector<adm_object_t *> object_nodes;
 
@@ -280,7 +281,7 @@ PYBIND11_MODULE(libmem_multigpu, m)
 
                                         adm_range_insert(offset_val, alloc_size_val, parent->get_pc(),
                                                 deviceID, "", ADM_STATE_ALLOC);
-                                        range_nodes.push_back(new adm_range_t(
+                                        snoopie::range_nodes.push_back(new adm_range_t(
                                                 offset_val, alloc_size_val, parent->get_object_id(), deviceID));
                                 }
 
@@ -1431,7 +1432,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     {
       adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(), ma.deviceID,
                        "", ADM_STATE_ALLOC);
-      range_nodes.push_back(new adm_range_t(
+      snoopie::range_nodes.push_back(new adm_range_t(
           ma.pointer, ma.bytesize, parent->get_object_id(), ma.deviceID));
     }
   }
@@ -1600,7 +1601,7 @@ void *nvshmem_malloc(size_t size)
   {
     adm_range_insert((uint64_t)allocated_memory, size, parent->get_pc(),
                      deviceID, "", ADM_STATE_ALLOC);
-    range_nodes.push_back(new adm_range_t((uint64_t)allocated_memory, size,
+    snoopie::range_nodes.push_back(new adm_range_t((uint64_t)allocated_memory, size,
                                           parent->get_object_id(), deviceID));
     ma.deviceID = deviceID;
     ma.pointer = (uint64_t)allocated_memory;
@@ -1909,7 +1910,7 @@ void nvbit_at_term()
   string object_log_str1 = object_str1 + to_string(getpid()) + txt_str;
   object_outfile1.open(object_log_str1);
   object_outfile1 << "offset,size,obj_id,dev_id\n";
-  for (auto i : range_nodes)
+  for (auto i : snoopie::range_nodes)
     i->print(object_outfile1);
   object_outfile1.close();
 

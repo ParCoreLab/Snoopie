@@ -1,26 +1,10 @@
-#include <cstdint>
-#include <cstring>
-#include <iostream>
-
-#include <adm_common.h>
-#include <adm_config.h>
-#include <adm_database.h>
-#include <adm_memory.h>
-#include <adm_splay.h>
-#include <unistd.h>
+#include "object_database.cuh"
 
 #define HEX(x)                                                                 \
   "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x        \
        << std::dec
 
 using namespace adamant;
-
-static adm_splay_tree_t *range_tree = nullptr;
-static object_hash_table_t *object_table;
-static line_hash_table_t *line_table;
-static pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE> *range_nodes = nullptr;
-static pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE> *ranges = nullptr;
-static pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE> *objects = nullptr;
 
 void initialize_line_table(int size) {
   line_table = new line_hash_table_t(size);
