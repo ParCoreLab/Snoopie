@@ -92,6 +92,18 @@ PyObject* orig_cudadevicendarray_func;
 PyObject* orig_cudadevicerecord_func;
 PyObject* orig_cudapinnedarray_func;
 
+std::unordered_set<std::string> kernels_to_avoid = {
+    // NOTE: Needs to verify if cuda_sm_20_div_s64 contains any addrs writes
+    // or not. Avoid instrumentting this (possibly a whole family of
+    // functions similar to this should be avoided to speed up NCCL
+    // profiling)
+    "__cuda_sm20_div_s64",
+    "void nvshmemi_init_array_kernel<long>(long*, int, long)",
+    "void nvshmemi_init_array_kernel<nvshmemi_team_t*>(nvshmemi_team_t**, int, "
+    "nvshmemi_team_t*)",
+    "void barrier_on_stream_kernel_threadgroup<",
+};
+
 int object_counter = 0;
 
 static bool nvshmem_malloc_handled = false;
@@ -191,7 +203,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
         //PyObject* np = PyImport_Import(name);
 	//import_arr();
 
-	auto my_injection = [](py::object obj, std::string func_name) 
+	auto my_injection = [](py::object obj, std::string func_name)
 	{
 		if(func_name == "cuda.cudadrv.devicearray.DeviceNDArray") {
 			std::cerr << "cuda.cudadrv.devicearray.DeviceNDArray is injected\n";
@@ -199,7 +211,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 			PyObject* cuda_obj = PyObject_GetAttrString(mod, "cuda");
 			PyObject* cudadrv_obj = PyObject_GetAttrString(cuda_obj, "cudadrv");
 			PyObject* devicearray_obj = PyObject_GetAttrString(cudadrv_obj, "devicearray");
-			orig_cudadevicendarray_func = PyObject_GetAttrString(devicearray_obj, "DeviceNDArray");		
+			orig_cudadevicendarray_func = PyObject_GetAttrString(devicearray_obj, "DeviceNDArray");
 
 			obj.attr("cuda").attr("cudadrv").attr("devicearray").attr("DeviceNDArray") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
                         //std::cout << msg.cast<std::string>();
@@ -211,7 +223,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				std::vector<py::handle> stack_vec;
 
 				allocation_site_t *allocation_site = NULL;
-                                allocation_site_t *parent = NULL;	
+                                allocation_site_t *parent = NULL;
 
 				for (py::handle frame : summary) {
 					stack_vec.push_back(frame);
@@ -226,9 +238,9 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                         	root = new allocation_site_t(key_num);
                                         	allocation_site = root;
                                 	}
-                                }	
+                                }
 				parent = root;
-				allocation_site = root->get_first_child();	
+				allocation_site = root->get_first_child();
 
 				std::cerr << "before call stack printing1\n";
 				for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
@@ -244,7 +256,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
       					if (line == NULL) {
         					allocation_line_table->insert(new allocation_line_t(
             						key_num, func_name, filename, lineno));
-      					}	
+      					}
 					allocation_site_t *temp = allocation_site;
 					allocation_site = search_at_level(allocation_site, key_num);
 
@@ -282,7 +294,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					parent->set_object_id(++object_counter);
 					object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
 				}
-	
+
 				std::cerr << "after call stack printing1\n";
 
 				//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
@@ -312,7 +324,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                                 deviceID, "", ADM_STATE_ALLOC);
                                         range_nodes.push_back(new adm_range_t(
                                                 offset_val, alloc_size_val, parent->get_object_id(), deviceID));
-                                }	
+                                }
 
 				fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
                                 return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
@@ -323,7 +335,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 			PyObject* cuda_obj = PyObject_GetAttrString(mod, "cuda");
 			PyObject* cudadrv_obj = PyObject_GetAttrString(cuda_obj, "cudadrv");
 			PyObject* devicearray_obj = PyObject_GetAttrString(cudadrv_obj, "devicearray");
-			orig_cudadevicerecord_func = PyObject_GetAttrString(devicearray_obj, "DeviceRecord");		
+			orig_cudadevicerecord_func = PyObject_GetAttrString(devicearray_obj, "DeviceRecord");
 
 			obj.attr("cuda").attr("cudadrv").attr("devicearray").attr("DeviceRecord") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
                         //std::cout << msg.cast<std::string>();
@@ -364,7 +376,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 			std::cerr << "cuda.pinned_array is injected\n";
                         PyObject* mod = obj.ptr();
 			PyObject* cuda_obj = PyObject_GetAttrString(mod, "cuda");
-			orig_cudapinnedarray_func = PyObject_GetAttrString(cuda_obj, "pinned_array");		
+			orig_cudapinnedarray_func = PyObject_GetAttrString(cuda_obj, "pinned_array");
 
 			obj.attr("cuda").attr("pinned_array") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
                         //std::cout << msg.cast<std::string>();
@@ -421,7 +433,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					case NPY_LONGLONG:
 					case NPY_DOUBLE:
 					//case NPY_INT64:
-					
+
     						element_size = 8;
     						break;
 					default:
@@ -430,14 +442,14 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				long element_count = 1;
 				for(int i = 0; i < obj_arr->nd; i++) {
 					element_count *= obj_arr->dimensions[i];
-				}	
+				}
 				long memory_size = element_count * element_size;
-				fprintf(stderr, "offset of pinned_array: %lx, size of object: %ld\n", dptr, memory_size);		
+				fprintf(stderr, "offset of pinned_array: %lx, size of object: %ld\n", dptr, memory_size);
                                 return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
-		}  
+		}
 //#endif
-	};	    
+	};
 	my_injection(nb, "cuda.cudadrv.devicearray.DeviceNDArray");
 	my_injection(nb, "cuda.cudadrv.devicearray.DeviceRecord");
 	my_injection(nb, "cuda.pinned_array");
@@ -794,6 +806,12 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
   for (auto f : related_functions) {
     /* "recording" function was instrumented, if set insertion failed
      * we have already encountered this function */
+
+    if (strncmp(nvbit_get_func_name(ctx, f), "__cuda_", 7) == 0 ||
+        kernels_to_avoid.count(nvbit_get_func_name(ctx, f))) {
+      continue;
+    }
+
     if (!already_instrumented.insert(f).second) {
       continue;
     }
@@ -1097,11 +1115,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
     for (auto f : related_functions) {
 
-      // NOTE: Needs to verify if cuda_sm_20_div_s64 contains any addrs writes
-      // or not. Avoid instrumentting this (possibly a whole family of
-      // functions similar to this should be avoided to speed up NCCL
-      // profiling)
-      if (strcmp(nvbit_get_func_name(ctx, f), "__cuda_sm20_div_s64") == 0) {
+      if (strncmp(nvbit_get_func_name(ctx, f), "__cuda_", 7) == 0 ||
+          kernels_to_avoid.count(nvbit_get_func_name(ctx, f))) {
         continue;
       }
 
@@ -1448,8 +1463,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     }
 
     if (parent) {
-      adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(),
-                               ma.deviceID, "", ADM_STATE_ALLOC);
+      adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(), ma.deviceID,
+                       "", ADM_STATE_ALLOC);
       range_nodes.push_back(new adm_range_t(
           ma.pointer, ma.bytesize, parent->get_object_id(), ma.deviceID));
     }
@@ -1596,7 +1611,7 @@ void *nvshmem_malloc(size_t size) {
   MemoryAllocation ma;
   if (parent) {
     adm_range_insert((uint64_t)allocated_memory, size, parent->get_pc(),
-                             deviceID, "", ADM_STATE_ALLOC);
+                     deviceID, "", ADM_STATE_ALLOC);
     range_nodes.push_back(new adm_range_t((uint64_t)allocated_memory, size,
                                           parent->get_object_id(), deviceID));
     ma.deviceID = deviceID;
