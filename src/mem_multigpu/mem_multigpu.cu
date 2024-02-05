@@ -44,8 +44,8 @@
 #include <adm_splay.h>
 #include <cpptrace/cpptrace.hpp>
 
+
 #include "Python.h"
-//#include "ndarrayobject.h"
 #include <numpy/ndarrayobject.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/embed.h>
@@ -69,8 +69,8 @@
 #include "object_info.h"
 #include "line_info.h"
 
-#define HEX(x)                                                                 \
-  "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x        \
+#define HEX(x)                                                          \
+  "0x" << std::setfill('0') << std::setw(16) << std::hex << (uint64_t)x \
        << std::dec
 
 #define CHANNEL_SIZE (1l << 30)
@@ -91,9 +91,9 @@ using namespace std;
 #define CHILD 1
 #define SIBLING 2
 
-PyObject* orig_cudadevicendarray_func;
-PyObject* orig_cudadevicerecord_func;
-PyObject* orig_cudapinnedarray_func;
+PyObject *orig_cudadevicendarray_func;
+PyObject *orig_cudadevicerecord_func;
+PyObject *orig_cudapinnedarray_func;
 
 std::unordered_set<std::string> kernels_to_avoid = {
     // NOTE: Needs to verify if cuda_sm_20_div_s64 contains any addrs writes
@@ -159,32 +159,32 @@ std::map<int, std::string> id_to_opcode_map;
 std::vector<MemoryAllocation> mem_allocs;
 
 allocation_site_t *search_at_level(allocation_site_t *allocation_site,
-                                   uint64_t pc) {
+                                   uint64_t pc)
+{
   if (allocation_site == NULL || allocation_site->get_pc() == pc)
     return allocation_site;
 
   return search_at_level(allocation_site->get_next_sibling(), pc);
 }
 
-PYBIND11_MODULE(libmem_multigpu, m) {
-	py::object traceback = py::module::import("traceback");
-	py::object nb = py::module::import("numba");
-	//PyObject* name = PyUnicode_FromString("numpy");
-        //PyObject* np = PyImport_Import(name);
-	//import_arr();
+PYBIND11_MODULE(libmem_multigpu, m)
+{
+  py::object traceback = py::module::import("traceback");
+  py::object nb = py::module::import("numba");
 
-	auto my_injection = [](py::object obj, std::string func_name)
-	{
-		if(func_name == "cuda.cudadrv.devicearray.DeviceNDArray") {
-			std::cerr << "cuda.cudadrv.devicearray.DeviceNDArray is injected\n";
-                        PyObject* mod = obj.ptr();
-			PyObject* cuda_obj = PyObject_GetAttrString(mod, "cuda");
-			PyObject* cudadrv_obj = PyObject_GetAttrString(cuda_obj, "cudadrv");
-			PyObject* devicearray_obj = PyObject_GetAttrString(cudadrv_obj, "devicearray");
-			orig_cudadevicendarray_func = PyObject_GetAttrString(devicearray_obj, "DeviceNDArray");
+  auto my_injection = [](py::object obj, std::string func_name)
+  {
+    if (func_name == "cuda.cudadrv.devicearray.DeviceNDArray")
+    {
+      std::cerr << "cuda.cudadrv.devicearray.DeviceNDArray is injected\n";
+      PyObject *mod = obj.ptr();
+      PyObject *cuda_obj = PyObject_GetAttrString(mod, "cuda");
+      PyObject *cudadrv_obj = PyObject_GetAttrString(cuda_obj, "cudadrv");
+      PyObject *devicearray_obj = PyObject_GetAttrString(cudadrv_obj, "devicearray");
+      orig_cudadevicendarray_func = PyObject_GetAttrString(devicearray_obj, "DeviceNDArray");
 
-			obj.attr("cuda").attr("cudadrv").attr("devicearray").attr("DeviceNDArray") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
-                        //std::cout << msg.cast<std::string>();
+      obj.attr("cuda").attr("cudadrv").attr("devicearray").attr("DeviceNDArray") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs)
+                                                                                                    {
 				std::cerr << "cuda.cudadrv.devicearray.DeviceNDArray is intercepted\n";
                                 py::object traceback = py::module::import("traceback");
                                 py::object extract_summary = traceback.attr("StackSummary").attr("extract");
@@ -197,11 +197,6 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
 				for (py::handle frame : summary) {
 					stack_vec.push_back(frame);
-                                        //std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
-                                        //std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
-                                        //int lineno = frame.attr("lineno").attr("__int__")().cast<int>();
-                                        //std::string key_str = filename + ":" + std::to_string(lineno);
-                                        //uint64_t key_num = std::hash<std::string>()(key_str);
 					if (root == NULL) {
                                         	std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
                                         	uint64_t key_num = std::hash<std::string>()(filename);
@@ -267,13 +262,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
 				std::cerr << "after call stack printing1\n";
 
-				//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
-
-                                //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
 				PyObject* result = PyObject_Call(orig_cudadevicendarray_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
-				//PyObject *result, *obj_temp;
-
-				//PyArg_ParseTuple(ret, "O|O", &result, &obj_temp);
 				std::cerr << "here 1\n";
 				PyObject* gpu_data_obj = PyObject_GetAttrString(result, "gpu_data");
 				std::cerr << "here 2\n";
@@ -282,7 +271,6 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				PyObject* ptr_val_obj = PyObject_GetAttrString(ptr_obj, "value");
 				std::cerr << "here 4\n";
 				unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
-				//fprintf(stderr, "offset value: %lx\n", offset_val);
 				PyObject* alloc_size_obj = PyObject_GetAttrString(result, "alloc_size");
 				unsigned long long alloc_size_val = PyLong_AsUnsignedLongLongMask(alloc_size_obj);
 
@@ -297,37 +285,31 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                 }
 
 				fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
-                                return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
-                        });
-		} else if(func_name == "cuda.cudadrv.devicearray.DeviceRecord") {
-			std::cerr << "cuda.cudadrv.devicearray.DeviceRecord is injected\n";
-                        PyObject* mod = obj.ptr();
-			PyObject* cuda_obj = PyObject_GetAttrString(mod, "cuda");
-			PyObject* cudadrv_obj = PyObject_GetAttrString(cuda_obj, "cudadrv");
-			PyObject* devicearray_obj = PyObject_GetAttrString(cudadrv_obj, "devicearray");
-			orig_cudadevicerecord_func = PyObject_GetAttrString(devicearray_obj, "DeviceRecord");
+                                return py::reinterpret_borrow<py::object>(result); });
+    }
+    else if (func_name == "cuda.cudadrv.devicearray.DeviceRecord")
+    {
+      std::cerr << "cuda.cudadrv.devicearray.DeviceRecord is injected\n";
+      PyObject *mod = obj.ptr();
+      PyObject *cuda_obj = PyObject_GetAttrString(mod, "cuda");
+      PyObject *cudadrv_obj = PyObject_GetAttrString(cuda_obj, "cudadrv");
+      PyObject *devicearray_obj = PyObject_GetAttrString(cudadrv_obj, "devicearray");
+      orig_cudadevicerecord_func = PyObject_GetAttrString(devicearray_obj, "DeviceRecord");
 
-			obj.attr("cuda").attr("cudadrv").attr("devicearray").attr("DeviceRecord") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
-                        //std::cout << msg.cast<std::string>();
+      obj.attr("cuda").attr("cudadrv").attr("devicearray").attr("DeviceRecord") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs)
+                                                                                                   {
 				std::cerr << "cuda.cudadrv.devicearray.DeviceRecord is intercepted\n";
                                 py::object traceback = py::module::import("traceback");
                                 py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                 py::object walk_stack = traceback.attr("walk_stack");
                                 py::object summary = extract_summary(walk_stack(py::none()));
-//#if 0
 				std::cerr << "before call stack printing\n";
                                 for (py::handle frame : summary) {
                                         std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
                                 }
 				std::cerr << "after call stack printing\n";
 
-				//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
-
-                                //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
 				PyObject* result = PyObject_Call(orig_cudadevicerecord_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
-				//PyObject *result, *obj_temp;
-
-				//PyArg_ParseTuple(ret, "O|O", &result, &obj_temp);
 				std::cerr << "here 1\n";
 				PyObject* gpu_data_obj = PyObject_GetAttrString(result, "gpu_data");
 				std::cerr << "here 2\n";
@@ -336,73 +318,57 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				PyObject* ptr_val_obj = PyObject_GetAttrString(ptr_obj, "value");
 				std::cerr << "here 4\n";
 				unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
-				//fprintf(stderr, "offset value: %lx\n", offset_val);
+				
 				PyObject* alloc_size_obj = PyObject_GetAttrString(result, "alloc_size");
 				unsigned long long alloc_size_val = PyLong_AsUnsignedLongLongMask(alloc_size_obj);
 				fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
-                                return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
-                        });
-		} else if(func_name == "cuda.pinned_array") {
-			std::cerr << "cuda.pinned_array is injected\n";
-                        PyObject* mod = obj.ptr();
-			PyObject* cuda_obj = PyObject_GetAttrString(mod, "cuda");
-			orig_cudapinnedarray_func = PyObject_GetAttrString(cuda_obj, "pinned_array");
+                                return py::reinterpret_borrow<py::object>(result); });
+    }
+    else if (func_name == "cuda.pinned_array")
+    {
+      std::cerr << "cuda.pinned_array is injected\n";
+      PyObject *mod = obj.ptr();
+      PyObject *cuda_obj = PyObject_GetAttrString(mod, "cuda");
+      orig_cudapinnedarray_func = PyObject_GetAttrString(cuda_obj, "pinned_array");
 
-			obj.attr("cuda").attr("pinned_array") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
-                        //std::cout << msg.cast<std::string>();
+      obj.attr("cuda").attr("pinned_array") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs)
+                                                               {
 				std::cerr << "cuda.pinned_array is intercepted\n";
                                 py::object traceback = py::module::import("traceback");
                                 py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                 py::object walk_stack = traceback.attr("walk_stack");
                                 py::object summary = extract_summary(walk_stack(py::none()));
-//#if 0
 				std::cerr << "before call stack printing\n";
                                 for (py::handle frame : summary) {
                                         std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
                                 }
 				std::cerr << "after call stack printing\n";
 
-				//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
-
-                                //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
 				PyObject* result = PyObject_Call(orig_cudapinnedarray_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
 				npy_intp size;
                 		long *dptr;  /* could make this any variable type */
-                		//size = PyArray_SIZE(allocated_mem_ptr);
-				//PyArrayObject * obj_arr = (PyArrayObject *)allocated_mem_ptr;
 				PyArrayObject * obj_arr = (PyArrayObject *)result;
-//#if 0
-                		//dptr = (long *) PyArray_DATA(allocated_mem_ptr);
 				dptr = (long *) PyArray_DATA(result);
-				//long *base_ptr = (long *) PyArray_BASE(allocated_mem_ptr);
-				//int typ=PyArray_TYPE(allocated_mem_ptr);
 				int typ=PyArray_TYPE(result);
 				long element_size = 0;
 				switch(typ) {
 					case NPY_BYTE:
 					case NPY_BOOL:
-					//case NPY_INT8:
 					case NPY_UBYTE:
-					//case NPY_UINT8:
                                                 element_size = 1;
                                         break;
 					case NPY_SHORT:
-					//case NPY_INT16:
 					case NPY_USHORT:
-					//case NPY_UINT16:
 						element_size = 2;
                                         break;
 					case NPY_INT:
 					case NPY_FLOAT:
-					//case NPY_INT32:
 					case NPY_UINT:
-					//case NPY_UINT32:
     						element_size = 4;
     					break;
 					case NPY_LONG:
 					case NPY_LONGLONG:
 					case NPY_DOUBLE:
-					//case NPY_INT64:
 
     						element_size = 8;
     						break;
@@ -415,31 +381,18 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 				}
 				long memory_size = element_count * element_size;
 				fprintf(stderr, "offset of pinned_array: %lx, size of object: %ld\n", dptr, memory_size);
-                                return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
-                        });
-		}
-//#endif
-	};
-	my_injection(nb, "cuda.cudadrv.devicearray.DeviceNDArray");
-	my_injection(nb, "cuda.cudadrv.devicearray.DeviceRecord");
-	my_injection(nb, "cuda.pinned_array");
-	std::cerr << "until here\n";
-}
-
-void log_time(string msg) {
-  if (!time_log)
-    return;
-
-  std::cout << msg << ": "
-            << std::chrono::time_point_cast<std::chrono::microseconds>(
-                   std::chrono::steady_clock::now())
-                   .time_since_epoch()
-                   .count()
-            << std::endl;
+                                return py::reinterpret_borrow<py::object>(result); });
+    }
+  };
+  my_injection(nb, "cuda.cudadrv.devicearray.DeviceNDArray");
+  my_injection(nb, "cuda.cudadrv.devicearray.DeviceRecord");
+  my_injection(nb, "cuda.pinned_array");
+  std::cerr << "until here\n";
 }
 
 int64_t find_nvshmem_dev_of_ptr(int mype, uint64_t mem_addr, int nvshmem_ngpus,
-                                std::string version) {
+                                std::string version)
+{
 
   int size = 15;
 
@@ -451,33 +404,40 @@ int64_t find_nvshmem_dev_of_ptr(int mype, uint64_t mem_addr, int nvshmem_ngpus,
   // 0x000010020000000 is nvshmem's address for the peer itself
   uint64_t incrmnt = (uint64_t)0x000012020000000 - (uint64_t)0x000010020000000;
 
-  for (int i = 1; i <= size; i++) {
+  for (int i = 1; i <= size; i++)
+  {
     uint64_t bottom = (uint64_t)start + (i - 1) * incrmnt;
     uint64_t top = (uint64_t)start + i * incrmnt;
     if ((uint64_t)bottom <= (uint64_t)mem_addr &&
-        (uint64_t)mem_addr < (uint64_t)top) {
+        (uint64_t)mem_addr < (uint64_t)top)
+    {
       region = i - 1;
       break;
     }
   }
 
-  if (region == -1) {
+  if (region == -1)
+  {
     return -1;
   }
 
-  if (version == "2.9" || version == "2.8") {
+  if (version == "2.9" || version == "2.8")
+  {
     region += mype;
   }
 
-  if (mype == region) {
+  if (mype == region)
+  {
     return (mype + 1) % nvshmem_ngpus;
   }
 
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < size; i++)
+  {
     if (mype == i)
       continue;
 
-    if (region == 0) {
+    if (region == 0)
+    {
       return i % nvshmem_ngpus;
     }
 
@@ -497,14 +457,18 @@ allocation_site_t *search_at_level(allocation_site_t *allocation_site,
 }
 #endif
 
-uint64_t normalise_nvshmem_ptr(uint64_t mem_addr) {
+uint64_t normalise_nvshmem_ptr(uint64_t mem_addr)
+{
   return mem_addr & 0x0000F0FFFFFFFFF;
 }
 
-int64_t find_dev_of_ptr(uint64_t ptr) {
+int64_t find_dev_of_ptr(uint64_t ptr)
+{
 
-  for (MemoryAllocation ma : mem_allocs) {
-    if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize) {
+  for (MemoryAllocation ma : mem_allocs)
+  {
+    if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize)
+    {
       return ma.deviceID;
     }
   }
@@ -518,28 +482,33 @@ uint64_t grid_launch_id = 0;
 const char *whitespace = " ,\"\t\n\r\f\v";
 
 // trim from end of string (right)
-inline std::string &rtrim(std::string &s, const char *t = whitespace) {
+inline std::string &rtrim(std::string &s, const char *t = whitespace)
+{
   s.erase(s.find_last_not_of(t) + 1);
   return s;
 }
 
 // trim from beginning of string (left)
-inline std::string &ltrim(std::string &s, const char *t = whitespace) {
+inline std::string &ltrim(std::string &s, const char *t = whitespace)
+{
   s.erase(0, s.find_first_not_of(t));
   return s;
 }
 
 // trim from both ends of string (right then left)
-inline std::string &trim(std::string &s, const char *t = whitespace) {
+inline std::string &trim(std::string &s, const char *t = whitespace)
+{
   return ltrim(rtrim(s, t), t);
 }
 
-void memop_to_line() {
+void memop_to_line()
+{
   // open a file in read mode.
   ifstream infile;
   infile.open("memop_to_line.txt");
 
-  if (!infile) {
+  if (!infile)
+  {
     cerr << "Please generate a cubin file using nvcc -cubin "
             "-lineinfo command and run nvdisasm --print-line-info "
             "on the generated cubin file with the output directed to "
@@ -552,24 +521,31 @@ void memop_to_line() {
   std::string full_path;
   std::string kern_name;
 
-  for (std::string line; std::getline(infile, line);) {
+  for (std::string line; std::getline(infile, line);)
+  {
     std::istringstream input1(line);
     std::string prev_word;
-    for (std::string word; std::getline(input1, word, ' ');) {
-      if (word.substr(0, 6) == ".text.") {
+    for (std::string word; std::getline(input1, word, ' ');)
+    {
+      if (word.substr(0, 6) == ".text.")
+      {
         rtrim(word, ":");
         kern_name = word;
       }
-      if (word == "line" && prev_word.find(".cu") != std::string::npos) {
+      if (word == "line" && prev_word.find(".cu") != std::string::npos)
+      {
         full_path = trim(prev_word);
         std::getline(input1, word, ' ');
         curr_line = std::stoi(word);
         get<0>(line_tracking[kern_name]) = full_path;
       }
-      if (word.substr(0, 3) == "LDG" || word.substr(0, 3) == "LD.") {
+      if (word.substr(0, 3) == "LDG" || word.substr(0, 3) == "LD.")
+      {
 
         get<1>(line_tracking[kern_name]).push_back(curr_line);
-      } else if (word.substr(0, 3) == "STG" || word.substr(0, 3) == "ST.") {
+      }
+      else if (word.substr(0, 3) == "STG" || word.substr(0, 3) == "ST.")
+      {
 
         get<2>(line_tracking[kern_name]).push_back(curr_line);
       }
@@ -580,11 +556,13 @@ void memop_to_line() {
   infile.close();
 }
 
-std::string find_recorded_kernel(const std::string &curr_kernel) {
+std::string find_recorded_kernel(const std::string &curr_kernel)
+{
   std::string chosen_key;
   size_t shortest_len = 1000;
 
-  for (auto &x : line_tracking) {
+  for (auto &x : line_tracking)
+  {
     std::string key_str = x.first;
 
     std::istringstream tokenized_kern_name(curr_kernel);
@@ -593,14 +571,17 @@ std::string find_recorded_kernel(const std::string &curr_kernel) {
     size_t pos = 0;
     int token_count = 0;
     int match_count = 0;
-    while (std::getline(tokenized_kern_name, name, ':')) {
+    while (std::getline(tokenized_kern_name, name, ':'))
+    {
       if (name.length() == 0)
         continue;
 
       pos = key_str.find(name);
-      if (pos != std::string::npos) {
+      if (pos != std::string::npos)
+      {
 
-        if (pos >= old_pos) {
+        if (pos >= old_pos)
+        {
           match_count++;
           old_pos = pos;
         }
@@ -609,7 +590,8 @@ std::string find_recorded_kernel(const std::string &curr_kernel) {
     }
 
     if (token_count != 0 && token_count == match_count &&
-        shortest_len > key_str.size()) {
+        shortest_len > key_str.size())
+    {
       chosen_key = key_str;
       shortest_len = key_str.size();
     }
@@ -621,7 +603,8 @@ std::string find_recorded_kernel(const std::string &curr_kernel) {
 // Function to print the
 // N-ary tree graphically
 void printNTree(allocation_site_t *x, vector<bool> flag, int depth = 0,
-                bool isLast = false) {
+                bool isLast = false)
+{
 
   // Condition when allocation_site is None
   if (x == NULL)
@@ -629,11 +612,13 @@ void printNTree(allocation_site_t *x, vector<bool> flag, int depth = 0,
 
   // Loop to print the depths of the
   // current allocation_site
-  for (int i = 1; i < depth; ++i) {
+  for (int i = 1; i < depth; ++i)
+  {
 
     // Condition when the depth
     // is exploring
-    if (flag[i] == true) {
+    if (flag[i] == true)
+    {
       cout << "| "
            << " "
            << " "
@@ -642,7 +627,8 @@ void printNTree(allocation_site_t *x, vector<bool> flag, int depth = 0,
 
     // Otherwise print
     // the blank spaces
-    else {
+    else
+    {
       cout << " "
            << " "
            << " "
@@ -654,13 +640,16 @@ void printNTree(allocation_site_t *x, vector<bool> flag, int depth = 0,
   // allocation_site is the root allocation_site
   uint64_t pc = x->get_pc();
   int obj_id = x->get_object_id();
-  if (depth == 0) {
+  if (depth == 0)
+  {
     cout << pc << endl;
 
     // Condition when the allocation_site is
     // the last allocation_site of
     // the exploring depth
-  } else if (isLast) {
+  }
+  else if (isLast)
+  {
     cout << "+--- " << pc;
 
     if (obj_id > 0)
@@ -671,8 +660,9 @@ void printNTree(allocation_site_t *x, vector<bool> flag, int depth = 0,
     // to the non-exploring depth
 
     flag[depth] = false;
-
-  } else {
+  }
+  else
+  {
 
     cout << "+--- " << pc;
 
@@ -685,14 +675,16 @@ void printNTree(allocation_site_t *x, vector<bool> flag, int depth = 0,
   // Recursive call for the
   // children allocation_sites
 
-  while (x != NULL) {
+  while (x != NULL)
+  {
     printNTree(x, flag, depth + 1, x->get_next_sibling() == NULL);
     x = x->get_next_sibling();
   }
   flag[depth] = true;
 }
 
-void nvbit_at_init() {
+void nvbit_at_init()
+{
   setenv("CUDA_MANAGED_FORCE_DEVICE_ALLOC", "1", 1);
   GET_VAR_INT(
       instr_begin_interval, "INSTR_BEGIN", 0,
@@ -722,7 +714,8 @@ void nvbit_at_init() {
               "is sampled");
 
   std::string pad(100, '-');
-  if (verbose) {
+  if (verbose)
+  {
     std::cout << pad << std::endl;
   }
   // read the file with line info here
@@ -730,7 +723,8 @@ void nvbit_at_init() {
   allocation_line_table = new allocation_line_hash_table_t(100);
   initialize_line_table(100);
 
-  if (code_attribution) {
+  if (code_attribution)
+  {
     memop_to_line();
   }
   adm_db_init();
@@ -741,26 +735,26 @@ void nvbit_at_init() {
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutex_init(&mutex1, &attr);
 
-  if (silent) {
+  if (silent)
+  {
     logger.turnoff();
   }
 
-  log_time("Bgn Snoopie");
 }
 
 /* Set used to avoid re-instrumenting the same functions multiple times */
 std::unordered_set<CUfunction> already_instrumented;
 std::unordered_map<int, std::string> instrumented_functions;
 
-void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
+void instrument_function_if_needed(CUcontext ctx, CUfunction func)
+{
   std::string main_func_name(nvbit_get_func_name(ctx, func));
 
-  log_time("Bgn Instrumentation of func: " + main_func_name);
   assert(ctx_state_map.find(ctx) != ctx_state_map.end());
   CTXstate *ctx_state = ctx_state_map[ctx];
 
-  if (already_instrumented.count(func)) {
-    log_time("End Instrumentation of func: " + main_func_name);
+  if (already_instrumented.count(func))
+  {
     return;
   }
 
@@ -773,16 +767,19 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
   related_functions.push_back(func);
 
   /* iterate on function */
-  for (auto f : related_functions) {
+  for (auto f : related_functions)
+  {
     /* "recording" function was instrumented, if set insertion failed
      * we have already encountered this function */
 
     if (strncmp(nvbit_get_func_name(ctx, f), "__cuda_", 7) == 0 ||
-        kernels_to_avoid.count(nvbit_get_func_name(ctx, f))) {
+        kernels_to_avoid.count(nvbit_get_func_name(ctx, f)))
+    {
       continue;
     }
 
-    if (!already_instrumented.insert(f).second) {
+    if (!already_instrumented.insert(f).second)
+    {
       continue;
     }
 
@@ -792,7 +789,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
     /* get vector of instructions of function "f" */
     const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
 
-    if (verbose) {
+    if (verbose)
+    {
       std::cout << "instrumenting: " << nvbit_get_func_name(ctx, f)
                 << std::endl;
       printf("MEMTRACE: CTX %p, Inspecting CUfunction %p name %s at address "
@@ -802,9 +800,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 
     std::string curr_kernel_name = nvbit_get_func_name(ctx, f);
 
-    //std::cerr << "kernel " << curr_kernel_name << " is launched\n";
-    //std::cerr << "call stack:\n";
-    //print_trace();
+    // std::cerr << "kernel " << curr_kernel_name << " is launched\n";
+    // std::cerr << "call stack:\n";
+    // print_trace();
     std::size_t parenthes_pos = curr_kernel_name.find_first_of('(');
 
     if (parenthes_pos != std::string::npos)
@@ -814,13 +812,17 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
     std::string file;
     std::string path;
 
-    if (code_attribution) {
+    if (code_attribution)
+    {
 
       curr_kernel_name = nvbit_get_func_name(ctx, f);
       parenthes_pos = curr_kernel_name.find_first_of('<');
-      if (parenthes_pos != std::string::npos) {
+      if (parenthes_pos != std::string::npos)
+      {
         curr_kernel_name.erase(parenthes_pos);
-      } else {
+      }
+      else
+      {
         parenthes_pos = curr_kernel_name.find_first_of('(');
         if (parenthes_pos != std::string::npos)
           curr_kernel_name.erase(parenthes_pos);
@@ -831,7 +833,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
         ;
       encoded_kernel_name = find_recorded_kernel(name);
       path = get<0>(line_tracking[encoded_kernel_name]);
-      if (path.size() > 0) {
+      if (path.size() > 0)
+      {
         std::istringstream tokenized_path(path);
         while (std::getline(tokenized_path, file, '/'))
           ;
@@ -843,17 +846,21 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
     uint32_t nccl_line_num = 0;
     std::string nccl_filename;
     std::string nccl_dirname;
-    if (!profiled_nccl_file.empty()) {
+    if (!profiled_nccl_file.empty())
+    {
       std::vector<stacktrace_frame> trace = generate_trace();
       allocation_site_t *call_site = root;
       allocation_site_t *parent = NULL;
-      for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr) {
+      for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr)
+      {
         allocation_line_t *line = allocation_line_table->find(itr->address);
-        if (line == NULL) {
+        if (line == NULL)
+        {
           allocation_line_table->insert(new allocation_line_t(
               itr->address, itr->symbol, itr->filename, itr->line));
         }
-        if (root == NULL) {
+        if (root == NULL)
+        {
           root = new allocation_site_t(itr->address);
           call_site = root;
           parent = call_site;
@@ -862,14 +869,18 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
         }
         allocation_site_t *temp = call_site;
         call_site = search_at_level(call_site, itr->address);
-        if (call_site == NULL) {
-          if (temp != NULL) {
+        if (call_site == NULL)
+        {
+          if (temp != NULL)
+          {
             while (temp->get_next_sibling() != NULL)
               temp = temp->get_next_sibling();
             temp->set_next_sibling(new allocation_site_t(itr->address));
             call_site = temp->get_next_sibling();
             call_site->set_parent(temp->get_parent());
-          } else {
+          }
+          else
+          {
             parent->set_first_child(new allocation_site_t(itr->address));
             call_site = parent->get_first_child();
             call_site->set_parent(parent);
@@ -879,10 +890,12 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
         call_site = call_site->get_first_child();
       }
       string file_name;
-      if (parent) {
+      if (parent)
+      {
         file_name =
             allocation_line_table->find(parent->get_pc())->get_file_name();
-        while (file_name.find(/*str1*/ profiled_nccl_file) == string::npos) {
+        while (file_name.find(/*str1*/ profiled_nccl_file) == string::npos)
+        {
           parent = parent->get_parent();
           if (parent)
             file_name =
@@ -891,10 +904,12 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
             break;
         }
       }
-      if (parent) {
+      if (parent)
+      {
         allocation_line_t *node = allocation_line_table->find(parent->get_pc());
         path = node->get_file_name();
-        if (path.size() > 0) {
+        if (path.size() > 0)
+        {
           std::istringstream tokenized_path(path);
           while (std::getline(tokenized_path, file, '/'))
             ;
@@ -913,7 +928,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
     int ldg_count = 0;
     int stg_count = 0;
     /* iterate on all the static instructions in the function */
-    for (auto instr : instrs) {
+    for (auto instr : instrs)
+    {
       uint32_t instr_offset = instr->getOffset();
       char *file_name = (char *)malloc(sizeof(char) * FILE_NAME_SIZE);
       file_name[0] = '\0';
@@ -925,26 +941,34 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
       std::string dirname;
       std::string sass;
 
-      if (profiled_nccl_file.empty()) {
+      if (profiled_nccl_file.empty())
+      {
         ret_line_info = nvbit_get_line_info(ctx, f, instr_offset, &file_name,
                                             &dir_name, &line_num);
         filename = file_name;
         dirname = dir_name;
         sass = instr->getSass();
-        if (code_attribution && path.size() > 0) {
+        if (code_attribution && path.size() > 0)
+        {
           std::istringstream input1(sass);
-          for (std::string word; std::getline(input1, word, ' ');) {
-            if (word.substr(0, 3) == "LDG" || word.substr(0, 3) == "LD.") {
-              if (!ret_line_info) {
+          for (std::string word; std::getline(input1, word, ' ');)
+          {
+            if (word.substr(0, 3) == "LDG" || word.substr(0, 3) == "LD.")
+            {
+              if (!ret_line_info)
+              {
                 line_num = get<1>(line_tracking[encoded_kernel_name])
                     [ldg_count]; // line_tracking.first[ldg_count];
                 dirname = path;
                 filename = file;
               }
               ldg_count++;
-            } else if (word.substr(0, 3) == "STG" ||
-                       word.substr(0, 3) == "ST.") {
-              if (!ret_line_info) {
+            }
+            else if (word.substr(0, 3) == "STG" ||
+                     word.substr(0, 3) == "ST.")
+            {
+              if (!ret_line_info)
+              {
                 line_num = get<2>(line_tracking[encoded_kernel_name])
                     [stg_count]; // line_tracking.second[stg_count];
                 dirname = path;
@@ -954,14 +978,17 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
             }
           }
         }
-      } else {
+      }
+      else
+      {
         filename = nccl_filename;
         dirname = nccl_dirname;
         line_num = nccl_line_num;
       }
 
       short estimated_status = 2; // it is estimated
-      if (line_num != 0) {
+      if (line_num != 0)
+      {
 
         estimated_status = 1; // it is original
         adm_line_location_insert(global_index, filename, dirname, sass,
@@ -969,7 +996,9 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
         prev_valid_file_name = filename;
         prev_valid_dir_name = dirname;
         prev_valid_line_num = line_num;
-      } else {
+      }
+      else
+      {
         adm_line_location_insert(global_index, prev_valid_file_name,
                                  prev_valid_dir_name, sass, prev_valid_line_num,
                                  estimated_status);
@@ -977,15 +1006,18 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
       global_index++;
       if (cnt < instr_begin_interval || cnt >= instr_end_interval ||
           instr->getMemorySpace() == InstrType::MemorySpace::NONE ||
-          instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT) {
+          instr->getMemorySpace() == InstrType::MemorySpace::CONSTANT)
+      {
         cnt++;
         continue;
       }
-      if (verbose) {
+      if (verbose)
+      {
         instr->printDecoded();
       }
 
-      if (opcode_to_id_map.find(instr->getOpcode()) == opcode_to_id_map.end()) {
+      if (opcode_to_id_map.find(instr->getOpcode()) == opcode_to_id_map.end())
+      {
         int opcode_id = opcode_to_id_map.size();
         opcode_to_id_map[instr->getOpcode()] = opcode_id;
         id_to_opcode_map[opcode_id] = std::string(instr->getOpcode());
@@ -994,11 +1026,13 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
       int opcode_id = opcode_to_id_map[instr->getOpcode()];
       int mref_idx = 0;
       /* iterate on the operands */
-      for (int i = 0; i < instr->getNumOperands(); i++) {
+      for (int i = 0; i < instr->getNumOperands(); i++)
+      {
         /* get the operand "i" */
         const InstrType::operand_t *op = instr->getOperand(i);
 
-        if (op->type == InstrType::OperandType::MREF) {
+        if (op->type == InstrType::OperandType::MREF)
+        {
 
           /* insert call to the instrumentation function with its
            * arguments */
@@ -1032,10 +1066,10 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
     }
   }
 
-  log_time("End Instrumentation of func: " + main_func_name);
 }
 
-__global__ void flush_channel(ChannelDev *ch_dev) {
+__global__ void flush_channel(ChannelDev *ch_dev)
+{
   /* set a CTA id = -1 to indicate communication thread that this is the
    * termination flag */
   mem_access_t ma;
@@ -1046,16 +1080,14 @@ __global__ void flush_channel(ChannelDev *ch_dev) {
 }
 
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
-                         const char *name, void *params, CUresult *pStatus) {
+                         const char *name, void *params, CUresult *pStatus)
+{
   pthread_mutex_lock(&mutex1);
-  log_time(std::string("Bgn Cuda Event ") + (is_exit ? "Exit" : "Enter") +
-           find_cbid_name(cbid));
 
   /* we prevent re-entry on this callback when issuing CUDA functions inside
    * this function */
-  if (skip_callback_flag || nvshmem_malloc_handled) {
-    log_time(std::string("End Cuda Event ") + (is_exit ? "Exit" : "Enter") +
-             find_cbid_name(cbid));
+  if (skip_callback_flag || nvshmem_malloc_handled)
+  {
     pthread_mutex_unlock(&mutex1);
     return;
   }
@@ -1066,7 +1098,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
   MemoryAllocation ma;
   if (!is_exit && (cbid == API_CUDA_cuLaunchKernel_ptsz ||
-                   cbid == API_CUDA_cuLaunchKernel)) {
+                   cbid == API_CUDA_cuLaunchKernel))
+  {
     cuLaunchKernel_params *p = (cuLaunchKernel_params *)params;
 
     /* Make sure GPU is idle */
@@ -1083,10 +1116,12 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
         nvbit_get_related_functions(ctx, p->f);
     related_functions.push_back(p->f);
 
-    for (auto f : related_functions) {
+    for (auto f : related_functions)
+    {
 
       if (strncmp(nvbit_get_func_name(ctx, f), "__cuda_", 7) == 0 ||
-          kernels_to_avoid.count(nvbit_get_func_name(ctx, f))) {
+          kernels_to_avoid.count(nvbit_get_func_name(ctx, f)))
+      {
         continue;
       }
 
@@ -1095,11 +1130,14 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       // signature
       std::string func_name(nvbit_get_func_name(ctx, f));
       if (kernel_name == "all" ||
-          kernel_name == func_name.substr(0, func_name.find("("))) {
+          kernel_name == func_name.substr(0, func_name.find("(")))
+      {
         instrument_function_if_needed(ctx, f);
-      } else if (kernel_name == "nccl" &&
-                 func_name.substr(0, std::string("ncclKernel").length())
-                         .compare(std::string("ncclKernel")) == 0) {
+      }
+      else if (kernel_name == "nccl" &&
+               func_name.substr(0, std::string("ncclKernel").length())
+                       .compare(std::string("ncclKernel")) == 0)
+      {
         instrument_function_if_needed(ctx, f);
       }
 
@@ -1118,14 +1156,17 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       /* enable instrumented code to run */
       nvbit_enable_instrumented(ctx, f, true);
 
-      if (verbose) {
+      if (verbose)
+      {
         printf("MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
                "name %s - grid launch id %ld\n",
                (uint64_t)ctx, pc, func_name.c_str(), grid_launch_id);
       }
     }
-  } else if (!is_exit && (cbid == API_CUDA_cuLaunchCooperativeKernel ||
-                          cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz)) {
+  }
+  else if (!is_exit && (cbid == API_CUDA_cuLaunchCooperativeKernel ||
+                        cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz))
+  {
     cuLaunchCooperativeKernel_params *p =
         (cuLaunchCooperativeKernel_params *)params;
 
@@ -1140,15 +1181,19 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     // only instrument kernel's with the kernel name supplied by the user,
     // the substr and find are to extract the func name from the func
     // signature
-    for (auto f : related_functions) {
+    for (auto f : related_functions)
+    {
       std::string func_name(nvbit_get_func_name(ctx, f));
       if (kernel_name == "all" ||
-          kernel_name == func_name.substr(0, func_name.find("("))) {
+          kernel_name == func_name.substr(0, func_name.find("(")))
+      {
         /* instrument */
         instrument_function_if_needed(ctx, p->f);
-      } else if (kernel_name == "nccl" &&
-                 func_name.substr(0, std::string("ncclKernel").length())
-                         .compare(std::string("ncclKernel")) == 0) {
+      }
+      else if (kernel_name == "nccl" &&
+               func_name.substr(0, std::string("ncclKernel").length())
+                       .compare(std::string("ncclKernel")) == 0)
+      {
         instrument_function_if_needed(ctx, f);
       }
 
@@ -1160,13 +1205,16 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       /* enable instrumented code to run */
       nvbit_enable_instrumented(ctx, f, true);
 
-      if (verbose) {
+      if (verbose)
+      {
         printf("MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
                "name %s - grid launch id %ld\n",
                (uint64_t)ctx, pc, func_name.c_str(), grid_launch_id);
       }
     }
-  } else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2) {
+  }
+  else if (is_exit && cbid == API_CUDA_cuMemAlloc_v2)
+  {
     cuMemAlloc_v2_params *p = (cuMemAlloc_v2_params *)params;
     std::stringstream ss;
     ss << HEX(*p->dptr);
@@ -1184,18 +1232,22 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
-    for (const auto &ctx_map_pair : ctx_state_map) {
+    for (const auto &ctx_map_pair : ctx_state_map)
+    {
       ctx_map_pair.second->channel_dev->add_malloc(ma);
     }
 
-    if (JSON) {
+    if (JSON)
+    {
       std::cout << "{\"op\": \"mem_alloc\", "
                 << "\"dev_id\": " << deviceID << ", "
                 << "\"bytesize\": " << p->bytesize << ", \"start\": \""
                 << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}"
                 << std::endl;
     }
-  } else if (is_exit && cbid == API_CUDA_cuMemAlloc) {
+  }
+  else if (is_exit && cbid == API_CUDA_cuMemAlloc)
+  {
     cuMemAlloc_params *p = (cuMemAlloc_params *)params;
     std::stringstream ss;
     ss << HEX(*p->dptr);
@@ -1213,18 +1265,22 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
-    for (const auto &ctx_map_pair : ctx_state_map) {
+    for (const auto &ctx_map_pair : ctx_state_map)
+    {
       ctx_map_pair.second->channel_dev->add_malloc(ma);
     }
 
-    if (JSON) {
+    if (JSON)
+    {
       std::cout << "{\"op\": \"mem_alloc\", "
                 << "\"dev_id\": " << deviceID << ", "
                 << "\"bytesize\": " << p->bytesize << ", \"start\": \""
                 << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}"
                 << std::endl;
     }
-  } else if (cbid == API_CUDA_cuMemAllocHost) {
+  }
+  else if (cbid == API_CUDA_cuMemAllocHost)
+  {
     cuMemAllocHost_params *p = (cuMemAllocHost_params *)params;
     std::stringstream ss;
     ss << HEX(*p->pp);
@@ -1240,11 +1296,14 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
-    for (const auto &ctx_map_pair : ctx_state_map) {
+    for (const auto &ctx_map_pair : ctx_state_map)
+    {
       ctx_map_pair.second->channel_dev->add_malloc(ma);
     }
-  } else if (cbid == API_CUDA_cuMemAllocHost_v2) {
-    //print_trace();
+  }
+  else if (cbid == API_CUDA_cuMemAllocHost_v2)
+  {
+    // print_trace();
     std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
     cuMemAllocHost_v2_params *p = (cuMemAllocHost_v2_params *)params;
     std::stringstream ss;
@@ -1261,10 +1320,13 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
-    for (const auto &ctx_map_pair : ctx_state_map) {
+    for (const auto &ctx_map_pair : ctx_state_map)
+    {
       ctx_map_pair.second->channel_dev->add_malloc(ma);
     }
-  } else if (cbid == API_CUDA_cuMemHostAlloc) {
+  }
+  else if (cbid == API_CUDA_cuMemHostAlloc)
+  {
     cuMemHostAlloc_params *p = (cuMemHostAlloc_params *)params;
     std::stringstream ss;
     ss << HEX(*p->pp);
@@ -1281,10 +1343,13 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     ma.bytesize = bytesize;
     mem_allocs.push_back(ma);
 
-    for (const auto &ctx_map_pair : ctx_state_map) {
+    for (const auto &ctx_map_pair : ctx_state_map)
+    {
       ctx_map_pair.second->channel_dev->add_malloc(ma);
     }
-  } else if (is_exit && cbid == API_CUDA_cuMemcpyDtoDAsync_v2) {
+  }
+  else if (is_exit && cbid == API_CUDA_cuMemcpyDtoDAsync_v2)
+  {
     cuMemcpyDtoDAsync_v2_params *p = (cuMemcpyDtoDAsync_v2_params *)params;
 
     CUdevice srcDeviceID;
@@ -1298,7 +1363,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     adm_range_t *range = nullptr;
     uint64_t offset_address_range = 0;
 
-    if (object_attribution) {
+    if (object_attribution)
+    {
       range = adm_range_find(p->dstDevice);
       offset_address_range = range->get_address();
     }
@@ -1306,9 +1372,12 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     // Log this operation
 
     uint64_t addr1;
-    if (p->dstDevice >= 0x0000010020000000) {
+    if (p->dstDevice >= 0x0000010020000000)
+    {
       addr1 = normalise_nvshmem_ptr(p->dstDevice);
-    } else {
+    }
+    else
+    {
       addr1 = p->dstDevice;
     }
     std::stringstream ss;
@@ -1317,8 +1386,9 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
        << -1 << "," << HEX(offset_address_range) << "," << p->ByteCount
        << std::endl;
     logger.log(ss.str());
-
-  } else if (is_exit && cbid == API_CUDA_cuMemcpyDtoD_v2) {
+  }
+  else if (is_exit && cbid == API_CUDA_cuMemcpyDtoD_v2)
+  {
 
     // Check if copy operation was successful from the result field
 
@@ -1334,7 +1404,8 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     adm_range_t *range = nullptr;
     uint64_t offset_address_range = 0;
 
-    if (object_attribution) {
+    if (object_attribution)
+    {
       range = adm_range_find(p->dstDevice);
       offset_address_range = range->get_address();
     }
@@ -1353,21 +1424,25 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
   if (is_exit &&
       (cbid == API_CUDA_cuMemAlloc || cbid == API_CUDA_cuMemAlloc_v2 ||
        cbid == API_CUDA_cuMemAllocHost || cbid == API_CUDA_cuMemAllocHost_v2 ||
-       cbid == API_CUDA_cuMemHostAlloc)) {
+       cbid == API_CUDA_cuMemHostAlloc))
+  {
 
     std::vector<stacktrace_frame> trace = generate_trace();
 
     allocation_site_t *allocation_site = root;
     allocation_site_t *parent = NULL;
 
-    for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr) {
+    for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr)
+    {
 
       allocation_line_t *line = allocation_line_table->find(itr->address);
-      if (line == NULL) {
+      if (line == NULL)
+      {
         allocation_line_table->insert(new allocation_line_t(
             itr->address, itr->symbol, itr->filename, itr->line));
       }
-      if (root == NULL) {
+      if (root == NULL)
+      {
         root = new allocation_site_t(itr->address);
         allocation_site = root;
 
@@ -1377,8 +1452,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       }
       allocation_site_t *temp = allocation_site;
       allocation_site = search_at_level(allocation_site, itr->address);
-      if (allocation_site == NULL) {
-        if (temp != NULL) {
+      if (allocation_site == NULL)
+      {
+        if (temp != NULL)
+        {
 
           while (temp->get_next_sibling() != NULL)
             temp = temp->get_next_sibling();
@@ -1386,7 +1463,9 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
           allocation_site = temp->get_next_sibling();
           allocation_site->set_parent(temp->get_parent());
-        } else {
+        }
+        else
+        {
 
           parent->set_first_child(new allocation_site_t(itr->address));
 
@@ -1399,12 +1478,14 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     }
 
     string func_name;
-    if (parent) {
+    if (parent)
+    {
       func_name =
           allocation_line_table->find(parent->get_pc())->get_func_name();
       while (func_name.find(/*str1*/ "cudaMalloc") == string::npos &&
              func_name.find(/*str1*/ "nvshmem_malloc") == string::npos &&
-             func_name.find(/*str1*/ "nvshmem_align") == string::npos) {
+             func_name.find(/*str1*/ "nvshmem_align") == string::npos)
+      {
         parent = parent->get_parent();
         if (parent)
           func_name =
@@ -1414,10 +1495,12 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
       }
     }
     if (parent && func_name.find(/*str1*/ "nvshmem_malloc") != string::npos)
-      if (parent) {
+      if (parent)
+      {
         while (func_name.find(/*str1*/ "cudaMalloc") != string::npos ||
                func_name.find(/*str1*/ "nvshmem_malloc") != string::npos ||
-               func_name.find(/*str1*/ "nvshmem_align") != string::npos) {
+               func_name.find(/*str1*/ "nvshmem_align") != string::npos)
+        {
           parent = parent->get_parent();
           if (parent)
             func_name =
@@ -1426,13 +1509,15 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
             break;
         }
       }
-    if (parent && parent->get_object_id() == 0) {
+    if (parent && parent->get_object_id() == 0)
+    {
       parent->set_object_id(++object_counter);
       object_nodes.push_back(
           new adm_object_t(parent->get_object_id(), parent, 8));
     }
 
-    if (parent) {
+    if (parent)
+    {
       adm_range_insert(ma.pointer, ma.bytesize, parent->get_pc(), ma.deviceID,
                        "", ADM_STATE_ALLOC);
       range_nodes.push_back(new adm_range_t(
@@ -1440,17 +1525,18 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
     }
   }
   skip_callback_flag = false;
-  log_time(std::string("End Cuda Event ") + (is_exit ? "Exit" : "Enter") +
-           find_cbid_name(cbid));
   pthread_mutex_unlock(&mutex1);
 }
 
 cudaError_t cudaMallocHostWrap(void **devPtr, size_t size, const char *var_name,
                                const uint32_t element_size, const char *fname,
-                               const char *fxname, int lineno) {
+                               const char *fxname, int lineno)
+{
   cudaError_t errorOutput = cudaMallocHost(devPtr, size);
-  if (*devPtr) {
-    if (!object_attribution) {
+  if (*devPtr)
+  {
+    if (!object_attribution)
+    {
       object_attribution = true;
     }
     uint64_t allocation_pc =
@@ -1459,11 +1545,13 @@ cudaError_t cudaMallocHostWrap(void **devPtr, size_t size, const char *var_name,
 
     adm_range_t *range = adm_range_find(reinterpret_cast<uint64_t>(*devPtr));
     range->set_var_name(vname);
-    if (range) {
+    if (range)
+    {
       adm_object_t *obj =
           adm_object_insert(allocation_pc, var_name, element_size, fname,
                             fxname, lineno, ADM_STATE_ALLOC);
-      if (obj) {
+      if (obj)
+      {
         range->set_index_in_object(obj->get_range_count());
         obj->inc_range_count();
       }
@@ -1475,10 +1563,13 @@ cudaError_t cudaMallocHostWrap(void **devPtr, size_t size, const char *var_name,
 
 cudaError_t cudaMallocWrap(void **devPtr, size_t size, const char *var_name,
                            const uint32_t element_size,
-                           const char *fname, const char *fxname, int lineno /*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
+                           const char *fname, const char *fxname, int lineno /*, const std::experimental::source_location& location = std::experimental::source_location::current()*/)
+{
   cudaError_t errorOutput = cudaMalloc(devPtr, size);
-  if (*devPtr) {
-    if (!object_attribution) {
+  if (*devPtr)
+  {
+    if (!object_attribution)
+    {
       object_attribution = true;
     }
     uint64_t allocation_pc =
@@ -1490,11 +1581,13 @@ cudaError_t cudaMallocWrap(void **devPtr, size_t size, const char *var_name,
     adm_range_t *range = adm_range_find(reinterpret_cast<uint64_t>(*devPtr));
     range->set_var_name(vname);
 
-    if (range) {
+    if (range)
+    {
       adm_object_t *obj =
           adm_object_insert(allocation_pc, var_name, element_size, fname,
                             fxname, lineno, ADM_STATE_ALLOC);
-      if (obj) {
+      if (obj)
+      {
         range->set_index_in_object(obj->get_range_count());
         obj->inc_range_count();
       }
@@ -1504,7 +1597,8 @@ cudaError_t cudaMallocWrap(void **devPtr, size_t size, const char *var_name,
   return errorOutput;
 }
 
-void *nvshmem_malloc(size_t size) {
+void *nvshmem_malloc(size_t size)
+{
   void *(*ori_nvshmem_malloc)(size_t) =
       (void *(*)(size_t))dlsym(RTLD_NEXT, "nvshmem_malloc");
   nvshmem_malloc_handled = true;
@@ -1516,13 +1610,16 @@ void *nvshmem_malloc(size_t size) {
   std::vector<stacktrace_frame> trace = generate_trace();
   allocation_site_t *allocation_site = root;
   allocation_site_t *parent = NULL;
-  for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr) {
+  for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr)
+  {
     allocation_line_t *line = allocation_line_table->find(itr->address);
-    if (line == NULL) {
+    if (line == NULL)
+    {
       allocation_line_table->insert(new allocation_line_t(
           itr->address, itr->symbol, itr->filename, itr->line));
     }
-    if (root == NULL) {
+    if (root == NULL)
+    {
       root = new allocation_site_t(itr->address);
       allocation_site = root;
       parent = allocation_site;
@@ -1531,14 +1628,18 @@ void *nvshmem_malloc(size_t size) {
     }
     allocation_site_t *temp = allocation_site;
     allocation_site = search_at_level(allocation_site, itr->address);
-    if (allocation_site == NULL) {
-      if (temp != NULL) {
+    if (allocation_site == NULL)
+    {
+      if (temp != NULL)
+      {
         while (temp->get_next_sibling() != NULL)
           temp = temp->get_next_sibling();
         temp->set_next_sibling(new allocation_site_t(itr->address));
         allocation_site = temp->get_next_sibling();
         allocation_site->set_parent(temp->get_parent());
-      } else {
+      }
+      else
+      {
         parent->set_first_child(new allocation_site_t(itr->address));
         allocation_site = parent->get_first_child();
         allocation_site->set_parent(parent);
@@ -1549,9 +1650,11 @@ void *nvshmem_malloc(size_t size) {
   }
 
   string func_name;
-  if (parent) {
+  if (parent)
+  {
     func_name = allocation_line_table->find(parent->get_pc())->get_func_name();
-    while (func_name.find(/*str1*/ "nvshmem_malloc") == string::npos) {
+    while (func_name.find(/*str1*/ "nvshmem_malloc") == string::npos)
+    {
       parent = parent->get_parent();
       if (parent)
         func_name =
@@ -1561,8 +1664,10 @@ void *nvshmem_malloc(size_t size) {
     }
   }
 
-  if (parent) {
-    while (func_name.find(/*str1*/ "nvshmem_malloc") != string::npos) {
+  if (parent)
+  {
+    while (func_name.find(/*str1*/ "nvshmem_malloc") != string::npos)
+    {
       parent = parent->get_parent();
       if (parent)
         func_name =
@@ -1572,14 +1677,16 @@ void *nvshmem_malloc(size_t size) {
     }
   }
 
-  if (parent && parent->get_object_id() == 0) {
+  if (parent && parent->get_object_id() == 0)
+  {
     parent->set_object_id(++object_counter);
     object_nodes.push_back(
         new adm_object_t(parent->get_object_id(), parent, 8));
   }
 
   MemoryAllocation ma;
-  if (parent) {
+  if (parent)
+  {
     adm_range_insert((uint64_t)allocated_memory, size, parent->get_pc(),
                      deviceID, "", ADM_STATE_ALLOC);
     range_nodes.push_back(new adm_range_t((uint64_t)allocated_memory, size,
@@ -1594,12 +1701,15 @@ void *nvshmem_malloc(size_t size) {
 
 void *nvshmem_alignWrap(
     size_t alignment, size_t size, const char *var_name,
-    const uint32_t element_size, const char *fname, const char *fxname, int lineno /*, const std::experimental::source_location& location = std::experimental::source_location::current()*/) {
+    const uint32_t element_size, const char *fname, const char *fxname, int lineno /*, const std::experimental::source_location& location = std::experimental::source_location::current()*/)
+{
   void *(*ori_nvshmem_align)(size_t, size_t) =
       (void *(*)(size_t, size_t))dlsym(RTLD_NEXT, "nvshmem_malloc");
   void *allocated_memory = ori_nvshmem_align(alignment, size);
-  if (allocated_memory /*&& adm_set_tracing(0)*/) {
-    if (!object_attribution) {
+  if (allocated_memory /*&& adm_set_tracing(0)*/)
+  {
+    if (!object_attribution)
+    {
       object_attribution = true;
     }
     uint64_t allocation_pc =
@@ -1612,11 +1722,13 @@ void *nvshmem_alignWrap(
         adm_range_find(reinterpret_cast<uint64_t>(allocated_memory));
     range->set_var_name(vname);
 
-    if (range) {
+    if (range)
+    {
       adm_object_t *obj =
           adm_object_insert(allocation_pc, var_name, element_size, fname,
                             fxname, lineno, ADM_STATE_ALLOC);
-      if (obj) {
+      if (obj)
+      {
         range->set_index_in_object(obj->get_range_count());
         obj->inc_range_count();
       }
@@ -1625,9 +1737,10 @@ void *nvshmem_alignWrap(
 
   return allocated_memory;
 }
-//#endif
+// #endif
 
-void *recv_thread_fun(void *args) {
+void *recv_thread_fun(void *args)
+{
 
   CUcontext ctx = (CUcontext)args;
 
@@ -1639,14 +1752,14 @@ void *recv_thread_fun(void *args) {
   int dev_id = -1;
   cudaGetDevice(&dev_id);
 
-  log_time(std::string("Bgn Recv Thread " + to_string(dev_id)));
 
   ChannelHost *ch_host = &ctx_state->channel_host;
 
   pthread_mutex_unlock(&mutex1);
   char *recv_buffer = (char *)malloc(CHANNEL_SIZE);
 
-  if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
+  if (!silent && ((int)ctx_state_map.size() - 1 == 0))
+  {
     std::stringstream ss;
     ss << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, "
           "code_linenum, code_line_index, code_line_estimated_status, "
@@ -1657,22 +1770,23 @@ void *recv_thread_fun(void *args) {
 
   bool done = false;
   bool waiting = false;
-  while (!done) {
+  while (!done)
+  {
 
-    if (!waiting) {
-      log_time(std::string("Bgn Waiting Recv Thread " + to_string(dev_id)));
+    if (!waiting)
+    {
       waiting = true;
     }
 
     /* receive buffer from channel */
     uint32_t num_recv_bytes = ch_host->recv(recv_buffer, CHANNEL_SIZE);
 
-    if (num_recv_bytes > 0) {
-      log_time(std::string("End Waiting Recv Thread " + to_string(dev_id)));
+    if (num_recv_bytes > 0)
+    {
       waiting = false;
-      log_time(std::string("Bgn Processing Recv Thread " + to_string(dev_id)));
       uint32_t num_processed_bytes = 0;
-      while (num_processed_bytes < num_recv_bytes) {
+      while (num_processed_bytes < num_recv_bytes)
+      {
         mem_access_t *ma = (mem_access_t *)&recv_buffer[num_processed_bytes];
 
         /* when we receive a CTA_id_x it means all the kernels
@@ -1680,7 +1794,8 @@ void *recv_thread_fun(void *args) {
          * flush channel kernel that is issues at the end of the
          * context */
 
-        if (ma->lane_id == -1) {
+        if (ma->lane_id == -1)
+        {
           done = true;
           break;
         }
@@ -1701,7 +1816,8 @@ void *recv_thread_fun(void *args) {
         short line_estimated_status = get_line_estimated_status(line_index);
         uint64_t offset_address_range = 0;
 
-        for (int i = 0; i < 32; i++) {
+        for (int i = 0; i < 32; i++)
+        {
 
           if (ma->addrs[i] == 0x0)
             continue;
@@ -1712,7 +1828,8 @@ void *recv_thread_fun(void *args) {
           // ignore operations on memory locations not allocated by cudaMalloc
           // on the host
           bool nvshmem_flag = false;
-          if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000)) {
+          if (mem_device_id == -1 && (ma->addrs[i] >= 0x0000010020000000))
+          {
             nvshmem_flag = true;
             mem_device_id = find_nvshmem_dev_of_ptr(
                 ma->dev_id, ma->addrs[i], nvshmem_ngpus, nvshmem_version);
@@ -1733,16 +1850,21 @@ void *recv_thread_fun(void *args) {
 
           std::stringstream ss;
           uint64_t addr1;
-          if (nvshmem_flag) {
+          if (nvshmem_flag)
+          {
             addr1 = normalise_nvshmem_ptr(ma->addrs[i]);
-          } else {
+          }
+          else
+          {
             addr1 = ma->addrs[i];
           }
 
           range = adm_range_find(addr1);
-          if (range != nullptr) {
+          if (range != nullptr)
+          {
             allocation_pc = range->get_allocation_pc();
-            if (object_exists(allocation_pc)) {
+            if (object_exists(allocation_pc))
+            {
               varname = get_object_var_name(allocation_pc);
               filename = get_object_file_name(allocation_pc);
               funcname = get_object_func_name(allocation_pc);
@@ -1756,7 +1878,8 @@ void *recv_thread_fun(void *args) {
             offset_address_range = range->get_address();
           }
 
-          if (JSON) {
+          if (JSON)
+          {
             ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", "
                << "\"kernel_name\": \"" << instrumented_functions[ma->func_id]
                << "\", "
@@ -1779,7 +1902,9 @@ void *recv_thread_fun(void *args) {
                << "\"code_line_linenum\": " << line_linenum << ", "
                << "\"code_line_estimated_status\": " << line_estimated_status
                << "}" << std::endl;
-          } else {
+          }
+          else
+          {
             ss << id_to_opcode_map[ma->opcode_id] << "," << HEX(addr1) << ","
                << ma->thread_index << "," << ma->dev_id << "," << mem_device_id
                << "," << line_linenum << "," << line_index << ","
@@ -1792,21 +1917,20 @@ void *recv_thread_fun(void *args) {
         num_processed_bytes += sizeof(mem_access_t);
       }
 
-      log_time(std::string("End Processing Recv Thread " + to_string(dev_id)));
     }
   }
 
-  log_time(std::string("End Recv Thread " + to_string(dev_id)));
   return NULL;
 }
 
-void nvbit_at_ctx_init(CUcontext ctx) {
+void nvbit_at_ctx_init(CUcontext ctx)
+{
   pthread_mutex_lock(&mutex1);
   int dev_id = -1;
   cudaGetDevice(&dev_id);
 
-  log_time("Bgn Context" + to_string(dev_id));
-  if (verbose) {
+  if (verbose)
+  {
     printf("MEMTRACE: STARTING CONTEXT %p\n", ctx);
   }
   CTXstate *ctx_state = new CTXstate;
@@ -1822,14 +1946,15 @@ void nvbit_at_ctx_init(CUcontext ctx) {
   pthread_mutex_unlock(&mutex1);
 }
 
-void nvbit_at_ctx_term(CUcontext ctx) {
+void nvbit_at_ctx_term(CUcontext ctx)
+{
   pthread_mutex_lock(&mutex1);
   int dev_id = -1;
   cudaGetDevice(&dev_id);
-  log_time("End Context" + to_string(dev_id));
 
   skip_callback_flag = true;
-  if (verbose) {
+  if (verbose)
+  {
     printf("MEMTRACE: TERMINATING CONTEXT %p\n", ctx);
   }
   /* get context state from map */
@@ -1849,12 +1974,15 @@ void nvbit_at_ctx_term(CUcontext ctx) {
   pthread_mutex_unlock(&mutex1);
 }
 
-void nvbit_at_term() {
-  if (silent) {
+void nvbit_at_term()
+{
+  if (silent)
+  {
     return;
   }
 
-  if (object_attribution) {
+  if (object_attribution)
+  {
     adm_ranges_print();
   }
   adm_line_table_print();
@@ -1887,6 +2015,5 @@ void nvbit_at_term() {
   object_outfile2.close();
   delete allocation_line_table;
   delete root;
-  log_time("End Snoopie");
   adm_db_fini();
 }
