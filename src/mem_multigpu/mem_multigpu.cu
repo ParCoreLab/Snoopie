@@ -1844,11 +1844,10 @@ void nvbit_at_ctx_init(CUcontext ctx) {
   ctx_state_map[ctx] = ctx_state;
   cudaMallocManaged(&ctx_state->channel_dev, sizeof(ChannelDev));
 
-  if(on_dev_filtering)
-	  std::cerr << "on_dev_filtering is active";
   ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
                                ctx_state->channel_dev, recv_thread_fun,
                                on_dev_filtering, ctx);
+
   nvbit_set_tool_pthread(ctx_state->channel_host.get_thread());
   pthread_mutex_unlock(&mutex1);
 }
