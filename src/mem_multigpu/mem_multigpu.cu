@@ -44,6 +44,8 @@
 #include <adm_splay.h>
 #include <cpptrace/cpptrace.hpp>
 
+#include "object_info.h"
+
 #include "Python.h"
 //#include "ndarrayobject.h"
 #include <numpy/ndarrayobject.h>
@@ -142,23 +144,6 @@ uint32_t get_line_line_num(int index);
 
 short get_line_estimated_status(int index);
 
-std::string get_object_var_name(uint64_t pc);
-
-std::string get_object_file_name(uint64_t pc);
-
-std::string get_object_func_name(uint64_t pc);
-
-uint32_t get_object_line_num(uint64_t pc);
-
-int get_object_device_id(uint64_t pc);
-
-void set_object_device_id(uint64_t pc, int dev_id);
-
-uint32_t get_object_data_type_size(uint64_t pc);
-
-void set_object_data_type_size(uint64_t pc, const uint32_t type_size);
-
-bool object_exists(uint64_t pc);
 /* lock */
 pthread_mutex_t mutex1;
 
