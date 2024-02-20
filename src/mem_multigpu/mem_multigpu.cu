@@ -498,13 +498,13 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
 			});
 		} else if(func_name == "tensor") {
-			std::cerr << "torch.tensor is injected\n";
+			std::cout << "torch.tensor is injected\n";
 			PyObject* mod = obj.ptr();
 			PyObject* orig_torchtensor_func = PyObject_GetAttrString(mod, "tensor");		
 
 			obj.attr("tensor") = py::cpp_function([orig_torchtensor_func](const py::args &args, const py::kwargs &kwargs) {
 					//std::cout << msg.cast<std::string>();
-					std::cerr << "torch.tensor is intercepted\n";
+					std::cout << "torch.tensor is intercepted\n";
 					//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
 
 					//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
@@ -832,7 +832,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
 			obj.attr("randn") = py::cpp_function([orig_torchrandn_func](const py::args &args, const py::kwargs &kwargs) {
 					//std::cout << msg.cast<std::string>();
-					std::cerr << "torch.randn is intercepted\n";
+					std::cout << "torch.randn is intercepted\n";
 					//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
 
 					//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
@@ -1099,11 +1099,160 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
 					return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
 			});
-		}  
+		} else if(func_name == "empty_like") {
+			std::cerr << "torch.empty_like is injected\n";
+			PyObject* mod = obj.ptr();
+			PyObject* orig_torchemptylike_func = PyObject_GetAttrString(mod, "empty_like");
+			obj.attr("empty_like") = py::cpp_function([orig_torchemptylike_func](const py::args &args, const py::kwargs &kwargs) {
+				std::cerr << "torch.empty_like is intercepted\n";
+				PyObject* result = PyObject_Call(orig_torchemptylike_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+				py::object result_obj = py::reinterpret_borrow<py::object>(result);
+				return result_obj;
+			});
+		} else if(func_name == "nn.parallel.comm") {
+                        std::cerr << "nn.parallel.comm is injected\n";
+                        PyObject* mod = obj.ptr();
+                        PyObject* nn_obj = PyObject_GetAttrString(mod, "nn");
+                        PyObject* parallel_obj = PyObject_GetAttrString(nn_obj, "parallel");
+                        PyObject* comm_obj = PyObject_GetAttrString(parallel_obj, "comm");
+                        PyObject*  orig_broadcastcoalesced_func = PyObject_GetAttrString(comm_obj, "broadcast_coalesced");
+
+                        obj.attr("nn").attr("parallel").attr("comm").attr("broadcast_coalesced") = py::cpp_function([orig_broadcastcoalesced_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cerr << "nn.parallel.comm.broadcast_coalesced is intercepted\n";
+                                        py::object traceback = py::module::import("traceback");
+                                        py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                        py::object walk_stack = traceback.attr("walk_stack");
+                                        py::object summary = extract_summary(walk_stack(py::none()));
+                                        //#if 0
+                                        std::cerr << "before call stack printing\n";
+                                        for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                        }
+                                        std::cerr << "after call stack printing\n";
+
+                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                        PyObject* result = PyObject_Call(orig_broadcastcoalesced_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                        //PyObject *result, *obj_temp;
+#if 0
+                                        //PyArg_ParseTuple(ret, "O|O", &result, &obj_temp);
+                                        std::cerr << "here 1\n";
+                                        PyObject* gpu_data_obj = PyObject_GetAttrString(result, "gpu_data");
+                                        std::cerr << "here 2\n";
+                                        PyObject* ptr_obj = PyObject_GetAttrString(gpu_data_obj, "device_ctypes_pointer");
+                                        std::cerr << "here 3\n";
+                                        PyObject* ptr_val_obj = PyObject_GetAttrString(ptr_obj, "value");
+                                        std::cerr << "here 4\n";
+                                        unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+                                        //fprintf(stderr, "offset value: %lx\n", offset_val);
+                                        PyObject* alloc_size_obj = PyObject_GetAttrString(result, "alloc_size");
+                                        unsigned long long alloc_size_val = PyLong_AsUnsignedLongLongMask(alloc_size_obj);
+                                        fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
+#endif
+                                        return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+			
+			PyObject*  orig_broadcast_func = PyObject_GetAttrString(comm_obj, "broadcast");
+
+			obj.attr("nn").attr("parallel").attr("comm").attr("broadcast") = py::cpp_function([orig_broadcast_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cerr << "nn.parallel.comm.broadcast is intercepted\n";
+                                        py::object traceback = py::module::import("traceback");
+                                        py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                        py::object walk_stack = traceback.attr("walk_stack");
+                                        py::object summary = extract_summary(walk_stack(py::none()));
+                                        //#if 0
+                                        std::cerr << "before call stack printing\n";
+                                        for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                        }
+                                        std::cerr << "after call stack printing\n";
+
+                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                        PyObject* result = PyObject_Call(orig_broadcast_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                        return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+
+			PyObject*  orig_reduceadd_func = PyObject_GetAttrString(comm_obj, "reduce_add");
+
+                        obj.attr("nn").attr("parallel").attr("comm").attr("reduce_add") = py::cpp_function([orig_reduceadd_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cerr << "nn.parallel.comm.reduce_add is intercepted\n";
+                                        py::object traceback = py::module::import("traceback");
+                                        py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                        py::object walk_stack = traceback.attr("walk_stack");
+                                        py::object summary = extract_summary(walk_stack(py::none()));
+                                        //#if 0
+                                        std::cerr << "before call stack printing\n";
+                                        for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                        }
+                                        std::cerr << "after call stack printing\n";
+
+                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                        PyObject* result = PyObject_Call(orig_reduceadd_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                        return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+
+			PyObject*  orig_scatter_func = PyObject_GetAttrString(comm_obj, "scatter");
+
+                        obj.attr("nn").attr("parallel").attr("comm").attr("scatter") = py::cpp_function([orig_scatter_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cerr << "nn.parallel.comm.scatter is intercepted\n";
+                                        py::object traceback = py::module::import("traceback");
+                                        py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                        py::object walk_stack = traceback.attr("walk_stack");
+                                        py::object summary = extract_summary(walk_stack(py::none()));
+                                        //#if 0
+                                        std::cerr << "before call stack printing\n";
+                                        for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                        }
+                                        std::cerr << "after call stack printing\n";
+
+                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                        PyObject* result = PyObject_Call(orig_scatter_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                        return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+
+			PyObject*  orig_gather_func = PyObject_GetAttrString(comm_obj, "gather");
+
+                        obj.attr("nn").attr("parallel").attr("comm").attr("gather") = py::cpp_function([orig_gather_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cerr << "nn.parallel.comm.gather is intercepted\n";
+                                        py::object traceback = py::module::import("traceback");
+                                        py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                        py::object walk_stack = traceback.attr("walk_stack");
+                                        py::object summary = extract_summary(walk_stack(py::none()));
+                                        //#if 0
+                                        std::cerr << "before call stack printing\n";
+                                        for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                        }
+                                        std::cerr << "after call stack printing\n";
+
+                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                        PyObject* result = PyObject_Call(orig_gather_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                        return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+
+                }	
 	};	    
 	my_injection(torch, "tensor");
 	my_injection(torch, "randn");
 	//my_injection(torch, "to");
+	my_injection(torch, "empty_like");
+	my_injection(torch, "nn.parallel.comm");
 	std::cerr << "until here\n";
 }
 
@@ -1775,9 +1924,21 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			if (kernel_name == "all" ||
 					kernel_name == func_name.substr(0, func_name.find("("))) {
 				instrument_function_if_needed(ctx, f);
+				std::cerr << "A kernel named " << func_name << " is detected\n";
 			} else if (kernel_name == "nccl" &&
 					func_name.substr(0, std::string("ncclKernel").length())
 					.compare(std::string("ncclKernel")) == 0) {
+				std::cerr << "A NCCL kernel is detected 1\n";
+#if 0
+				py::object traceback = py::module::import("traceback");
+        			py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+        			py::object walk_stack = traceback.attr("walk_stack");
+        			py::object summary = extract_summary(walk_stack(py::none()));
+        			std::vector<py::handle> stack_vec;
+        			for (py::handle frame : summary) {
+        				std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+        			}
+#endif
 				instrument_function_if_needed(ctx, f);
 			}
 
@@ -1823,10 +1984,23 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			if (kernel_name == "all" ||
 					kernel_name == func_name.substr(0, func_name.find("("))) {
 				/* instrument */
+				std::cerr << "A kernel named " << func_name << " is detected\n";
 				instrument_function_if_needed(ctx, p->f);
 			} else if (kernel_name == "nccl" &&
 					func_name.substr(0, std::string("ncclKernel").length())
 					.compare(std::string("ncclKernel")) == 0) {
+				std::cerr << "A NCCL kernel is detected\n";
+#if 0
+				py::object traceback = py::module::import("traceback");
+                                py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                py::object walk_stack = traceback.attr("walk_stack");
+                                py::object summary = extract_summary(walk_stack(py::none()));
+                                std::vector<py::handle> stack_vec;
+                                for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                }
+#endif
+
 				instrument_function_if_needed(ctx, f);
 			}
 
