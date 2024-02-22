@@ -99,6 +99,7 @@ PyObject* orig_torch_cuda_func;
 //PyObject* orig_torchto_func;
 
 int object_counter = 0;
+int context_counter = 0;
 
 static bool nvshmem_malloc_handled = false;
 static bool object_attribution = false;
@@ -110,86 +111,95 @@ static allocation_site_t *root = NULL;
 
 static allocation_line_hash_table_t *allocation_line_table;
 
+static execution_site_t *exec_root = NULL;
+
+static execution_site_hash_table_t *execution_site_table;
+
 std::vector<adm_range_t *> range_nodes;
 
 std::vector<adm_object_t *> object_nodes;
 
+std::vector<execution_context_t *> context_nodes;
+
 Logger logger("snoopie_log_" + std::to_string(getpid()) + ".zst");
 
-std::map<std::string,
-	std::tuple<std::string, std::vector<int>, std::vector<int>>>
-	line_tracking;
+std::map<std::string, std::tuple<std::string, std::vector<int>, std::vector<int>>> line_tracking;
 
-	void initialize_object_table(int size);
+void initialize_object_table(int size);
 
-	void initialize_line_table(int size);
+void initialize_line_table(int size);
 
-	bool line_exists(int index);
+bool line_exists(int index);
 
-	std::string get_line_file_name(int index);
+std::string get_line_file_name(int index);
 
-	std::string get_line_dir_name(int index);
+std::string get_line_dir_name(int index);
 
-	std::string get_line_sass(int index);
+std::string get_line_sass(int index);
 
-	uint32_t get_line_line_num(int index);
+uint32_t get_line_line_num(int index);
 
-	short get_line_estimated_status(int index);
+short get_line_estimated_status(int index);
 
-	std::string get_object_var_name(uint64_t pc);
+std::string get_object_var_name(uint64_t pc);
 
-	std::string get_object_file_name(uint64_t pc);
+std::string get_object_file_name(uint64_t pc);
 
-	std::string get_object_func_name(uint64_t pc);
+std::string get_object_func_name(uint64_t pc);
 
-	uint32_t get_object_line_num(uint64_t pc);
+uint32_t get_object_line_num(uint64_t pc);
 
-	int get_object_device_id(uint64_t pc);
+int get_object_device_id(uint64_t pc);
 
-	void set_object_device_id(uint64_t pc, int dev_id);
+void set_object_device_id(uint64_t pc, int dev_id);
 
-	uint32_t get_object_data_type_size(uint64_t pc);
+uint32_t get_object_data_type_size(uint64_t pc);
 
-	void set_object_data_type_size(uint64_t pc, const uint32_t type_size);
+void set_object_data_type_size(uint64_t pc, const uint32_t type_size);
 
-	bool object_exists(uint64_t pc);
-	/* lock */
-	pthread_mutex_t mutex1;
-	pthread_mutex_t mutex_pytorch;
+bool object_exists(uint64_t pc);
+/* lock */
+pthread_mutex_t mutex1;
+pthread_mutex_t mutex_pytorch;
 
-	/* map to store context state */
-	std::unordered_map<CUcontext, CTXstate *> ctx_state_map;
+/* map to store context state */
+std::unordered_map<CUcontext, CTXstate *> ctx_state_map;
 
-	/* skip flag used to avoid re-entry on the nvbit_callback when issuing
-	 * flush_channel kernel call */
-	bool skip_callback_flag = false;
+/* skip flag used to avoid re-entry on the nvbit_callback when issuing
+ * flush_channel kernel call */
+bool skip_callback_flag = false;
 
-	/* global control variables for this tool */
-	uint32_t instr_begin_interval = 0;
-	uint32_t instr_end_interval = UINT32_MAX;
-	std::string kernel_name;
-	std::string profiled_nccl_file = "";
-	int on_dev_filtering = 1;
-	int time_log = 0;
-	int verbose = 0;
-	std::string nvshmem_version = "2.8";
-	int nvshmem_ngpus = 10;
-	int silent = 0;
-	int code_attribution = 0;
-	int sample_size;
+/* global control variables for this tool */
+uint32_t instr_begin_interval = 0;
+uint32_t instr_end_interval = UINT32_MAX;
+std::string kernel_name;
+std::string profiled_nccl_file = "";
+int on_dev_filtering = 1;
+int time_log = 0;
+int verbose = 0;
+std::string nvshmem_version = "2.8";
+int nvshmem_ngpus = 10;
+int silent = 0;
+int code_attribution = 0;
+int sample_size;
 
-	/* opcode to id map and reverse map  */
-	std::map<std::string, int> opcode_to_id_map;
-	std::map<int, std::string> id_to_opcode_map;
-	std::vector<MemoryAllocation> mem_allocs;
+/* opcode to id map and reverse map  */
+std::map<std::string, int> opcode_to_id_map;
+std::map<int, std::string> id_to_opcode_map;
+std::vector<MemoryAllocation> mem_allocs;
 
-	allocation_site_t *search_at_level(allocation_site_t *allocation_site,
-			uint64_t pc) {
-		if (allocation_site == NULL || allocation_site->get_pc() == pc)
-			return allocation_site;
+allocation_site_t *search_at_level(allocation_site_t *allocation_site, uint64_t pc) {
+	if (allocation_site == NULL || allocation_site->get_pc() == pc)
+		return allocation_site;
 
-		return search_at_level(allocation_site->get_next_sibling(), pc);
-	}
+	return search_at_level(allocation_site->get_next_sibling(), pc);
+}
+
+execution_site_t *search_site_at_level(execution_site_t *execution_site, uint64_t exec_site_id) {
+	if (execution_site == NULL || execution_site->get_exec_site_id() == exec_site_id)
+		return execution_site;
+	return search_site_at_level(execution_site->get_next_sibling(), exec_site_id);
+}
 
 std::map<unsigned long long, py::cpp_function> cur_tensorto_func;
 int tensorto_func_count = 0;
@@ -1124,33 +1134,65 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                         py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                         py::object walk_stack = traceback.attr("walk_stack");
                                         py::object summary = extract_summary(walk_stack(py::none()));
-                                        //#if 0
+
+//#if 0
+					std::vector<py::handle> stack_vec;
+					execution_site_t *execution_site = NULL;
+					execution_site_t *parent = NULL;	
+					//#if 0
                                         std::cerr << "before call stack printing\n";
                                         for (py::handle frame : summary) {
-                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+						stack_vec.push_back(frame);
+						if(exec_root == NULL) {
+							std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
+							uint64_t key_num = std::hash<std::string>()(filename);
+							exec_root = new execution_site_t(key_num);
+							execution_site = exec_root;
+						}
                                         }
+					parent = exec_root;
+					execution_site = exec_root->get_first_child();
                                         std::cerr << "after call stack printing\n";
 
-                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+					// before *****
+					std::cerr << "before call stack printing1\n";
+					for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+						std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+						int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+						std::string key_str = filename + ":" + std::to_string(lineno);
+						//std::cerr << "key_str: " << key_str << "\n";
+						uint64_t key_num = std::hash<std::string>()(key_str);
+						execution_site_t *line = execution_site_table->find(key_num);
+						if (line == NULL) {
+							execution_site_table->insert(new execution_site_t(
+										key_num, /*func_name,*/ filename, lineno));
+						}	
+						execution_site_t *temp = execution_site;
+						execution_site = search_site_at_level(execution_site, key_num);
 
-                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+						if (execution_site == NULL) {
+							if (temp != NULL) {
+								while (temp->get_next_sibling() != NULL)
+									temp = temp->get_next_sibling();
+								temp->set_next_sibling(new execution_site_t(key_num));
+
+								execution_site = temp->get_next_sibling();
+								execution_site->set_parent(temp->get_parent());
+							} else {
+								parent->set_first_child(new execution_site_t(key_num));
+								execution_site = parent->get_first_child();
+								execution_site->set_parent(parent);
+							}
+						}
+						parent = execution_site;
+						execution_site = execution_site->get_first_child();
+					}	
+					std::cerr << "after call stack printing1\n";
+					if (parent && parent->get_context_id() == 0) {
+						parent->set_context_id(++context_counter);
+						context_nodes.push_back(new execution_context_t(parent->get_context_id(), parent));
+					}
                                         PyObject* result = PyObject_Call(orig_broadcastcoalesced_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
-                                        //PyObject *result, *obj_temp;
-#if 0
-                                        //PyArg_ParseTuple(ret, "O|O", &result, &obj_temp);
-                                        std::cerr << "here 1\n";
-                                        PyObject* gpu_data_obj = PyObject_GetAttrString(result, "gpu_data");
-                                        std::cerr << "here 2\n";
-                                        PyObject* ptr_obj = PyObject_GetAttrString(gpu_data_obj, "device_ctypes_pointer");
-                                        std::cerr << "here 3\n";
-                                        PyObject* ptr_val_obj = PyObject_GetAttrString(ptr_obj, "value");
-                                        std::cerr << "here 4\n";
-                                        unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
-                                        //fprintf(stderr, "offset value: %lx\n", offset_val);
-                                        PyObject* alloc_size_obj = PyObject_GetAttrString(result, "alloc_size");
-                                        unsigned long long alloc_size_val = PyLong_AsUnsignedLongLongMask(alloc_size_obj);
-                                        fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
-#endif
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
 			
@@ -1559,6 +1601,7 @@ void nvbit_at_init() {
 	initialize_object_table(100);
 	allocation_line_table = new allocation_line_hash_table_t(100);
 	initialize_line_table(100);
+	execution_site_table = new execution_site_hash_table_t(100);
 
 	if (code_attribution) {
 		memop_to_line();
@@ -2721,6 +2764,17 @@ void nvbit_at_term() {
 	allocation_line_table->print(object_outfile);
 	object_outfile.close();
 
+	// print execution site table here
+//#if 0
+	ofstream object_outfile3;
+        string object_str3("exec_site_log_");
+        string object_log_str3 = object_str3 + to_string(getpid()) + txt_str;
+        object_outfile3.open(object_log_str3);
+        object_outfile3 << "site_id,file,code_linenum\n";
+        execution_site_table->print(object_outfile3);
+        object_outfile3.close();
+//#endif
+
 	ofstream object_outfile1;
 	string object_str1("address_range_log_");
 	string object_log_str1 = object_str1 + to_string(getpid()) + txt_str;
@@ -2739,6 +2793,7 @@ void nvbit_at_term() {
 		i->print(object_outfile2);
 	object_outfile2.close();
 	delete allocation_line_table;
+	delete execution_site_table;
 	delete root;
 	log_time("End Snoopie");
 	adm_db_fini();

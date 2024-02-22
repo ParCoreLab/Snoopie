@@ -21,6 +21,7 @@ static line_hash_table_t *line_table;
 static pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE> *range_nodes = nullptr;
 static pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE> *ranges = nullptr;
 static pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE> *objects = nullptr;
+static pool_t<execution_context_t, ADM_DB_OBJ_BLOCKSIZE> *execution_contexts = nullptr;
 
 void initialize_line_table(int size) {
   line_table = new line_hash_table_t(size);
@@ -343,6 +344,7 @@ void adamant::adm_db_init() {
   range_nodes = new pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE>;
   ranges = new pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE>;
   objects = new pool_t<adm_object_t, ADM_DB_OBJ_BLOCKSIZE>;
+  execution_contexts = new pool_t<execution_context_t, ADM_DB_OBJ_BLOCKSIZE>;
 }
 
 // ADM_VISIBILITY
@@ -350,6 +352,7 @@ void adamant::adm_db_fini() {
   delete range_nodes;
   delete ranges;
   delete objects;
+  delete execution_contexts;
 }
 
 ADM_VISIBILITY
@@ -383,6 +386,23 @@ void adm_object_t::print(std::ofstream &object_outfile) const noexcept {
     if (temp)
       object_outfile << "<";
   }
+  object_outfile << "\n";
+}
+
+ADM_VISIBILITY
+void execution_context_t::print(std::ofstream &object_outfile) const noexcept {
+
+  int context_id = get_context_id();
+
+  object_outfile << context_id << ",";
+
+  execution_site_t *temp = get_execution_site();
+  while (temp) {
+    object_outfile << temp->get_exec_site_id();
+    temp = temp->get_parent();
+    if (temp)
+      object_outfile << "<";
+  } 
   object_outfile << "\n";
 }
 

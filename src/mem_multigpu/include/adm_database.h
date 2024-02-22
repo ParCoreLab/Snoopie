@@ -200,6 +200,69 @@ public:
   void set_parent(allocation_site_t *parent1) { parent = parent1; }
 };
 
+class execution_site_t {
+  uint64_t exec_site_id;
+  int context_id;
+  std::string file_name;
+  int line_num;
+
+  execution_site_t *first_child, *next_sibling, *parent;
+
+public:
+  execution_site_t(uint64_t input_exec_site_id)
+      : exec_site_id(input_exec_site_id), context_id(0), first_child(NULL), next_sibling(NULL),
+        parent(NULL), line_num(0) {}
+  execution_site_t(uint64_t input_exec_site_id, std::string filename, int lineno)
+      : exec_site_id(input_exec_site_id), context_id(0), first_child(NULL), next_sibling(NULL),
+        parent(NULL), file_name(filename), line_num(lineno) {}
+  ~execution_site_t() {
+    delete next_sibling;
+    delete first_child;
+  }
+  uint64_t get_exec_site_id() { return exec_site_id; }
+  int get_context_id() const noexcept { return context_id; };
+  void set_context_id(const int ctxt_id) noexcept { context_id = ctxt_id; };
+  std::string get_file_name() const noexcept { return file_name; };
+  void set_file_name(std::string filename) { file_name = filename; };
+  int get_line_num() const noexcept { return line_num; };
+  void set_line_num(const int linenum) noexcept { line_num = linenum; };
+  execution_site_t *get_first_child() { return first_child; }
+  execution_site_t *get_next_sibling() { return next_sibling; }
+  execution_site_t *get_parent() { return parent; }
+  void set_exec_site_id(uint64_t site_id) { exec_site_id = site_id; }
+  void set_first_child(execution_site_t *child) { first_child = child; }
+  void set_next_sibling(execution_site_t *sibling) { next_sibling = sibling; }
+  void set_parent(execution_site_t *parent1) { parent = parent1; }
+  void print(std::ofstream &object_outfile) {
+    object_outfile << exec_site_id << ",\"" << file_name << ","
+                   << line_num << "\n";
+  }
+};
+
+
+class execution_context_t {
+  int context_id;
+  execution_site_t *exec_site;
+
+public:
+
+  execution_context_t()
+      : context_id(0), exec_site(NULL) {}
+
+  execution_context_t(int context_id1, execution_site_t *exec_site1)
+      : context_id(context_id1), exec_site(exec_site1) {}
+
+  int get_context_id() const noexcept { return context_id; };
+
+  void set_context_id(const int ctxt_id) noexcept { context_id = ctxt_id; };
+
+  execution_site_t *get_execution_site() const noexcept {
+    return exec_site;
+  };
+
+  void print(std::ofstream &object_outfile) const noexcept;
+};
+
 class adm_object_t {
   int object_id;
   allocation_site_t *allocation_site;

@@ -367,6 +367,65 @@ public:
   }
 };
 
+
+class execution_site_hash_table_t {
+  int hash_table_size; // No. of buckets
+
+  // Pointer to an array containing buckets
+  list<execution_site_t *> *table;
+  uint32_t entry_size;
+
+public:
+  // hash function to map values to key
+  uint64_t hashFunction(uint64_t x) { return (x % 54121 % hash_table_size); }
+
+  int get_size() { return entry_size; }
+
+  execution_site_hash_table_t(int bucket) {
+    entry_size = 0;
+    hash_table_size = bucket;
+    table = new list<execution_site_t *>[hash_table_size];
+  } // Constructor
+
+  // inserts a key into hash table
+  void insert(execution_site_t *line) noexcept {
+    int index = hashFunction(line->get_exec_site_id());
+    table[index].push_back(line);
+    entry_size++;
+  }
+
+  execution_site_t *find(uint64_t exec_site_id) noexcept {
+    // get the hash index of key
+    uint64_t index = hashFunction(exec_site_id);
+
+    if (table[index].empty())
+      return nullptr;
+    // find the key in (index)th list
+    list<execution_site_t *>::iterator i;
+    for (i = table[index].begin(); i != table[index].end(); i++) {
+      if ((*i)->get_exec_site_id() == exec_site_id)
+        break;
+    }
+
+    // if key is found in hash table, remove it
+    if (i != table[index].end())
+      return *i;
+    return nullptr;
+  }
+  
+  void print(std::ofstream &object_outfile) { 
+    // find the key in (index)th list
+    list<execution_site_t *>::iterator i;
+    for (int j = 0; j < hash_table_size; j++) {
+      if (table[j].empty())
+        continue;
+      for (i = table[j].begin(); i != table[j].end(); i++) {
+        (*i)->print(object_outfile);
+      }
+    }
+  }
+};
+
 } // namespace adamant
 
 #endif
