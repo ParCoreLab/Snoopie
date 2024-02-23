@@ -49,7 +49,7 @@ __device__ int last_valid_line_index = -1;
 extern "C" __device__ __noinline__ void
 instrument_mem(int pred, int opcode_id, int dev_id, uint64_t addr,
                uint64_t grid_launch_id, uint64_t pchannel_dev, int global_index,
-               int func_id, int sample_size) {
+               /*int func_id,*/ int context_id, int sample_size) {
   /* if thread is predicated off, return */
   if (!pred) {
     return;
@@ -71,7 +71,8 @@ instrument_mem(int pred, int opcode_id, int dev_id, uint64_t addr,
   ma.lane_id = get_laneid();
   ma.opcode_id = opcode_id;
   ma.global_index = global_index;
-  ma.func_id = func_id;
+  //ma.func_id = func_id;
+  ma.context_id = context_id;
 
   uint64_t blockId =
       blockIdx.x + blockIdx.y * gridDim.x + gridDim.x * gridDim.y * blockIdx.z;

@@ -37,7 +37,8 @@ typedef struct {
   int dev_id;
 
   int lane_id;
-  int func_id;
+  //int func_id;
+  int context_id;
   int opcode_id;
   uint64_t addrs[32];
 

@@ -100,6 +100,7 @@ PyObject* orig_torch_cuda_func;
 
 int object_counter = 0;
 int context_counter = 0;
+int latest_context = 0;
 
 static bool nvshmem_malloc_handled = false;
 static bool object_attribution = false;
@@ -1139,7 +1140,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					std::vector<py::handle> stack_vec;
 					execution_site_t *execution_site = NULL;
 					execution_site_t *parent = NULL;	
-					//#if 0
+//#if 0
                                         std::cerr << "before call stack printing\n";
                                         for (py::handle frame : summary) {
 						stack_vec.push_back(frame);
@@ -1153,10 +1154,10 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					parent = exec_root;
 					execution_site = exec_root->get_first_child();
                                         std::cerr << "after call stack printing\n";
-
 					// before *****
 					std::cerr << "before call stack printing1\n";
 					for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+					//for (py::handle frame : summary) {
 						std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
 						int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
 						std::string key_str = filename + ":" + std::to_string(lineno);
@@ -1191,6 +1192,9 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					if (parent && parent->get_context_id() == 0) {
 						parent->set_context_id(++context_counter);
 						context_nodes.push_back(new execution_context_t(parent->get_context_id(), parent));
+						latest_context = context_counter;
+					} else {
+						latest_context = parent->get_context_id();
 					}
                                         PyObject* result = PyObject_Call(orig_broadcastcoalesced_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
@@ -1653,8 +1657,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 			continue;
 		}
 
-		int func_id = instrumented_functions.size();
-		instrumented_functions[func_id] = nvbit_get_func_name(ctx, f);
+		//int func_id = instrumented_functions.size();
+		//instrumented_functions[func_id] = nvbit_get_func_name(ctx, f);
 
 		/* get vector of instructions of function "f" */
 		const std::vector<Instr *> &instrs = nvbit_get_instrs(ctx, f);
@@ -1890,7 +1894,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 					nvbit_add_call_arg_const_val64(instr,
 							(uint64_t)ctx_state->channel_dev);
 					nvbit_add_call_arg_const_val32(instr, global_index - 1);
-					nvbit_add_call_arg_const_val32(instr, func_id);
+					//nvbit_add_call_arg_const_val32(instr, func_id);
+					nvbit_add_call_arg_const_val32(instr, latest_context);
 					nvbit_add_call_arg_const_val32(instr, sample_size);
 					mref_idx++;
 				}
@@ -2544,7 +2549,7 @@ void *recv_thread_fun(void *args) {
 	if (!silent && ((int)ctx_state_map.size() - 1 == 0)) {
 		std::stringstream ss;
 		ss << "op_code, addr, thread_indx, running_dev_id, mem_dev_id, "
-			"code_linenum, code_line_index, code_line_estimated_status, "
+			"code_linenum, code_line_index, code_line_context, code_line_estimated_status, "
 			"obj_offset, mem_range"
 			<< std::endl;
 		logger.log(ss.str());
@@ -2614,8 +2619,8 @@ void *recv_thread_fun(void *args) {
 					}
 
 					// ignore operations on the same device
-					if (mem_device_id == ma->dev_id)
-						continue;
+					//if (mem_device_id == ma->dev_id)
+						//continue;
 
 					if (mem_device_id == -1)
 						continue;
@@ -2653,7 +2658,7 @@ void *recv_thread_fun(void *args) {
 
 					if (JSON) {
 						ss << "{\"op\": \"" << id_to_opcode_map[ma->opcode_id] << "\", "
-							<< "\"kernel_name\": \"" << instrumented_functions[ma->func_id]
+							//<< "\"kernel_name\": \"" << instrumented_functions[ma->func_id]
 							<< "\", "
 							<< "\"addr\": \"" << HEX(addr1) << "\","
 							<< "\"object_allocation_pc\": \"" << HEX(allocation_pc) << "\", "
@@ -2677,7 +2682,7 @@ void *recv_thread_fun(void *args) {
 					} else {
 						ss << id_to_opcode_map[ma->opcode_id] << "," << HEX(addr1) << ","
 							<< ma->thread_index << "," << ma->dev_id << "," << mem_device_id
-							<< "," << line_linenum << "," << line_index << ","
+							<< "," << line_linenum << "," << line_index << "," << ma->context_id << ","
 							<< line_estimated_status << "," << HEX(offset_address_range)
 							<< "," << 4 << std::endl;
 					}
@@ -2792,6 +2797,18 @@ void nvbit_at_term() {
 	for (auto i : object_nodes)
 		i->print(object_outfile2);
 	object_outfile2.close();
+
+	ofstream object_outfile4;
+        string object_str4("exec_context_log_");
+        string object_log_str4 = object_str4 + to_string(getpid()) + txt_str;
+        object_outfile4.open(object_log_str4);
+        object_outfile4 << "context_id,call_stack\n";
+        for (auto i : context_nodes)
+                i->print(object_outfile4);
+        object_outfile4.close();	
+
+	object_nodes.clear();
+	context_nodes.clear();
 	delete allocation_line_table;
 	delete execution_site_table;
 	delete root;
