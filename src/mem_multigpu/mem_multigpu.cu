@@ -2828,8 +2828,8 @@ void *recv_thread_fun(void *args) {
 					}
 
 					// ignore operations on the same device
-					//if (mem_device_id == ma->dev_id)
-						//continue;
+					if (mem_device_id == ma->dev_id)
+						continue;
 
 					if (mem_device_id == -1)
 						continue;

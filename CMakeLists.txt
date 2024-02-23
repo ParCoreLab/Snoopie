@@ -147,7 +147,7 @@ add_custom_target(stencil_nvshmem_nvidia_test
 add_custom_target(stencil_p2p_base_test_mapping
   COMMAND cuobjdump ./stencil-p2p_base -xelf all
 #COMMAND nvcc -cubin -DHAVE_CUB -Xcompiler -fopenmp -lineinfo -DUSE_NVTX -lnvToolsExt  -std=c++14 jacobi.cu
-  COMMAND nvdisasm --print-line-info stencil-p2p_base*.cubin > memop_to_line.txt
+  COMMAND nvdisasm --print-line-info *.cubin > memop_to_line.txt
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base)
 
 add_custom_target(stencil_p2p_base_test
