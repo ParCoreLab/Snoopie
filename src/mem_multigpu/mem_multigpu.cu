@@ -1209,16 +1209,67 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                         py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                         py::object walk_stack = traceback.attr("walk_stack");
                                         py::object summary = extract_summary(walk_stack(py::none()));
-                                        //#if 0
+
+					std::vector<py::handle> stack_vec;
+					execution_site_t *execution_site = NULL;
+					execution_site_t *parent = NULL;	
+//#if 0
                                         std::cerr << "before call stack printing\n";
                                         for (py::handle frame : summary) {
-                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+						stack_vec.push_back(frame);
+						if(exec_root == NULL) {
+							std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
+							uint64_t key_num = std::hash<std::string>()(filename);
+							exec_root = new execution_site_t(key_num);
+							execution_site = exec_root;
+						}
                                         }
+					parent = exec_root;
+					execution_site = exec_root->get_first_child();
                                         std::cerr << "after call stack printing\n";
+					// before *****
+					std::cerr << "before call stack printing1\n";
+					for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+					//for (py::handle frame : summary) {
+						std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+						int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+						std::string key_str = filename + ":" + std::to_string(lineno);
+						//std::cerr << "key_str: " << key_str << "\n";
+						uint64_t key_num = std::hash<std::string>()(key_str);
+						execution_site_t *line = execution_site_table->find(key_num);
+						if (line == NULL) {
+							execution_site_table->insert(new execution_site_t(
+										key_num, /*func_name,*/ filename, lineno));
+						}	
+						execution_site_t *temp = execution_site;
+						execution_site = search_site_at_level(execution_site, key_num);
 
-                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+						if (execution_site == NULL) {
+							if (temp != NULL) {
+								while (temp->get_next_sibling() != NULL)
+									temp = temp->get_next_sibling();
+								temp->set_next_sibling(new execution_site_t(key_num));
 
-                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+								execution_site = temp->get_next_sibling();
+								execution_site->set_parent(temp->get_parent());
+							} else {
+								parent->set_first_child(new execution_site_t(key_num));
+								execution_site = parent->get_first_child();
+								execution_site->set_parent(parent);
+							}
+						}
+						parent = execution_site;
+						execution_site = execution_site->get_first_child();
+					}	
+					std::cerr << "after call stack printing1\n";
+					if (parent && parent->get_context_id() == 0) {
+						parent->set_context_id(++context_counter);
+						context_nodes.push_back(new execution_context_t(parent->get_context_id(), parent));
+						latest_context = context_counter;
+					} else {
+						latest_context = parent->get_context_id();
+					}	
+
                                         PyObject* result = PyObject_Call(orig_broadcast_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
@@ -1232,16 +1283,67 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                         py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                         py::object walk_stack = traceback.attr("walk_stack");
                                         py::object summary = extract_summary(walk_stack(py::none()));
-                                        //#if 0
+
+					std::vector<py::handle> stack_vec;
+					execution_site_t *execution_site = NULL;
+					execution_site_t *parent = NULL;	
+//#if 0
                                         std::cerr << "before call stack printing\n";
                                         for (py::handle frame : summary) {
-                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+						stack_vec.push_back(frame);
+						if(exec_root == NULL) {
+							std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
+							uint64_t key_num = std::hash<std::string>()(filename);
+							exec_root = new execution_site_t(key_num);
+							execution_site = exec_root;
+						}
                                         }
+					parent = exec_root;
+					execution_site = exec_root->get_first_child();
                                         std::cerr << "after call stack printing\n";
+					// before *****
+					std::cerr << "before call stack printing1\n";
+					for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+					//for (py::handle frame : summary) {
+						std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+						int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+						std::string key_str = filename + ":" + std::to_string(lineno);
+						//std::cerr << "key_str: " << key_str << "\n";
+						uint64_t key_num = std::hash<std::string>()(key_str);
+						execution_site_t *line = execution_site_table->find(key_num);
+						if (line == NULL) {
+							execution_site_table->insert(new execution_site_t(
+										key_num, /*func_name,*/ filename, lineno));
+						}	
+						execution_site_t *temp = execution_site;
+						execution_site = search_site_at_level(execution_site, key_num);
 
-                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+						if (execution_site == NULL) {
+							if (temp != NULL) {
+								while (temp->get_next_sibling() != NULL)
+									temp = temp->get_next_sibling();
+								temp->set_next_sibling(new execution_site_t(key_num));
 
-                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+								execution_site = temp->get_next_sibling();
+								execution_site->set_parent(temp->get_parent());
+							} else {
+								parent->set_first_child(new execution_site_t(key_num));
+								execution_site = parent->get_first_child();
+								execution_site->set_parent(parent);
+							}
+						}
+						parent = execution_site;
+						execution_site = execution_site->get_first_child();
+					}	
+					std::cerr << "after call stack printing1\n";
+					if (parent && parent->get_context_id() == 0) {
+						parent->set_context_id(++context_counter);
+						context_nodes.push_back(new execution_context_t(parent->get_context_id(), parent));
+						latest_context = context_counter;
+					} else {
+						latest_context = parent->get_context_id();
+					}
+
                                         PyObject* result = PyObject_Call(orig_reduceadd_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
@@ -1255,12 +1357,66 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                         py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                         py::object walk_stack = traceback.attr("walk_stack");
                                         py::object summary = extract_summary(walk_stack(py::none()));
-                                        //#if 0
+                                       
+					std::vector<py::handle> stack_vec;
+					execution_site_t *execution_site = NULL;
+					execution_site_t *parent = NULL;	
+//#if 0
                                         std::cerr << "before call stack printing\n";
                                         for (py::handle frame : summary) {
-                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+						stack_vec.push_back(frame);
+						if(exec_root == NULL) {
+							std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
+							uint64_t key_num = std::hash<std::string>()(filename);
+							exec_root = new execution_site_t(key_num);
+							execution_site = exec_root;
+						}
                                         }
+					parent = exec_root;
+					execution_site = exec_root->get_first_child();
                                         std::cerr << "after call stack printing\n";
+					// before *****
+					std::cerr << "before call stack printing1\n";
+					for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+					//for (py::handle frame : summary) {
+						std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+						int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+						std::string key_str = filename + ":" + std::to_string(lineno);
+						//std::cerr << "key_str: " << key_str << "\n";
+						uint64_t key_num = std::hash<std::string>()(key_str);
+						execution_site_t *line = execution_site_table->find(key_num);
+						if (line == NULL) {
+							execution_site_table->insert(new execution_site_t(
+										key_num, /*func_name,*/ filename, lineno));
+						}	
+						execution_site_t *temp = execution_site;
+						execution_site = search_site_at_level(execution_site, key_num);
+
+						if (execution_site == NULL) {
+							if (temp != NULL) {
+								while (temp->get_next_sibling() != NULL)
+									temp = temp->get_next_sibling();
+								temp->set_next_sibling(new execution_site_t(key_num));
+
+								execution_site = temp->get_next_sibling();
+								execution_site->set_parent(temp->get_parent());
+							} else {
+								parent->set_first_child(new execution_site_t(key_num));
+								execution_site = parent->get_first_child();
+								execution_site->set_parent(parent);
+							}
+						}
+						parent = execution_site;
+						execution_site = execution_site->get_first_child();
+					}	
+					std::cerr << "after call stack printing1\n";
+					if (parent && parent->get_context_id() == 0) {
+						parent->set_context_id(++context_counter);
+						context_nodes.push_back(new execution_context_t(parent->get_context_id(), parent));
+						latest_context = context_counter;
+					} else {
+						latest_context = parent->get_context_id();
+					} 
 
                                         //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
 
@@ -1278,13 +1434,66 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                                         py::object extract_summary = traceback.attr("StackSummary").attr("extract");
                                         py::object walk_stack = traceback.attr("walk_stack");
                                         py::object summary = extract_summary(walk_stack(py::none()));
-                                        //#if 0
+
+					std::vector<py::handle> stack_vec;
+					execution_site_t *execution_site = NULL;
+					execution_site_t *parent = NULL;	
+//#if 0
                                         std::cerr << "before call stack printing\n";
                                         for (py::handle frame : summary) {
-                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+						stack_vec.push_back(frame);
+						if(exec_root == NULL) {
+							std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
+							uint64_t key_num = std::hash<std::string>()(filename);
+							exec_root = new execution_site_t(key_num);
+							execution_site = exec_root;
+						}
                                         }
+					parent = exec_root;
+					execution_site = exec_root->get_first_child();
                                         std::cerr << "after call stack printing\n";
+					// before *****
+					std::cerr << "before call stack printing1\n";
+					for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
+					//for (py::handle frame : summary) {
+						std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
+						int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
+						std::string key_str = filename + ":" + std::to_string(lineno);
+						//std::cerr << "key_str: " << key_str << "\n";
+						uint64_t key_num = std::hash<std::string>()(key_str);
+						execution_site_t *line = execution_site_table->find(key_num);
+						if (line == NULL) {
+							execution_site_table->insert(new execution_site_t(
+										key_num, /*func_name,*/ filename, lineno));
+						}	
+						execution_site_t *temp = execution_site;
+						execution_site = search_site_at_level(execution_site, key_num);
 
+						if (execution_site == NULL) {
+							if (temp != NULL) {
+								while (temp->get_next_sibling() != NULL)
+									temp = temp->get_next_sibling();
+								temp->set_next_sibling(new execution_site_t(key_num));
+
+								execution_site = temp->get_next_sibling();
+								execution_site->set_parent(temp->get_parent());
+							} else {
+								parent->set_first_child(new execution_site_t(key_num));
+								execution_site = parent->get_first_child();
+								execution_site->set_parent(parent);
+							}
+						}
+						parent = execution_site;
+						execution_site = execution_site->get_first_child();
+					}	
+					std::cerr << "after call stack printing1\n";
+					if (parent && parent->get_context_id() == 0) {
+						parent->set_context_id(++context_counter);
+						context_nodes.push_back(new execution_context_t(parent->get_context_id(), parent));
+						latest_context = context_counter;
+					} else {
+						latest_context = parent->get_context_id();
+					}
                                         //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
 
                                         //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
