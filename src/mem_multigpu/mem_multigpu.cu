@@ -1742,7 +1742,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		}
 		std::stringstream ss;
 		ss << find_cbid_name(cbid) << "," << HEX(addr1) << "," << -1 << ","
-			<< srcDeviceID << "," << dstDeviceID << "," << -1 << "," << -1 << ","
+			<< srcDeviceID << "," << dstDeviceID << "," << -1 << "," << ((latest_context > 0) ? latest_context : -1) << ","
 			<< -1 << "," << HEX(offset_address_range) << "," << p->ByteCount
 			<< std::endl;
 		logger.log(ss.str());
