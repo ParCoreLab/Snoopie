@@ -213,7 +213,7 @@ inline py::object extract_python_callpath()
 	return extract_summary(walk_stack(py::none()));
 }
 
-inline void update_allocation_site_tree(py::object summary, allocation_site_t **allocation_site, allocation_site_t **parent)
+inline void update_allocation_site_tree(py::object& summary, allocation_site_t **allocation_site, allocation_site_t **parent)
 {
 	std::vector<py::handle> stack_vec;
 	for (py::handle frame : summary) {
@@ -264,7 +264,7 @@ inline void update_allocation_site_tree(py::object summary, allocation_site_t **
 	}
 }
 
-inline void update_exec_site_tree(py::object summary, execution_site_t **execution_site, execution_site_t **parent)
+inline void update_exec_site_tree(py::object& summary, execution_site_t **execution_site, execution_site_t **parent)
 {
 	std::vector<py::handle> stack_vec;
 	//execution_site_t *execution_site = NULL;
@@ -311,6 +311,53 @@ inline void update_exec_site_tree(py::object summary, execution_site_t **executi
 		*execution_site = (*execution_site)->get_first_child();
 	}
 }
+
+//#if 0
+inline void update_exec_site_tree_cpp(std::vector<stacktrace_frame>& trace, execution_site_t **execution_site, execution_site_t **parent)
+{
+	//allocation_site_t *allocation_site = root;
+	//allocation_site_t *parent = NULL;
+	*execution_site = exec_root;
+	std::cerr << "stack begins\n";
+	for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr) {
+			std::cerr << "file " << itr->filename << ", line no " << itr->line << "\n";
+                        execution_site_t *line = execution_site_table->find(itr->address);
+                        if (line == NULL) {
+                                execution_site_table->insert(new execution_site_t(
+                                                        itr->address, itr->filename, itr->line));
+                        }
+                        if (exec_root == NULL) {
+                                exec_root = new execution_site_t(itr->address);
+                                *execution_site = exec_root;
+
+                                *parent = *execution_site;
+                                *execution_site = (*execution_site)->get_first_child();
+                                continue;
+                        }
+                        execution_site_t *temp = *execution_site;
+                        *execution_site = search_site_at_level(*execution_site, itr->address);
+                        if (*execution_site == NULL) {
+                                if (temp != NULL) {
+
+                                        while (temp->get_next_sibling() != NULL)
+                                                temp = temp->get_next_sibling();
+                                        temp->set_next_sibling(new execution_site_t(itr->address));
+
+                                        *execution_site = temp->get_next_sibling();
+                                        (*execution_site)->set_parent(temp->get_parent());
+                                } else {
+
+                                        (*parent)->set_first_child(new execution_site_t(itr->address));
+
+                                        *execution_site = (*parent)->get_first_child();
+                                        (*execution_site)->set_parent(*parent);
+                                }
+                        }
+                        *parent = *execution_site;
+                        *execution_site = (*execution_site)->get_first_child();
+	}
+}
+//#endif
 
 inline void record_exec_context(execution_site_t *parent) {
 	if (parent && parent->get_context_id() == 0) {
@@ -1178,6 +1225,14 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 	/* add kernel itself to the related function vector */
 	related_functions.push_back(func);
 
+	// begin
+	std::vector<stacktrace_frame> trace = generate_trace();
+	execution_site_t *execution_site = NULL;
+	execution_site_t *parent = NULL;
+	update_exec_site_tree_cpp(trace, &execution_site, &parent);
+	record_exec_context(parent);
+	// end
+
 	/* iterate on function */
 	for (auto f : related_functions) {
 		/* "recording" function was instrumented, if set insertion failed
@@ -1501,11 +1556,11 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			if (kernel_name == "all" ||
 					kernel_name == func_name.substr(0, func_name.find("("))) {
 				instrument_function_if_needed(ctx, f);
-				std::cerr << "A kernel named " << func_name << " is detected\n";
+				//std::cerr << "A kernel named " << func_name << " is detected\n";
 			} else if (kernel_name == "nccl" &&
 					func_name.substr(0, std::string("ncclKernel").length())
 					.compare(std::string("ncclKernel")) == 0) {
-				std::cerr << "A NCCL kernel is detected 1\n";
+				//std::cerr << "A NCCL kernel is detected 1\n";
 #if 0
 				py::object traceback = py::module::import("traceback");
         			py::object extract_summary = traceback.attr("StackSummary").attr("extract");
@@ -1561,12 +1616,12 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			if (kernel_name == "all" ||
 					kernel_name == func_name.substr(0, func_name.find("("))) {
 				/* instrument */
-				std::cerr << "A kernel named " << func_name << " is detected\n";
+				//std::cerr << "A kernel named " << func_name << " is detected\n";
 				instrument_function_if_needed(ctx, p->f);
 			} else if (kernel_name == "nccl" &&
 					func_name.substr(0, std::string("ncclKernel").length())
 					.compare(std::string("ncclKernel")) == 0) {
-				std::cerr << "A NCCL kernel is detected\n";
+				//std::cerr << "A NCCL kernel is detected\n";
 #if 0
 				py::object traceback = py::module::import("traceback");
                                 py::object extract_summary = traceback.attr("StackSummary").attr("extract");
