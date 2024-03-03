@@ -320,9 +320,9 @@ inline void update_exec_site_tree_cpp(std::vector<stacktrace_frame>& trace, exec
 	//allocation_site_t *allocation_site = root;
 	//allocation_site_t *parent = NULL;
 	*execution_site = exec_root;
-	std::cerr << "stack begins\n";
+	//std::cerr << "stack begins\n";
 	for (auto itr = trace.rbegin(); itr != trace.rend(); ++itr) {
-			std::cerr << "file " << itr->filename << ", line no " << itr->line << "\n";
+			//std::cerr << "file " << itr->filename << ", line no " << itr->line << "\n";
                         execution_site_t *line = execution_site_table->find(itr->address);
                         if (line == NULL) {
                                 execution_site_table->insert(new execution_site_t(
@@ -2015,6 +2015,7 @@ void *nvshmem_malloc(size_t size) {
 		(void *(*)(size_t))dlsym(RTLD_NEXT, "nvshmem_malloc");
 	nvshmem_malloc_handled = true;
 	void *allocated_memory = ori_nvshmem_malloc(size);
+	fprintf(stderr, "nvshmem_malloc allocates a memory range with offset %lx\n", allocated_memory);
 	nvshmem_malloc_handled = false;
 
 	if (data_object_attribution) {
