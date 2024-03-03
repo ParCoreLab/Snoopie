@@ -183,6 +183,7 @@ int nvshmem_ngpus = 10;
 int silent = 0;
 int code_attribution = 0;
 int code_context = 0;
+int data_object_attribution = 0;
 int sample_size;
 
 /* opcode to id map and reverse map  */
@@ -401,20 +402,22 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
 			obj.attr("cuda").attr("cudadrv").attr("devicearray").attr("DeviceNDArray") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
 					//std::cout << msg.cast<std::string>();
-					std::cerr << "cuda.cudadrv.devicearray.DeviceNDArray is intercepted\n";	
-					py::object summary = extract_python_callpath();
-					std::vector<py::handle> stack_vec;
-
-					allocation_site_t *allocation_site = NULL;
-					allocation_site_t *parent = NULL;	
-
-					update_allocation_site_tree(summary, &allocation_site, &parent);
-
-					std::string filename;
-
-					record_object_allocation_context(parent);
+					std::cerr << "cuda.cudadrv.devicearray.DeviceNDArray is intercepted\n";
 
 					PyObject* result = PyObject_Call(orig_cudadevicendarray_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+					
+					py::object summary = extract_python_callpath();
+                                        std::vector<py::handle> stack_vec;
+
+                                        allocation_site_t *allocation_site = NULL;
+                                        allocation_site_t *parent = NULL;
+
+                                        update_allocation_site_tree(summary, &allocation_site, &parent);
+
+                                        std::string filename;
+
+                                        record_object_allocation_context(parent);
+
 					PyObject* gpu_data_obj = PyObject_GetAttrString(result, "gpu_data");
 					PyObject* ptr_obj = PyObject_GetAttrString(gpu_data_obj, "device_ctypes_pointer");
 					PyObject* ptr_val_obj = PyObject_GetAttrString(ptr_obj, "value");
@@ -427,9 +430,9 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 						cudaGetDevice(&deviceID);
 
 						adm_range_insert(offset_val, alloc_size_val, parent->get_pc(),
-								deviceID, "", ADM_STATE_ALLOC);
+							deviceID, "", ADM_STATE_ALLOC);
 						range_nodes.push_back(new adm_range_t(
-									offset_val, alloc_size_val, parent->get_object_id(), deviceID));
+							offset_val, alloc_size_val, parent->get_object_id(), deviceID));
 					}	
 
 					fprintf(stderr, "offset value: %lx and allocation size: %ld\n", offset_val, alloc_size_val);
@@ -446,9 +449,9 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 			obj.attr("cuda").attr("cudadrv").attr("devicearray").attr("DeviceRecord") = py::cpp_function([](const py::args &args, const py::kwargs &kwargs) {
 					//std::cout << msg.cast<std::string>();
 					std::cerr << "cuda.cudadrv.devicearray.DeviceRecord is intercepted\n";
-					py::object summary = extract_python_callpath();
 
 					PyObject* result = PyObject_Call(orig_cudadevicerecord_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+					py::object summary = extract_python_callpath();
 					PyObject* gpu_data_obj = PyObject_GetAttrString(result, "gpu_data");
 					PyObject* ptr_obj = PyObject_GetAttrString(gpu_data_obj, "device_ctypes_pointer");
 					PyObject* ptr_val_obj = PyObject_GetAttrString(ptr_obj, "value");
@@ -879,10 +882,12 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
                 }	
 	};	    
-	my_injection(torch, "tensor");
-	my_injection(torch, "randn");
-	//my_injection(torch, "to");
-	my_injection(torch, "empty_like");
+	if(data_object_attribution) {
+		my_injection(torch, "tensor");
+		my_injection(torch, "randn");
+		//my_injection(torch, "to");
+		my_injection(torch, "empty_like");
+	}
 	my_injection(torch, "nn.parallel.comm");
 	std::cerr << "until here\n";
 }
@@ -1183,6 +1188,8 @@ void nvbit_at_init() {
 			"is sampled");
 	GET_VAR_INT(code_context, "CODE_CONTEXT", 1,
                         "Enable source code line execution context retrieval");
+	GET_VAR_INT(data_object_attribution, "DATA_OBJECT_ATTRIBUTION", 1,
+                        "Enable data object attribution");
 
 	std::string pad(100, '-');
 	if (verbose) {
@@ -1847,6 +1854,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		logger.log(ss.str());
 	}
 
+	if (data_object_attribution) {
 	if (is_exit &&
 			(cbid == API_CUDA_cuMemAlloc || cbid == API_CUDA_cuMemAlloc_v2 ||
 			 cbid == API_CUDA_cuMemAllocHost || cbid == API_CUDA_cuMemAllocHost_v2 ||
@@ -1936,6 +1944,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 						ma.pointer, ma.bytesize, parent->get_object_id(), ma.deviceID));
 		}
 	}
+	}
 	skip_callback_flag = false;
 	log_time(std::string("End Cuda Event ") + (is_exit ? "Exit" : "Enter") +
 			find_cbid_name(cbid));
@@ -2008,6 +2017,7 @@ void *nvshmem_malloc(size_t size) {
 	void *allocated_memory = ori_nvshmem_malloc(size);
 	nvshmem_malloc_handled = false;
 
+	if (data_object_attribution) {
 	int deviceID = -1;
 	cudaGetDevice(&deviceID);
 	std::vector<stacktrace_frame> trace = generate_trace();
@@ -2085,6 +2095,7 @@ void *nvshmem_malloc(size_t size) {
 		ma.pointer = (uint64_t)allocated_memory;
 		ma.bytesize = size;
 		mem_allocs.push_back(ma);
+	}
 	}
 	return allocated_memory;
 }
@@ -2355,47 +2366,48 @@ void nvbit_at_term() {
 	if (object_attribution) {
 		adm_ranges_print();
 	}
-	adm_line_table_print();
+	if(code_attribution)
+		adm_line_table_print();
 
-	ofstream object_outfile;
-	string object_str("mem_alloc_site_log_");
-	string txt_str(".txt");
-	string object_log_str = object_str + to_string(getpid()) + txt_str;
-	object_outfile.open(object_log_str);
-	object_outfile << "pc,func_name,file_name,line_no\n";
-	allocation_line_table->print(object_outfile);
-	object_outfile.close();
+	if(data_object_attribution) {
+		ofstream object_outfile;
+		string object_str("mem_alloc_site_log_");
+		string txt_str(".txt");
+		string object_log_str = object_str + to_string(getpid()) + txt_str;
+		object_outfile.open(object_log_str);
+		object_outfile << "pc,func_name,file_name,line_no\n";
+		allocation_line_table->print(object_outfile);
+		object_outfile.close();
 
-	// print execution site table here
-//#if 0
-	ofstream object_outfile3;
-        string object_str3("exec_site_log_");
-        string object_log_str3 = object_str3 + to_string(getpid()) + txt_str;
-        object_outfile3.open(object_log_str3);
-        object_outfile3 << "site_id,file,code_linenum\n";
-        execution_site_table->print(object_outfile3);
-        object_outfile3.close();
-//#endif
+		ofstream object_outfile1;
+		string object_str1("address_range_log_");
+		string object_log_str1 = object_str1 + to_string(getpid()) + txt_str;
+		object_outfile1.open(object_log_str1);
+		object_outfile1 << "offset,size,obj_id,dev_id\n";
+		for (auto i : range_nodes)
+			i->print(object_outfile1);
+		object_outfile1.close();
 
-	ofstream object_outfile1;
-	string object_str1("address_range_log_");
-	string object_log_str1 = object_str1 + to_string(getpid()) + txt_str;
-	object_outfile1.open(object_log_str1);
-	object_outfile1 << "offset,size,obj_id,dev_id\n";
-	for (auto i : range_nodes)
-		i->print(object_outfile1);
-	object_outfile1.close();
-
-	ofstream object_outfile2;
-	string object_str2("data_object_log_");
-	string object_log_str2 = object_str2 + to_string(getpid()) + txt_str;
-	object_outfile2.open(object_log_str2);
-	object_outfile2 << "obj_id,var_name,call_stack\n";
-	for (auto i : object_nodes)
-		i->print(object_outfile2);
-	object_outfile2.close();
+		ofstream object_outfile2;
+		string object_str2("data_object_log_");
+		string object_log_str2 = object_str2 + to_string(getpid()) + txt_str;
+		object_outfile2.open(object_log_str2);
+		object_outfile2 << "obj_id,var_name,call_stack\n";
+		for (auto i : object_nodes)
+			i->print(object_outfile2);
+		object_outfile2.close();
+	}
 
 	if(code_context) {
+		ofstream object_outfile3;
+        	string object_str3("exec_site_log_");
+		string txt_str(".txt");
+        	string object_log_str3 = object_str3 + to_string(getpid()) + txt_str;
+        	object_outfile3.open(object_log_str3);
+        	object_outfile3 << "site_id,file,code_linenum\n";
+        	execution_site_table->print(object_outfile3);
+        	object_outfile3.close();
+
 		ofstream object_outfile4;
         	string object_str4("exec_context_log_");
         	string object_log_str4 = object_str4 + to_string(getpid()) + txt_str;
