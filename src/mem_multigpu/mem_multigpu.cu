@@ -182,6 +182,7 @@ std::string nvshmem_version = "2.8";
 int nvshmem_ngpus = 10;
 int silent = 0;
 int code_attribution = 0;
+int code_context = 0;
 int sample_size;
 
 /* opcode to id map and reverse map  */
@@ -801,11 +802,13 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                         obj.attr("nn").attr("parallel").attr("comm").attr("broadcast_coalesced") = py::cpp_function([orig_broadcastcoalesced_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.broadcast_coalesced is intercepted\n";
-                                        py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
-					execution_site_t *execution_site = NULL;
-					execution_site_t *parent = NULL;	
-					update_exec_site_tree(summary, &execution_site, &parent);
-					record_exec_context(parent);
+					if(code_context) {
+                                        	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
+						execution_site_t *execution_site = NULL;
+						execution_site_t *parent = NULL;	
+						update_exec_site_tree(summary, &execution_site, &parent);
+						record_exec_context(parent);
+					}
                                         PyObject* result = PyObject_Call(orig_broadcastcoalesced_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
@@ -815,12 +818,13 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 			obj.attr("nn").attr("parallel").attr("comm").attr("broadcast") = py::cpp_function([orig_broadcast_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.broadcast is intercepted\n";
-                                        py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
-                                        execution_site_t *execution_site = NULL;
-                                        execution_site_t *parent = NULL;
-                                        update_exec_site_tree(summary, &execution_site, &parent);
-                                        record_exec_context(parent);  
-
+					if(code_context) {
+                                        	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
+                                        	execution_site_t *execution_site = NULL;
+                                        	execution_site_t *parent = NULL;
+                                        	update_exec_site_tree(summary, &execution_site, &parent);
+                                        	record_exec_context(parent); 
+ 					}
                                         PyObject* result = PyObject_Call(orig_broadcast_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
@@ -830,12 +834,13 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                         obj.attr("nn").attr("parallel").attr("comm").attr("reduce_add") = py::cpp_function([orig_reduceadd_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.reduce_add is intercepted\n";
-                                       	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
-                                        execution_site_t *execution_site = NULL;
-                                        execution_site_t *parent = NULL;
-                                        update_exec_site_tree(summary, &execution_site, &parent);
-                                        record_exec_context(parent); 
-
+					if(code_context) {
+                                       		py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
+                                        	execution_site_t *execution_site = NULL;
+                                        	execution_site_t *parent = NULL;
+                                        	update_exec_site_tree(summary, &execution_site, &parent);
+                                        	record_exec_context(parent); 
+					}
                                         PyObject* result = PyObject_Call(orig_reduceadd_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
@@ -845,11 +850,13 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                         obj.attr("nn").attr("parallel").attr("comm").attr("scatter") = py::cpp_function([orig_scatter_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.scatter is intercepted\n";
-                                        py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
-                                        execution_site_t *execution_site = NULL;
-                                        execution_site_t *parent = NULL;
-                                        update_exec_site_tree(summary, &execution_site, &parent);
-                                        record_exec_context(parent);
+					if(code_context) {
+                                        	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
+                                        	execution_site_t *execution_site = NULL;
+                                        	execution_site_t *parent = NULL;
+                                        	update_exec_site_tree(summary, &execution_site, &parent);
+                                        	record_exec_context(parent);
+					}
                                         PyObject* result = PyObject_Call(orig_scatter_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
@@ -859,11 +866,13 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                         obj.attr("nn").attr("parallel").attr("comm").attr("gather") = py::cpp_function([orig_gather_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.gather is intercepted\n";
-                                        py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
-                                        execution_site_t *execution_site = NULL;
-                                        execution_site_t *parent = NULL;
-                                        update_exec_site_tree(summary, &execution_site, &parent);
-                                        record_exec_context(parent); 
+					if(code_context) {
+                                        	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
+                                        	execution_site_t *execution_site = NULL;
+                                        	execution_site_t *parent = NULL;
+                                        	update_exec_site_tree(summary, &execution_site, &parent);
+                                        	record_exec_context(parent); 
+					}
                                         PyObject* result = PyObject_Call(orig_gather_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
                                         return py::reinterpret_borrow<py::object>(result);//result;//orig_empty_like_func(args/*, kwargs*/);
                         });
@@ -1172,6 +1181,8 @@ void nvbit_at_init() {
 	GET_VAR_INT(sample_size, "SAMPLE_SIZE", 1,
 			"Setting the sample size, if 100, it means 1/100 of population "
 			"is sampled");
+	GET_VAR_INT(code_context, "CODE_CONTEXT", 1,
+                        "Enable source code line execution context retrieval");
 
 	std::string pad(100, '-');
 	if (verbose) {
@@ -1226,11 +1237,13 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 	related_functions.push_back(func);
 
 	// begin
-	std::vector<stacktrace_frame> trace = generate_trace();
-	execution_site_t *execution_site = NULL;
-	execution_site_t *parent = NULL;
-	update_exec_site_tree_cpp(trace, &execution_site, &parent);
-	record_exec_context(parent);
+	if(code_context) {
+		std::vector<stacktrace_frame> trace = generate_trace();
+		execution_site_t *execution_site = NULL;
+		execution_site_t *parent = NULL;
+		update_exec_site_tree_cpp(trace, &execution_site, &parent);
+		record_exec_context(parent);
+	}
 	// end
 
 	/* iterate on function */
@@ -2382,14 +2395,16 @@ void nvbit_at_term() {
 		i->print(object_outfile2);
 	object_outfile2.close();
 
-	ofstream object_outfile4;
-        string object_str4("exec_context_log_");
-        string object_log_str4 = object_str4 + to_string(getpid()) + txt_str;
-        object_outfile4.open(object_log_str4);
-        object_outfile4 << "context_id,call_stack\n";
-        for (auto i : context_nodes)
-                i->print(object_outfile4);
-        object_outfile4.close();	
+	if(code_context) {
+		ofstream object_outfile4;
+        	string object_str4("exec_context_log_");
+        	string object_log_str4 = object_str4 + to_string(getpid()) + txt_str;
+        	object_outfile4.open(object_log_str4);
+        	object_outfile4 << "context_id,call_stack\n";
+        	for (auto i : context_nodes)
+                	i->print(object_outfile4);
+        	object_outfile4.close();	
+	}
 
 	object_nodes.clear();
 	context_nodes.clear();

@@ -156,7 +156,7 @@ add_custom_target(stencil_p2p_base_test
   DEPENDS stencil_p2p_base_test_mapping
 #COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/memop_to_line.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base/*.cubin
-  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 CODE_CONTEXT=1 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 add_custom_target(stencil_tb_singlestream_test_mapping
