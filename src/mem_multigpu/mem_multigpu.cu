@@ -2011,6 +2011,7 @@ cudaError_t cudaMallocWrap(void **devPtr, size_t size, const char *var_name,
 }
 
 void *nvshmem_malloc(size_t size) {
+	fprintf(stderr, "an nvshmem_malloc is intercepted\n");
 	void *(*ori_nvshmem_malloc)(size_t) =
 		(void *(*)(size_t))dlsym(RTLD_NEXT, "nvshmem_malloc");
 	nvshmem_malloc_handled = true;

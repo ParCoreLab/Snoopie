@@ -93,4 +93,4 @@ instrument_mem(int pred, int opcode_id, int dev_id, uint64_t addr,
 }
 
 // BLACK MAGIC DONT REMOVE
-__global__ void trickary() { instrument_mem(0, 0, 0, 0, 0, 0, 0, 0, 0); }
+//__global__ void trickary() { instrument_mem(0, 0, 0, 0, 0, 0, 0, 0, 0); }
