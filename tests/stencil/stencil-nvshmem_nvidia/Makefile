@@ -24,7 +24,7 @@ jacobi.o: jacobi.cu
 	#nvdisasm --print-line-info main.cubin > testfile.txt
 	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $< -lineinfo
 	cuobjdump $@ -xelf all
-	nvdisasm --print-line-info jacobi*.sm_80.cubin > testfile.txt
+	nvdisasm --print-line-info *.cubin > testfile.txt
 
 libwrapper.so: wrapper.o
 	$(NVCC) -g -shared --generate-line-info -o $@ $< -lineinfo

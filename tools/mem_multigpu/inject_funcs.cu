@@ -103,3 +103,5 @@ extern "C" __device__ __noinline__ void instrument_mem(int pred, int opcode_id, 
     }
 //#endif
 }
+
+__global__ void trickary() { instrument_mem(0, 0, 0, 0, 0, 0, 0, 0, 0); }
