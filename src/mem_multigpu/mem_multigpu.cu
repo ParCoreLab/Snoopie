@@ -66,6 +66,10 @@
 #include "common.h"
 #include "util.h"
 
+#include "mpi.h"
+#include "nvshmem.h"
+#include "nvshmemx.h"
+
 #include <sys/syscall.h>
 #define gettid() syscall(SYS_gettid)
 

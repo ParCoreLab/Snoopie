@@ -10,10 +10,10 @@ endif
 
 NVBIT_PATH=../../core
 #INCLUDES=-I$(NVBIT_PATH) -I. -I../../../libunwind-install/include
-INCLUDES=-I$(NVBIT_PATH) -I. -I./include -I../../../libunwind-install/include -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include -I$(CPPTRACE_HOME)/include -I$(PYTHON_HOME)/include/python3.10 -I$(PYTHON_HOME)/lib/python3.10/site-packages/numpy/core/include -I/home/it4i-msasong/.local/lib/python3.10/site-packages/pybind11/include
+INCLUDES=-I$(NVBIT_PATH) -I. -I./include -I../../../libunwind-install/include -I$(NVSHMEM_HOME)/include -I$(MPI_HOME)/include -I$(CPPTRACE_HOME)/include -I$(PYTHON_HOME)/include/python3.9 -I/home/msasongko17/.local/lib/python3.9/site-packages/numpy/core/include -I/home/msasongko17/.local/lib/python3.9/site-packages/pybind11/include
 
 #LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib
-LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib -L$(CPPTRACE_HOME)/lib64 -lcpptrace -L$(PYTHON_HOME)/lib -L$(PYTHON_HOME)/lib64 -L$(PYTHON_HOME)/lib/python3.10/site-packages/numpy/core -lpython3.10 -g#-L$(NVSHMEM_HOME)/lib -lnvshmem_host
+LIBS=-L$(NVBIT_PATH) -lnvbit -L../../../libunwind-install/lib -L$(CPPTRACE_HOME)/lib -lcpptrace -L$(PYTHON_HOME)/lib -L$(PYTHON_HOME)/lib64 -L$(PYTHON_HOME)/lib/python3.9/site-packages/numpy/core -lpython3.9 -g#-L$(NVSHMEM_HOME)/lib -lnvshmem_host
 NVCC_PATH=-L $(subst bin/nvcc,lib64,$(shell which nvcc | tr -s /))
 
 SOURCES=mem_multigpu.cu inject_funcs.cu obj_database.cu
@@ -35,10 +35,10 @@ mem_multigpu.o: mem_multigpu.cu
 	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -Wall -allow-unsupported-compiler -arch=sm_$(ARCH) -g -O3 -Xcompiler -fPIC $< -o $@
 
 inject_funcs.o: inject_funcs.cu
-	$(NVCC) $(INCLUDES) -maxrregcount=24 -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -allow-unsupported-compiler -c $< -o $@
+	$(NVCC) $(INCLUDES) -maxrregcount=24 --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -allow-unsupported-compiler -rdc=true -c $< -o $@	
 
 obj_database.o: obj_database.cu
-	$(NVCC) $(INCLUDES) -Xptxas -astoolspatch --keep-device-functions -arch=sm_$(ARCH) -Xcompiler -Wall -Xcompiler -fPIC -allow-unsupported-compiler -c $< -o $@
+	$(NVCC) -dc -c -std=c++11 $(INCLUDES) -Xptxas -cloning=no -Xcompiler -Wall -allow-unsupported-compiler -arch=sm_$(ARCH) -g -O3 -Xcompiler -fPIC $< -o $@	
 
 allocation_only_test_compile:
 	#nvcc -o test test.cu -l./wrapper.a -cudart shared

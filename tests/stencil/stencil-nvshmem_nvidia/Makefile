@@ -22,9 +22,9 @@ jacobi: libwrapper.so jacobi.o
 jacobi.o: jacobi.cu
 	#nvcc -cubin -lineinfo main.cu
 	#nvdisasm --print-line-info main.cubin > testfile.txt
-	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $< -lineinfo -g
+	$(NVCC) $(NVCC_NV_FLAGS) -o $@ $< -lineinfo
 	cuobjdump $@ -xelf all
-	nvdisasm --print-line-info jacobi*.sm_80.cubin > memop_to_line.txt
+	nvdisasm --print-line-info *.cubin > memop_to_line.txt
 
 libwrapper.so: wrapper.o
 	$(NVCC) -g -shared --generate-line-info -o $@ $< -lineinfo
