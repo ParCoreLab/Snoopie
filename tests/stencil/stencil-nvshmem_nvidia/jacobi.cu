@@ -346,10 +346,12 @@ int main(int argc, char *argv[]) {
   else
     chunk_size = chunk_size_high;
 
+  std::cerr << "before nvshmem_malloc\n";
   a = (real *)nvshmem_malloc(
       nx * (chunk_size_high + 2) *
       sizeof(real)); // Using chunk_size_high so that it is same across all PEs
   a_new = (real *)nvshmem_malloc(nx * (chunk_size_high + 2) * sizeof(real));
+  std::cerr << "after nvshmem_malloc\n";
 
   cudaMemset(a, 0, nx * (chunk_size + 2) * sizeof(real));
   cudaMemset(a_new, 0, nx * (chunk_size + 2) * sizeof(real));

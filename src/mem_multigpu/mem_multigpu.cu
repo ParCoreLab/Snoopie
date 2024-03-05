@@ -1854,6 +1854,117 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		logger.log(ss.str());
 	}
 
+	if(is_exit && cbid == API_CUDA_cuMemAllocPitch_v2) {
+		std::cerr << "cuMemAllocPitch_v2 is detected, call stack begins\n";
+		print_trace();
+		std::cerr << "cuMemAllocPitch_v2 is detected, call stack ends\n";
+	}
+	if(is_exit && cbid == API_CUDA_cuMemAllocHost_v2) {
+                std::cerr << "cuMemAllocHost_v2 is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAllocHost_v2 is detected, call stack ends\n";
+        }	
+	if(is_exit && cbid == API_CUDA_cuMemHostAlloc) {
+                std::cerr << "cuMemAllocHost_v2 is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAllocHost_v2 is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAllocManaged) {
+                std::cerr << "cuMemAllocManaged is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAllocManaged is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuArrayCreate_v2) {
+                std::cerr << "cuArrayCreate_v2 is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuArrayCreate_v2 is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuArray3DCreate_v2) {
+                std::cerr << "cuArray3DCreate_v2 is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuArray3DCreate_v2 is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAddressReserve) {
+                std::cerr << "cuMemAddressReserve is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAddressReserve is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemCreate) {
+                std::cerr << "cuMemCreate is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemCreate is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemMap) {
+                std::cerr << "cuMemMap is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemMap is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemMapArrayAsync_ptsz) {
+                std::cerr << "cuMemMapArrayAsync_ptsz is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemMapArrayAsync_ptsz is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAllocAsync_ptsz) {
+                std::cerr << "cuMemAllocAsync_ptsz is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAllocAsync_ptsz is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAllocFromPoolAsync_ptsz) {
+                std::cerr << "cuMemAllocFromPoolAsync_ptsz is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAllocFromPoolAsync_ptsz is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAdvise) {
+                std::cerr << "cuMemAdvise is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAdvise is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAlloc) {
+                std::cerr << "cuMemAlloc is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAlloc is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAllocPitch) {
+                std::cerr << "cuMemAllocPitch is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAllocPitch is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemGetAddressRange) {
+                std::cerr << "cuMemGetAddressRange is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemGetAddressRange is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAllocHost) {
+                std::cerr << "cuMemAllocHost is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAllocHost is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuArrayCreate) {
+                std::cerr << "cuArrayCreate is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuArrayCreate is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuArray3DCreate) {
+                std::cerr << "cuArray3DCreate is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuArray3DCreate is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemMapArrayAsync) {
+                std::cerr << "cuMemMapArrayAsync is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemMapArrayAsync is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAllocAsync) {
+                std::cerr << "cuMemMapArrayAsync is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemMapArrayAsync is detected, call stack ends\n";
+        }
+	if(is_exit && cbid == API_CUDA_cuMemAllocFromPoolAsync) {
+                std::cerr << "cuMemAllocFromPoolAsync is detected, call stack begins\n";
+                print_trace();
+                std::cerr << "cuMemAllocFromPoolAsync is detected, call stack ends\n";
+        }
+
 	if (data_object_attribution) {
 	if (is_exit &&
 			(cbid == API_CUDA_cuMemAlloc || cbid == API_CUDA_cuMemAlloc_v2 ||
@@ -2013,11 +2124,12 @@ cudaError_t cudaMallocWrap(void **devPtr, size_t size, const char *var_name,
 void *nvshmem_malloc(size_t size) {
 	void *(*ori_nvshmem_malloc)(size_t) =
 		(void *(*)(size_t))dlsym(RTLD_NEXT, "nvshmem_malloc");
-	nvshmem_malloc_handled = true;
+	//nvshmem_malloc_handled = true;
 	void *allocated_memory = ori_nvshmem_malloc(size);
 	fprintf(stderr, "nvshmem_malloc allocates a memory range with offset %lx\n", allocated_memory);
-	nvshmem_malloc_handled = false;
+	//nvshmem_malloc_handled = false;
 
+#if 0
 	if (data_object_attribution) {
 	int deviceID = -1;
 	cudaGetDevice(&deviceID);
@@ -2098,6 +2210,7 @@ void *nvshmem_malloc(size_t size) {
 		mem_allocs.push_back(ma);
 	}
 	}
+#endif
 	return allocated_memory;
 }
 
