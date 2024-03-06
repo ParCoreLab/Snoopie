@@ -27,6 +27,8 @@ target_link_libraries(mem_multigpu
 
 target_include_directories(mem_multigpu SYSTEM PRIVATE "${CMAKE_BINARY_DIR}/_deps/pybind11-src/include")
 
+target_include_directories(mem_multigpu SYSTEM PRIVATE $ENV{NVSHMEM_HOME}/include)
+
 get_target_property(library_includes cpptrace INTERFACE_INCLUDE_DIRECTORIES)
 #get_target_property(library_includes pybind11 INTERFACE_INCLUDE_DIRECTORIES)
 
