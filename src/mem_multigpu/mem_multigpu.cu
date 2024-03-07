@@ -538,18 +538,28 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
 					PyObject* result = PyObject_Call(orig_torchtensor_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
 
+					//std::cout << "torch.tensor is intercepted 1\n";
 					PyObject* ptr_obj = PyObject_GetAttrString(result, "data_ptr");
 					PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+
+					//std::cout << "torch.tensor is intercepted 2\n";
 					unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
 					PyObject* size_obj = PyObject_GetAttrString(result, "__len__");
 					PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+					//std::cout << "torch.tensor is intercepted 3\n";
 					unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
-
+					//std::cout << "torch.tensor is intercepted 3 1\n";
 					PyObject* elem_size_obj = PyObject_GetAttrString(result, "element_size");
+					if(elem_size_obj != NULL) {
+					//std::cout << "torch.tensor is intercepted 3 2\n";
 					PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+					//std::cerr << "torch.tensor is intercepted 3 2 1\n";
+					if(elem_size_val_obj != NULL) {
+					//std::cout << "torch.tensor is intercepted 3 3\n";
 					unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
 					unsigned long long alloc_size_val = element_count * element_size;
 
+					//std::cout << "torch.tensor is intercepted 4\n";
 					PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
 					if (PyBool_Check(is_cuda_obj)) {
 						if(is_cuda_obj == Py_True) {
@@ -573,8 +583,12 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							}
 						} 
 					}
+					fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+					}
+					}
 
-					fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
+					//fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);	
+					//std::cout << "torch.tensor is intercepted 5\n";
 					py::object result_obj = py::reinterpret_borrow<py::object>(result);
 					PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to"); 
 					result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
@@ -632,7 +646,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							std::cerr << "tensor.cuda is intercepted\n";
 							//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
 							PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
-							//#if 0
+							#if 0
 							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
 							PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
 							unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
@@ -641,7 +655,9 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
 							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
 
+							//#if 0
 							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
+							if(elem_size_obj != NULL) {
 							PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
 							unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
 							unsigned long long alloc_size_val = element_count * element_size;
@@ -662,7 +678,9 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 										deviceID, "", ADM_STATE_ALLOC);
 								range_nodes.push_back(new adm_range_t(
 											offset_val1, alloc_size_val, parent->get_object_id(), deviceID));
+							}
 							}	
+							#endif
 							return py::reinterpret_borrow<py::object>(result1);
 					});	
 
@@ -1582,9 +1600,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 				instrument_function_if_needed(ctx, f);
 				//std::cerr << "A kernel named " << func_name << " is detected\n";
 			} else if (kernel_name == "nccl" &&
-					func_name.substr(0, std::string("ncclKernel").length())
-					.compare(std::string("ncclKernel")) == 0) {
-				//std::cerr << "A NCCL kernel is detected 1\n";
+					(func_name.substr(0, std::string("ncclKernel").length())
+					.compare(std::string("ncclKernel")) == 0 || func_name.substr(0, std::string("ncclDev").length())
+                                        .compare(std::string("ncclDev")) == 0)) {
+				std::cerr << "A NCCL kernel is detected 1, name: " << func_name << "\n";
 #if 0
 				py::object traceback = py::module::import("traceback");
         			py::object extract_summary = traceback.attr("StackSummary").attr("extract");
@@ -1643,9 +1662,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 				//std::cerr << "A kernel named " << func_name << " is detected\n";
 				instrument_function_if_needed(ctx, p->f);
 			} else if (kernel_name == "nccl" &&
-					func_name.substr(0, std::string("ncclKernel").length())
-					.compare(std::string("ncclKernel")) == 0) {
-				//std::cerr << "A NCCL kernel is detected\n";
+					(func_name.substr(0, std::string("ncclKernel").length())
+					.compare(std::string("ncclKernel")) == 0 || func_name.substr(0, std::string("ncclDev").length())
+                                        .compare(std::string("ncclDev")) == 0)) {
+				std::cerr << "A NCCL kernel is detected, name: " << func_name << "\n";
 #if 0
 				py::object traceback = py::module::import("traceback");
                                 py::object extract_summary = traceback.attr("StackSummary").attr("extract");
