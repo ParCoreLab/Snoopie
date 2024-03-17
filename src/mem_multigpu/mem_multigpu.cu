@@ -105,6 +105,7 @@ PyObject* orig_torch_cuda_func;
 int object_counter = 0;
 int context_counter = 0;
 int latest_context = 0;
+static long mem_alloc_count = 0;
 
 static bool nvshmem_malloc_handled = false;
 static bool object_attribution = false;
@@ -1715,6 +1716,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		for (const auto &ctx_map_pair : ctx_state_map) {
 			ctx_map_pair.second->channel_dev->add_malloc(ma);
 		}
+		mem_alloc_count++;
 
 		if (JSON) {
 			std::cout << "{\"op\": \"mem_alloc\", "
@@ -1744,6 +1746,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		for (const auto &ctx_map_pair : ctx_state_map) {
 			ctx_map_pair.second->channel_dev->add_malloc(ma);
 		}
+		mem_alloc_count++;
 
 		if (JSON) {
 			std::cout << "{\"op\": \"mem_alloc\", "
@@ -1758,7 +1761,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		ss << HEX(*p->pp);
 		std::stringstream ss2;
 		ss2 << HEX(*p->pp + p->bytesize);
-		int deviceID = -1;
+		int deviceID = 999;
 		uint64_t pointer = (uint64_t)*p->pp;
 		uint64_t bytesize = p->bytesize;
 		assert(cudaGetLastError() == cudaSuccess);
@@ -1767,11 +1770,14 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		ma.pointer = pointer;
 		ma.bytesize = bytesize;
 		mem_allocs.push_back(ma);
-
+		mem_alloc_count++;
+		
 		for (const auto &ctx_map_pair : ctx_state_map) {
 			ctx_map_pair.second->channel_dev->add_malloc(ma);
 		}
-	} else if (cbid == API_CUDA_cuMemAllocHost_v2) {
+	}
+#if 0 
+	else if (cbid == API_CUDA_cuMemAllocHost_v2) {
 		//print_trace();
 		std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
 		cuMemAllocHost_v2_params *p = (cuMemAllocHost_v2_params *)params;
@@ -1792,7 +1798,9 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		for (const auto &ctx_map_pair : ctx_state_map) {
 			ctx_map_pair.second->channel_dev->add_malloc(ma);
 		}
-	} else if (cbid == API_CUDA_cuMemHostAlloc) {
+	}
+#endif 
+	else if (cbid == API_CUDA_cuMemHostAlloc) {
 		cuMemHostAlloc_params *p = (cuMemHostAlloc_params *)params;
 		std::stringstream ss;
 		ss << HEX(*p->pp);
@@ -1809,6 +1817,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		ma.bytesize = bytesize;
 		mem_allocs.push_back(ma);
 
+		mem_alloc_count++;
 		for (const auto &ctx_map_pair : ctx_state_map) {
 			ctx_map_pair.second->channel_dev->add_malloc(ma);
 		}
@@ -1839,9 +1848,21 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		} else {
 			addr1 = p->dstDevice;
 		}
+		
+		// begin
+        	if(code_context) {
+                	std::vector<stacktrace_frame> trace = generate_trace();
+                	execution_site_t *execution_site = NULL;
+                	execution_site_t *parent = NULL;
+                	update_exec_site_tree_cpp(trace, &execution_site, &parent);
+                	record_exec_context(parent);
+        	}
+        	// end
+
 		std::stringstream ss;
 		ss << find_cbid_name(cbid) << "," << HEX(addr1) << "," << -1 << ","
-			<< srcDeviceID << "," << dstDeviceID << "," << -1 << "," << ((latest_context > 0) ? latest_context : -1) << ","
+			<< srcDeviceID << "," << dstDeviceID << "," << -1 << "," << -1 << "," 
+			<< ((latest_context > 0) ? latest_context : -1) << ","
 			<< -1 << "," << HEX(offset_address_range) << "," << p->ByteCount
 			<< std::endl;
 		logger.log(ss.str());
@@ -1867,19 +1888,29 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			offset_address_range = range->get_address();
 		}
 
-		// Log this operation
+		// begin
+                if(code_context) {
+                        std::vector<stacktrace_frame> trace = generate_trace();
+                        execution_site_t *execution_site = NULL;
+                        execution_site_t *parent = NULL;
+                        update_exec_site_tree_cpp(trace, &execution_site, &parent);
+                        record_exec_context(parent);
+                }
+                // end
 
 		std::stringstream ss;
 		ss << find_cbid_name(cbid) << "," << HEX(p->dstDevice) << "," << -1 << ","
-			<< srcDeviceID << "," << dstDeviceID << "," << -1 << "," << -1 << ","
-			<< -1 << "," << HEX(offset_address_range) << "," << p->ByteCount
-			<< std::endl;
+                        << srcDeviceID << "," << dstDeviceID << "," << -1 << "," << -1 << "," 
+                        << ((latest_context > 0) ? latest_context : -1) << ","
+                        << -1 << "," << HEX(offset_address_range) << "," << p->ByteCount
+                        << std::endl;
 
 		logger.log(ss.str());
 	}
 
 //#if 0
         if(is_exit && cbid == API_CUDA_cuMemMap) {
+		//std::cerr << "cuMemMap is detected, memory recorded\n";
                 cuMemMap_params *p = (cuMemMap_params *)params;
                 std::stringstream ss;
                 ss << HEX(p->ptr);
@@ -1897,6 +1928,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
                 ma.bytesize = bytesize;
                 mem_allocs.push_back(ma);
 
+		mem_alloc_count++;
                 for (const auto &ctx_map_pair : ctx_state_map) {
                         ctx_map_pair.second->channel_dev->add_malloc(ma);
                 }
@@ -1916,16 +1948,58 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		print_trace();
 		std::cerr << "cuMemAllocPitch_v2 is detected, call stack ends\n";
 	}
+#endif
 	if(is_exit && cbid == API_CUDA_cuMemAllocHost_v2) {
-                std::cerr << "cuMemAllocHost_v2 is detected, call stack begins\n";
-                print_trace();
-                std::cerr << "cuMemAllocHost_v2 is detected, call stack ends\n";
+                //std::cerr << "cuMemAllocHost_v2 is detected, address recorded\n";
+                //print_trace();
+		//std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
+                cuMemAllocHost_v2_params *p = (cuMemAllocHost_v2_params *)params;
+                std::stringstream ss;
+                ss << HEX(*p->pp);
+                std::stringstream ss2;
+                ss2 << HEX(*p->pp + p->bytesize);
+                int deviceID = 999;
+                uint64_t pointer = (uint64_t)*p->pp;
+                uint64_t bytesize = p->bytesize;
+                assert(cudaGetLastError() == cudaSuccess);
+
+                ma.deviceID = deviceID;
+                ma.pointer = pointer;
+                ma.bytesize = bytesize;
+                mem_allocs.push_back(ma);
+
+		mem_alloc_count++;
+                for (const auto &ctx_map_pair : ctx_state_map) {
+                        ctx_map_pair.second->channel_dev->add_malloc(ma);
+                }
+                //std::cerr << "cuMemAllocHost_v2 is detected, call stack ends\n";
         }	
 	if(is_exit && cbid == API_CUDA_cuMemHostAlloc) {
-                std::cerr << "cuMemAllocHost_v2 is detected, call stack begins\n";
-                print_trace();
-                std::cerr << "cuMemAllocHost_v2 is detected, call stack ends\n";
+                //std::cerr << "cuMemAllocHost is detected, memory address range recorded\n";
+		//std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
+                cuMemAllocHost_params *p = (cuMemAllocHost_params *)params;
+                std::stringstream ss;
+                ss << HEX(*p->pp);
+                std::stringstream ss2;
+                ss2 << HEX(*p->pp + p->bytesize);
+                int deviceID = -1;
+                uint64_t pointer = (uint64_t)*p->pp;
+                uint64_t bytesize = p->bytesize;
+                assert(cudaGetLastError() == cudaSuccess);
+
+                ma.deviceID = deviceID;
+                ma.pointer = pointer;
+                ma.bytesize = bytesize;
+                mem_allocs.push_back(ma);
+
+		mem_alloc_count++;
+                for (const auto &ctx_map_pair : ctx_state_map) {
+                        ctx_map_pair.second->channel_dev->add_malloc(ma);
+                }
+                //print_trace();
+                //std::cerr << "cuMemAllocHost_v2 is detected, call stack ends\n";
         }
+#if 0
 	if(is_exit && cbid == API_CUDA_cuMemAllocManaged) {
                 std::cerr << "cuMemAllocManaged is detected, call stack begins\n";
                 print_trace();
@@ -2525,6 +2599,7 @@ void nvbit_at_ctx_term(CUcontext ctx) {
 }
 
 void nvbit_at_term() {
+	std::cerr << "Number of detected memory allocations: " << mem_alloc_count << "\n";
 	if (silent) {
 		return;
 	}
