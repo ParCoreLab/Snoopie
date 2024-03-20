@@ -658,16 +658,38 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
 							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
 
+							unsigned long long alloc_size_val = 1;
+//#if 0
+							for(long i = 0; i < element_count; i++) {
+								PyObject* torchsize_obj = PyObject_GetAttrString(result1, "size");
+								PyObject *dim_obj = PyLong_FromLong(i);
+								PyObject *dim_tuple = PyTuple_Pack(1, dim_obj);
+								PyObject* size_dim_obj = PyObject_CallObject(torchsize_obj, dim_tuple);
+								unsigned long long dim_size = PyLong_AsUnsignedLongLongMask(size_dim_obj);
+								alloc_size_val *= dim_size;
+							}
+//#endif
 							//#if 0
 							std::cerr << "tensor.cuda is intercepted before element_size\n";
 							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
+                                        		if(elem_size_obj != NULL) {
+                                        			//std::cout << "torch.tensor is intercepted 3 2\n";
+                                        				PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+                                        				//std::cerr << "torch.tensor is intercepted 3 2 1\n";
+                                        				if(elem_size_val_obj != NULL) {
+                                        					//std::cout << "torch.tensor is intercepted 3 3\n";
+                                        					unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+										alloc_size_val *= element_size;
+									}
+							}
+							//PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
 							std::cerr << "tensor.cuda is intercepted after element_size\n";
 							//#if 0
-							if(elem_size_obj != NULL) {
+							//if(elem_size_obj != NULL) {
 							std::cerr << "tensor.cuda is intercepted after if 1\n";
-							PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
-							unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
-							unsigned long long alloc_size_val = element_count * element_size;
+							//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							//unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+							//unsigned long long alloc_size_val = element_count * element_size;
 							fprintf(stderr, "cuda func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);	
 							py::object summary = extract_python_callpath();
 							std::vector<py::handle> stack_vec;
@@ -686,7 +708,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 								range_nodes.push_back(new adm_range_t(
 											offset_val1, alloc_size_val, parent->get_object_id(), deviceID));
 							}
-							}
+							//}
 							//#endif
 							std::cerr << "tensor.cuda is intercepted after if 2\n";	
 							//#endif
