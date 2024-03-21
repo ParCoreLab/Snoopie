@@ -15,7 +15,9 @@ codeline_log_*.txt
 testfile.txt
 *.nsys-rep
 
-# cmake files
+# cmake and build files
+build/
+bin/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
