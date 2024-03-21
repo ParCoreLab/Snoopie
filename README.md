@@ -16,10 +16,41 @@ $ git clone https://github.com/mktip/nvbit-profiler
 $ cd src/mem_multigpu/ && ARCH=80 make # builds mem_multigpu.so
 
 # Or with Cmake
-$ cmake .
+$ mkdir build/ && cd build/
+$ cmake -S ..
 $ make mem_multigpu
 ```
+## Easy Docker usage
+1. Build the image
+```bash
+docker build -t snoopie .
+```
 
+2. Create a container
+```bash
+docker run --gpus all -it --rm -p 8000:8000 snoopie:latest
+```
+
+3. Run a sample application
+```bash
+cd /snoopie
+snoop.py build/tests/stencil/stencil-p2p_base/stencil-p2p_base -- -niter 1
+```
+
+4. Open `localhost:8000` in your browser and upload the generated log files
+
+Alternatively, run your own application
+```bash
+docker run -it --rm \
+	--gpus all \
+	--user $(id -u):$(id -g) \
+	--volume $(pwd)/src:/src/ \
+	--workdir /src \
+	snoopie:latest
+
+# Compile your code
+snoop.py ./your-app
+```
 ## Usage
 
 ```
