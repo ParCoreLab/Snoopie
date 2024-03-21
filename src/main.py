@@ -140,6 +140,8 @@ def run_snoopie(args):
 
     env.update(nenv)
 
+    args.command[0] = './' + args.command[0]
+
     cmd = " ".join(args.command)
 
     print(f"Running {cmd}")
