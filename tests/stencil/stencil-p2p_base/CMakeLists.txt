@@ -3,7 +3,8 @@ add_executable(stencil-p2p_base
 
 target_compile_options(stencil-p2p_base PRIVATE
       -g
-      -lineinfo)
+      -lineinfo
+      -fopenmp) #NVHPC fix
 
 target_link_libraries(stencil-p2p_base
         wrapper

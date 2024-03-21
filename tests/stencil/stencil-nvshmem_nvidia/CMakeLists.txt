@@ -12,9 +12,9 @@ target_include_directories(stencil-cmake-nvidia PRIVATE $ENV{NVSHMEM_HOME}/inclu
 message("$ENV{NVSHMEM_HOME}/include")
 
 target_link_libraries(stencil-cmake-nvidia
-	-L$ENV{NVSHMEM_HOME}/lib -lnvshmem_host -lnvshmem_device
+	-L$ENV{NVSHMEM_HOME}/lib -lnvshmem_host -lnvshmem_device -lnvidia-ml
         mem_multigpu
         CUDA::cudart
-        cuda
+	#        cuda
         MPI::MPI_CXX
         OpenMP::OpenMP_CXX)

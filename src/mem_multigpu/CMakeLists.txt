@@ -21,6 +21,7 @@ target_link_libraries(mem_multigpu
         nvbit::nvbit
 	Python3::NumPy
 	Python3::Python
+	MPI::MPI_CXX
 	-fno-lto
 	-lutil
 	)
