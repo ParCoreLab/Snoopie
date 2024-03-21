@@ -46,5 +46,6 @@ cd visualizer; pip install st-click-detector-0.1.3/
 
 ### Usage
 ```
-streamlit run visualizer/parse_and_vis.py <my_data_file.txt>
+In the directory where the log file is located
+streamlit run visualizer/parse_and_vis.py <my_data_file.zst>
 ```
