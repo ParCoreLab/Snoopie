@@ -34,11 +34,12 @@ def folder_choose_dialog():
 def filepicker_page():
     global _logfile, _src_code_file, _sampling_period, _gpu_num, _home_folder
 
-    _logfile = st.file_uploader("Log File", accept_multiple_files=True)
+    if ("logfile" not in st.session_state):
+        _logfile = st.file_uploader("Log File", accept_multiple_files=True)
     # _src_code_file = st.file_uploader("Source Code File", accept_multiple_files=False)
 
     home_folder_choose_cols = st.columns([1, 4])
-
+    
     choose_home_folder_btn = st.button(
         "Choose source code folder",
         help="Do not use this button if the profiler is running on a remote machine. Fill the folder path manually instead.",
@@ -56,26 +57,27 @@ def filepicker_page():
     )
 
     _gpu_num = st.number_input(
-        "Number of GPU's", -1, 16, -1, help="Leave -1 for automatic detection"
+        "Number of GPU's (leave -1 for automatic detection)", -1, 16, -1, help="Leave -1 for automatic detection"
     )
 
-    _sampling_period = st.number_input("Sampling Period", 0, 100, 10)
+    _sampling_period = st.number_input("Sampling Period (extrapolates the data if sampling was used)", 0, 100, 1)
     filepicker_button = st.button("Start")
 
     if (
-        _logfile != None
+        (_logfile != None or "logfile" in st.session_state)
         and not (isinstance(_logfile, list) and len(_logfile) == 0)
         and filepicker_button == 1
     ):
-        (
-            st.session_state.logfile,
-            st.session_state.logfile_base,
-        ) = multi_file_from_upload_check(_logfile)
-        if isinstance(_logfile, list):
-            st.session_state.logfile_name = [i.name for i in _logfile]
-        else:
-            st.session_state.logfile_name = _logfile.name
-        # st.session_state.src_code_file, _ = file_from_upload(_src_code_file)
+        if ("logfile" not in st.session_state):
+            (
+                st.session_state.logfile,
+                st.session_state.logfile_base,
+            ) = multi_file_from_upload_check(_logfile)
+            if isinstance(_logfile, list):
+                st.session_state.logfile_name = [i.name for i in _logfile]
+            else:
+                st.session_state.logfile_name = _logfile.name
+            # st.session_state.src_code_file, _ = file_from_upload(_src_code_file)
 
         st.session_state.sampling_period = _sampling_period
         st.session_state.gpu_num = _gpu_num

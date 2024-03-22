@@ -43,7 +43,7 @@ def _parse():
         "-p",
         help="Sampling period",
         required=False,
-        default=10,
+        default=1,
         type=int,
     )
     args = parser.parse_args()
@@ -82,6 +82,6 @@ def parse():
         if "first_run" not in st.session_state:
             st.session_state.first_run = False
             st.session_state.show_filepicker = True
-            st.session_state.gpu_num = 8
-            st.session_state.sampling_period = 10
+            st.session_state.gpu_num = 4
+            st.session_state.sampling_period = 1
             setup_globals()

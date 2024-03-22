@@ -24,7 +24,7 @@ from includes.tables import *
 from st_clickable_images import clickable_images
 
 
-
+# python_code = 0
 data_by_line = {}
 reverse_table_lineinfo = {}
 src_lines = {}
@@ -139,6 +139,15 @@ def check_src_code_folder():
     #         for i in CodeLineInfoRow.table()
     #         if len(i.file) > 0 or len(i.dir_path) > 0
     #     ])
+    
+    # if len(CodeLineInfoRow.table()) == 0:
+    #     python_code = 1
+
+    # existing_src_code_files = {
+    #     i.file_name : os.path.join(home_folder, i.relative_file_path())
+    #     for i in SiteInfoRow.table()
+    #     if len(i.file_name) > 0 and path_status.get(i.relative_file_path()) is True
+    #     }
 
     existing_src_code_files = {
         i.combined_filepath() : os.path.join(home_folder, i.relative_file_path())
@@ -173,7 +182,6 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
     for dev in range(gpu_num):
         object_view.append({})
 
-    print("OWD 1")
     for source_dev_id in range(gpu_num):
         owned_objs: List[SnoopieObject] = [
             i for i in SnoopieObject.all_objects.values()
@@ -207,7 +215,8 @@ def get_object_view_data(gpu_filter=None, allowed_ops=[]):
             if obj_size > GRAPH_SIZE_LIMIT:
                 step *= int(obj_size / GRAPH_SIZE_LIMIT)
             cols = int(math.sqrt(obj_size)) * 4
-            print(related_dict)
+            # if (verbose)
+            # print(related_dict)
             for i in range(0, int(id_info.size), step):
                 hex_addr = str.format('0x{:016x}', int(offset, 16) + i)
                 # st.write(f"{hex_addr}, {hex_addr in related_dict}")
@@ -440,10 +449,8 @@ def main():
 
     selected_rows = None
 
-    print("TEST 3 ASDASD")
     # object_view = get_object_view_data(gpu_filter=None, allowed_ops=ops_to_display)
     # print(object_view)
-    print("TEST 2 ASDASD")
     for i in range(gpu_num):
         if chosen_id_tab == str(i):
             st.markdown(f"### Objects owned by **<span style='color:{pal[i]}'>GPU{i}</span>**", unsafe_allow_html=True)
@@ -470,7 +477,7 @@ def main():
                             break
                     if not is_all_zeros:
                         break
-                print("all zeros:", is_all_zeros)
+                # print("all zeros:", is_all_zeros)
 
                 obj_fig = make_subplots(rows=len(object_view[i]),
                                         shared_xaxes=True, cols=1, vertical_spacing=0.05)
@@ -478,7 +485,7 @@ def main():
                 obj_names = []
                 for key in object_view[i].keys():
                     obj_data = object_view[i][key]
-                    print(obj_data)
+                    # print(obj_data)
                     obj_names.append(key)
                     obj_fig.add_trace(go.Heatmap(z=obj_data[1], coloraxis="coloraxis", name=str(key),
                                                 customdata=obj_data[0],
@@ -662,7 +669,8 @@ def main():
                     ops_by_line_info["by_file_linenum"][tmp][tmp2].append(line_info)
 
                     ops_by_line_info["total"] += 1
-
+                    # print(op.get_context_info())
+                    # print(op.code_line_context)
 
                 for key, value in by_op_type.items():
                     table_instr.append((key, value, peer_gpu))
@@ -694,7 +702,7 @@ def main():
                            update_mode=GridUpdateMode.SELECTION_CHANGED 
                            )
                     selected_rows = grid_response['selected_rows']
-                    print("RESPONSEAAAAAAAAAAAAAAA",grid_response)
+                    # print("RESPONSEAAAAAAAAAAAAAAA",grid_response)
                     if (len(selected_rows) > 0) and selected_rows[0]["_selectedRowNodeInfo"]["nodeRowIndex"] > 0:
                         st.session_state.object_table_selected = selected_rows[0]["_selectedRowNodeInfo"]["nodeRowIndex"] - 1
                 cols[1].markdown(f"##### Instructions", unsafe_allow_html=True)
@@ -728,7 +736,7 @@ def main():
                             file_to_vis = chosen_file
                             if (tkey not in st.session_state or st.session_state[tkey] != chosen_line):
                                 st.session_state[tkey] = chosen_line
-                                print("SHOW?")
+                                # print("SHOW?")
                                 show_sidebar()
                             # show_sidebar(int(selected_rows['code line']))
                             # .scrollTop = ''' + str(graph_height + i/100) + ''';
@@ -875,7 +883,8 @@ def read_code():
                 with open(filepath, "r") as f:
                     src_lines[i] = f.readlines() 
     
-    print("src_lines:", {key: len(value) for key, value in src_lines.items()})
+    # if (verbose)
+    # print("src_lines:", {key: len(value) for key, value in src_lines.items()})
 
 def process_folderpath(folder: str):
     if folder[-1] == "/": folder = folder[:-1]
@@ -927,7 +936,7 @@ def choose_src_code_file():
     combined_list = temp  + sorted(list(files_to_show))
     totallen = len(files_to_show) + len(temp)
     folder_len = len(temp)
-    item_per_line = 8
+    item_per_line = 6
     idx = 0
     st.write(f"current folder: {current_folder}")
     while totallen > 0:
@@ -940,6 +949,7 @@ def choose_src_code_file():
             name = combined_list[idx]
             fake_item = os.path.join(CodeLineInfoRow.inferred_home_dir, current_folder[len(home_folder)+1:],name)
             print(current_folder, name, fake_item)
+            st.write("Click icon to show code")
             with cols[i]:
                 if name == "..":
                     # go back
@@ -954,6 +964,7 @@ def choose_src_code_file():
                     #display folder
                     print("display folder:", name)
                     clicked = clickable_images([folder_icon],titles=[name], img_style={"width":f"{img_size}px","height":f"{img_size}px"})
+                    # div_style={"onmouseover":"this.style.backgroundColor = 'yellow'", "onmouseout":"this.style.backgroundColor = 'green'"}
                     st.write(name)
                     if clicked > -1:
                         st.session_state.current_folder = os.path.join(current_folder, name)
@@ -964,8 +975,7 @@ def choose_src_code_file():
                     #display file
                     print("display file:", name)
                     num_accesses = ops_by_line_info["by_file"]
-
-                    clicked = clickable_images([file_icon],titles=[name], img_style={"width":f"{img_size}px","height":f"{img_size}px"}, div_style={"asd" : f"{choose_src_code_file_list[idx]}"})
+                    clicked = clickable_images([file_icon],titles=[name], img_style={"width":f"{img_size}px","height":f"{img_size}px", "onmouseover":"this.style.width = '200px'", "onmouseout":"this.style.width = '100px'"}, div_style={"asd" : f"{choose_src_code_file_list[idx]}", "onmouseover":"this.style.width = '200px'", "onmouseout":"this.style.width = '100px'"})
                     
                     st.write(name)
                     
@@ -1072,22 +1082,22 @@ def show_code():
         print("chosen line: ", chosen_line)
         ckey = 'code_select'
         if (ckey not in st.session_state or st.session_state[ckey] != chosen_line):
-            show_sidebar()
             st.session_state[ckey] = chosen_line
+            show_sidebar()
 
 
 
 def continue_main():
     global gpu_num, ops, logfile, logfile_name, file_to_vis
-    print("A")
-    gpu_num, ops = read_data(logfile, logfile_name, (gpu_num, ops))
-    print("C")
-    setup_globals()
-    print("B")
-    check_src_code_folder()
-    print("D")
-    read_code()
-    print("BEFORE MAIN")
+    print("init")
+    gpu_num, ops = read_data(logfile, logfile_name, (gpu_num, ops)) 
+    print("data_read")
+    setup_globals() # get things from st.session_state
+    print("globals_set")
+    check_src_code_folder() # see if the src files exist
+    print("src_folder_checked")
+    read_code() # read the src files
+    print("code read, starting main")
     # st.json(SnoopieObject.get_display_dict())
     # st.json([{
     #     "unique_obj": i.get_unique_obj(),
@@ -1095,6 +1105,8 @@ def continue_main():
     #     "offs": i.obj_offset
     # } for i in OpInfoRow.table()
     # if i.mem_dev_id == 2 and i.running_dev_id == 0])
+
+    # do the visualization part
     main()
 
     st.markdown("""---""")
@@ -1110,9 +1122,8 @@ def continue_main():
 
 if __name__ == "__main__":
     st.set_page_config(layout="wide")
-
-    argumentparser.parse()
-    setup_globals()
+    argumentparser.parse() # set some st.session_state vars
+    setup_globals() # get things from st.session_state
     if not st.session_state.show_filepicker:
         start_newfile = st.button("Profile another file")
         if start_newfile:

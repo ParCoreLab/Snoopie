@@ -12,7 +12,6 @@
 ## Build
 
 ```bash
-$ git clone https://github.com/mktip/nvbit-profiler
 $ cd src/mem_multigpu/ && ARCH=80 make # builds mem_multigpu.so
 
 # Or with Cmake
@@ -93,12 +92,20 @@ Language: python 3.7+
 pip install seaborn pandas plotly streamlit streamlit_agraph streamlit-aggrid extra_streamlit_components streamlit_plotly_events zstandard st-clickable-images
 cd visualizer; pip install st-click-detector-0.1.3/
 ```
+> (Optional) For interactive source code folder picking needs tkinter
+```
+sudo apt install python3-tk -y
+```
 
 ### Usage
 ```
-usage: streamlit run /path/to/parse_and_vis.py -- [optional arguments]
+usage:
+streamlit run /path/to/parse_and_vis.py **files** -- [optional arguments]
 
-Snoopie, a multigpu profiler
+for example:
+streamlit run visualizer/parse_and_vis.py logs/stencil-p2p_base_run0/* -- --gpu-num 4 --src-code-folder tests/stencil/stencil-p2p_base --sampling-period 1
+
+all arguments are optional (can use GUI to provide log files and options)
 
 positional arguments:
   files                 List of logfiles. Either compressed zst or uncompressed
