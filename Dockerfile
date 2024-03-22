@@ -34,4 +34,5 @@ ENV PATH="${PATH}:${SNOOPIE_HOME}/bin"
 RUN cd visualizer && python3 -m pip install -r requirements.txt
 
 # Start the visualiser and a shell
-CMD sh -c "streamlit run --server.port 8000 ./visualizer/streamlit_app.py & sleep 4 && bash"
+#CMD sh -c "streamlit run --server.port 8000 ./visualizer/streamlit_app.py & sleep 4 && bash"
+CMD sh -c "streamlit run --server.port 8000 ./visualizer/parse_and_vis.py -- --sampling-period 1 & sleep 4 && bash"
