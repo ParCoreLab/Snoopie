@@ -63,6 +63,7 @@ class OpInfoRow(Table):
         mem_dev_id: int,
         code_linenum: int,
         code_line_index: int,
+        code_line_context: int,
         code_line_estimated_status: int,
         obj_offset: str,
         mem_range: int,
@@ -75,6 +76,7 @@ class OpInfoRow(Table):
         self.mem_dev_id = mem_dev_id
         self.code_linenum = code_linenum
         self.code_line_index = code_line_index
+        self.code_line_context = code_line_context
         self.code_line_estimated_status = code_line_estimated_status
         self.obj_offset = obj_offset
         self.mem_range = mem_range
@@ -115,6 +117,9 @@ class OpInfoRow(Table):
 
     def get_codeline_info(self):
         return CodeLineInfoRow.by_cd_index.get(self.pid).get(self.code_line_index)
+
+    def get_context_info(self):
+        return ContextRow.by_context_id.get(self.pid).get(self.code_line_context)
 
     def get_obj_info(self):
         obj_id_info: ObjIdRow | None = ObjIdRow.search(self.pid, self.obj_offset)
@@ -171,6 +176,38 @@ class FunctionInfoRow(Table):
 
     def get_key(self) -> Key:
         return FunctionInfoRow.Key(self.func_name, self.file_name, self.line_no)
+
+
+class SiteInfoRow(Table):
+    by_pc: Dict[int, Dict[int, Table]] = {}
+
+    class Key(NamedTuple):
+        file_name: str
+        line_no: int
+
+    def __init__(self, pid: int, pc: int, file_name: str, line_no: int):
+        super().__init__(pid)
+        self.pc = pc
+        self.file_name = file_name
+        self.line_no = line_no
+
+        quick_add_to_dict(SiteInfoRow.by_pc, pid, pc, self)
+
+    @staticmethod
+    def search_by_pc(pid: int, pc: str):
+        pc = int(pc)
+        search_result = SiteInfoRow.by_pc.get(pid).get(pc)
+        return search_result
+
+    @staticmethod
+    def table():
+        return table_to_list(SiteInfoRow.by_pc)
+
+    def __str__(self) -> str:
+        return f"{self.file_name}:{self.line_no}"
+
+    def get_key(self) -> Key:
+        return SiteInfoRow.Key(self.file_name, self.line_no)
 
 
 class ObjIdRow(Table):
@@ -238,6 +275,27 @@ class CallStack:
         ]
 
     def get_tuple_stack(self) -> Tuple[FunctionInfoRow.Key]:
+        return tuple(i.get_key() for i in self.get_parsed_stack())
+
+
+class FuncallStack:
+    def __init__(self, pid: int, call_stack_string: str):
+        self.pid = pid
+        self.stack: List[str] = FuncallStack.parse_call_stack_string(call_stack_string)
+
+    @staticmethod
+    def parse_call_stack_string(call_stack_string: str):
+        if not isinstance(call_stack_string, str) or call_stack_string == "":
+            return []
+        split = call_stack_string.split("<")
+        return split
+
+    def get_parsed_stack(self) -> List[SiteInfoRow]:
+        return [
+            SiteInfoRow.search_by_pc(self.pid, pc) for pc in reversed(self.stack)
+        ]
+
+    def get_tuple_stack(self) -> Tuple[SiteInfoRow.Key]:
         return tuple(i.get_key() for i in self.get_parsed_stack())
 
 
@@ -341,6 +399,38 @@ class ObjNameRow(Table):
         return r
 
 
+class ContextRow(Table):
+    by_context_id: Dict[int, Dict[int, Table]] = {}
+
+    def __init__(self, pid: int, context_id: int, call_stack: str):
+        super().__init__(pid)
+        self.context_id = context_id
+        self.call_stack: FuncallStack = FuncallStack(self.pid, call_stack)
+
+        quick_add_to_dict(ContextRow.by_context_id, pid, context_id, self)
+
+    @staticmethod
+    def table():
+        return table_to_list(ContextRow.by_context_id)
+    
+    @staticmethod
+    def search(pid: int, id: int):
+        temp = ContextRow.by_context_id.get(pid)
+        if temp == None:
+            return None
+        r = temp.get(id)
+        # check other offsets
+        if r is None:
+            for p in ContextRow.by_context_id.keys(): 
+                if p != pid:
+                    temp = ContextRow.by_context_id.get(p)
+                    if temp is not None:
+                        r = temp.get(id)
+                        if r is not None:
+                            break
+        return r
+
+
 class CodeLineInfoRow(Table):
     class CodeLineInfoTuple(NamedTuple):
         code_line_index: int
@@ -408,6 +498,8 @@ class CodeLineInfoRow(Table):
         ]
         print("dirpaths", dirpaths)
         index = 0
+        if (len(dirpaths)==0):
+            return ""
         for i in range(min([len(i) for i in dirpaths])):
             index = i
             to_check = [j[index] for j in dirpaths]

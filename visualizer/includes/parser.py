@@ -84,6 +84,24 @@ def parse_obj_info(line: str, gbs: tuple):
     ObjNameRow(**data)
 
 
+def parse_context_info(line: str, gbs: tuple):
+    _, ops = gbs
+    if change_table(line):
+        return
+    if current_table != "context_info":
+        return
+    data = {}
+    data["pid"] = _pid
+    vals = line.strip().split(",")  # change this later
+    for index in range(len(_table_keys)):
+        if isInt_try(vals[index]):
+            data[_table_keys[index].strip()] = int(vals[index])
+        else:
+            data[_table_keys[index].strip()] = vals[index]
+
+    ContextRow(**data)
+
+
 def parse_offset_info(line: str, gbs: tuple):
     _, ops = gbs
     if change_table(line):
@@ -138,6 +156,18 @@ def parse_func_info(line: str, gbs: tuple):
     )
 
 
+def parse_site_info(line: str, gbs: tuple):
+    _, ops = gbs
+    if change_table(line):
+        return
+    if current_table != "site_info":
+        return
+    split_data = line.strip().split(",")  # change this later
+    SiteInfoRow(
+        _pid, int(split_data[0]), split_data[1], int(split_data[2])
+    )
+
+
 def parse_op_info(line: str, gbs: tuple):
     _, ops = gbs
     if change_table(line):
@@ -170,7 +200,7 @@ def parse_op_info(line: str, gbs: tuple):
         mem_range = 8
     elif "128" in operation:
         mem_range = 16
-
+    # print("OPREAD  " + operation)
     ops.add(operation)
     new_row = OpInfoRow(**data)
     _devices.add(data["running_dev_id"])
@@ -182,11 +212,13 @@ def parse_op_info(line: str, gbs: tuple):
 
 
 tables = {
-    "op_info": {"starts_with": "op_code", "parser": parse_op_info},
-    "func_info": {"starts_with": "pc", "parser": parse_func_info},
-    "offset_info": {"starts_with": "offset", "parser": parse_offset_info},
-    "obj_info": {"starts_with": "obj_id", "parser": parse_obj_info},
-    "codeline_info": {"starts_with": "code_line_index", "parser": parse_codeline_info},
+    "op_info": {"starts_with": "op_code", "parser": parse_op_info}, # main log
+    "func_info": {"starts_with": "pc", "parser": parse_func_info}, # mem_alloc_site_log
+    "offset_info": {"starts_with": "offset", "parser": parse_offset_info}, # address_range_log
+    "obj_info": {"starts_with": "obj_id", "parser": parse_obj_info}, # data_object_log
+    "context_info": {"starts_with": "context_id", "parser": parse_context_info}, # exec_context_log
+    "site_info": {"starts_with": "site_id", "parser": parse_site_info}, # exec_site_log
+    "codeline_info": {"starts_with": "code_line_index", "parser": parse_codeline_info}, # codeline_log
 }
 
 
@@ -213,7 +245,6 @@ def read_data(
     file: TextIOWrapper | List[TextIOWrapper], filename: str | List[str], gbs
 ):
     global _pid
-    print(file, filename)
     if file == None or filename == None:
         st.experimental_rerun()  # this shouldn't be here need to fix the problem soon
 
@@ -225,6 +256,10 @@ def read_data(
     graph_name = ""
     pickle_file = None
     pickle_filename = ""
+
+    for i in range(len(filename)):
+        filename[i] = filename[i].split("/")[-1]
+    print(file, filename)
 
     if isinstance(filename, list):
         all_pids = [get_pid(i) for i in filename]
@@ -266,7 +301,12 @@ def read_data(
         CodeLineInfoRow.inferred_home_dir = CodeLineInfoRow.infer_home_dir(
             CodeLineInfoRow.table()
         )
+        # print("INFERRED dir " + CodeLineInfoRow.inferred_home_dir)
+        # if (CodeLineInfoRow.inferred_home_dir == ""):
+        #     SiteInfoRow.inferred_home_dir = SiteInfoRow.infer_home_dir(
+        #     SiteInfoRow.table())
         ts = set()
+        # print("INFERRED dir " + SiteInfoRow.inferred_home_dir)
         for op in OpInfoRow._table:
             id, name = op.get_obj_info()
             u: UniqueObject = op.get_unique_obj()
@@ -295,6 +335,9 @@ def read_data(
             ObjIdRow.by_dev_offset,
             ObjIdRow.by_pid_offset,
             ObjNameRow.by_obj_id,
+            ContextRow.by_context_id,
+            SiteInfoRow.by_pc,
+            # SiteInfoRow.inferred_home_dir,
             CodeLineInfoRow.by_cd_index,
             CodeLineInfoRow.inferred_home_dir,
             gpu_num,
@@ -312,6 +355,9 @@ def read_data(
             ObjIdRow.by_dev_offset,
             ObjIdRow.by_pid_offset,
             ObjNameRow.by_obj_id,
+            ContextRow.by_context_id,
+            SiteInfoRow.by_pc,
+            # SiteInfoRow.inferred_home_dir,
             CodeLineInfoRow.by_cd_index,
             CodeLineInfoRow.inferred_home_dir,
             gpu_num,

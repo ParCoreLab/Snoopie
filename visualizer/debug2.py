@@ -6,6 +6,6 @@ with open("./visualizer/testdata/2gpu_log.txt","r") as f:
     read_data(f,"2gpu_log.txt",(5, ops))
     print("abc")
 
-topl = OpInfoRow.table(), ObjIdRow.table(), ObjNameRow.table(), FunctionInfoRow.table(), CodeLineInfoRow.table() 
+topl = OpInfoRow.table(), ObjIdRow.table(), ObjNameRow.table(), ContextRow.table(), FunctionInfoRow.table(), CodeLineInfoRow.table() 
 
 print(topl)

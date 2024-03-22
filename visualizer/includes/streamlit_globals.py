@@ -3,8 +3,10 @@ from .tables import (
     OpInfoRow,
     ObjIdRow,
     ObjNameRow,
+    ContextRow,
     CodeLineInfoRow,
     FunctionInfoRow,
+    SiteInfoRow,
     LineInfo,
     SnoopieObject
 )
@@ -25,7 +27,7 @@ def _reset():
 
     #####################################
     gpu_num = -1
-    sampling_period = 10
+    sampling_period = 1
 
     # these two variables should be open files or None
     src_code_file = None
@@ -116,5 +118,7 @@ def reset_globals():
     ObjIdRow.by_dev_offset = {}
     ObjIdRow.by_pid_offset = {}
     ObjNameRow.by_obj_id = {}
+    ContextRow.by_obj_id = {}
+    SiteInfoRow.by_pc = {}
     FunctionInfoRow.by_pc = {}
     
