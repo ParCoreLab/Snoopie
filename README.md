@@ -1,14 +1,5 @@
 # Snoopie: A Multi-GPU communication profiler
 
-## Features:
-* [x] Track Device Initiated Remote Memory Operations
-* [X] Track Specific Kernels
-* [ ] Track Specific Thread blocks
-* [ ] Track Host Initiated Remote Memory Operations
-* [ ] Attribute Objects to the tracked Memory Operations
-* [-] Track NCCL Remote Memory Operations
-* [ ] Track NVSHMEM Remote Memory Operations
-
 ## Build
 
 ```bash
