@@ -69,8 +69,11 @@ sudo apt install python3-tk -y
 
 ### Usage
 ```
-usage: streamlit run /path/to/parse_and_vis.py **files** -- [optional arguments]
-for example: streamlit run visualizer/parse_and_vis.py logs/stencil-p2p_base_run0/* -- --gpu-num 4 --src-code-folder tests/stencil/stencil-p2p_base --sampling-period 1
+usage:
+streamlit run /path/to/parse_and_vis.py **files** -- [optional arguments]
+
+for example:
+streamlit run visualizer/parse_and_vis.py logs/stencil-p2p_base_run0/* -- --gpu-num 4 --src-code-folder tests/stencil/stencil-p2p_base --sampling-period 1
 
 all arguments are optional (can interface to provide log files and options)
 
