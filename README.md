@@ -12,7 +12,6 @@
 ## Build
 
 ```bash
-$ git clone https://github.com/mktip/nvbit-profiler
 $ cd src/mem_multigpu/ && ARCH=80 make # builds mem_multigpu.so
 
 # Or with Cmake
