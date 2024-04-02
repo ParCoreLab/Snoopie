@@ -3,11 +3,11 @@
 ## Features:
 * [x] Track Device Initiated Remote Memory Operations
 * [X] Track Specific Kernels
+* [X] Track Host Initiated Remote Memory Operations
+* [X] Attribute Objects to the tracked Memory Operations
+* [X] Track NCCL Remote Memory Operations
+* [X] Track NVSHMEM Remote Memory Operations
 * [ ] Track Specific Thread blocks
-* [ ] Track Host Initiated Remote Memory Operations
-* [ ] Attribute Objects to the tracked Memory Operations
-* [-] Track NCCL Remote Memory Operations
-* [ ] Track NVSHMEM Remote Memory Operations
 
 ## Build
 
