@@ -12,11 +12,9 @@
 ## Build
 
 ```bash
-$ cd src/mem_multigpu/ && ARCH=80 make # builds mem_multigpu.so
-
-# Or with Cmake
 $ cmake .
-$ make mem_multigpu
+$ make snoop
+$ . ./snoopie_path.sh
 ```
 
 ## Usage

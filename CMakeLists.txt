@@ -93,6 +93,13 @@ set(MPIRUN mpirun)
 #  DEPENDS jacobi_object
 #  COMMAND cuobjdump jacobi.o -xelf all)
 
+add_custom_target(snoop
+  DEPENDS src/mem_multigpu
+  COMMAND echo "export SNOOPIE_PATH=${CMAKE_BINARY_DIR}/src/mem_multigpu/libmem_multigpu.so" > snoopie_path.sh
+  COMMAND chmod +x snoopie_path.sh
+  COMMAND ln -s ${CMAKE_CURRENT_LIST_DIR}/src/main.py snoop
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
 add_custom_target(nvshmem-multi-files_test_mapping
   COMMAND nvcc -cubin -rdc=true -lineinfo device-initiated-direct-access.cu
   COMMAND nvdisasm --print-line-info device-initiated-direct-access.cubin > memop_to_line.txt
