@@ -541,19 +541,23 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
 					//std::cout << "torch.tensor is intercepted 1\n";
 					PyObject* ptr_obj = PyObject_GetAttrString(result, "data_ptr");
-					PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+					PyObject *empty_tuple = PyTuple_Pack(0);
+					//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj, empty_tuple, NULL);
+					PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
 
 					//std::cout << "torch.tensor is intercepted 2\n";
 					unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
 					PyObject* size_obj = PyObject_GetAttrString(result, "__len__");
-					PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+					//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+					PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
 					//std::cout << "torch.tensor is intercepted 3\n";
 					unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
 					//std::cout << "torch.tensor is intercepted 3 1\n";
 					PyObject* elem_size_obj = PyObject_GetAttrString(result, "element_size");
 					if(elem_size_obj != NULL) {
 					//std::cout << "torch.tensor is intercepted 3 2\n";
-					PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+					//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+					PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
 					//std::cerr << "torch.tensor is intercepted 3 2 1\n";
 					if(elem_size_val_obj != NULL) {
 					//std::cout << "torch.tensor is intercepted 3 3\n";
@@ -601,15 +605,19 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							//#if 0
 							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
 							std::cerr << "here 4\n";
-							PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							PyObject *empty_tuple = PyTuple_Pack(0);
+							PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
 							unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
 							//fprintf(stderr, "offset value: %lx\n", offset_val);
 							PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
-							PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
 							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
 
 							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
-							PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
 							unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
 							unsigned long long alloc_size_val = element_count * element_size;
 							fprintf(stderr, "to func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
@@ -649,13 +657,16 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
 							//#if 0
 							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
-							PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							PyObject *empty_tuple = PyTuple_Pack(0);
+							PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
 							unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
 							//fprintf(stderr, "offset value: %lx\n", offset_val);
 							//#if 0
 							//PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
 							PyObject* size_obj = PyObject_GetAttrString(result1, "dim");
-							PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
 							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
 
 							unsigned long long alloc_size_val = 1;
@@ -674,7 +685,8 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
                                         		if(elem_size_obj != NULL) {
                                         			//std::cout << "torch.tensor is intercepted 3 2\n";
-                                        				PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+                                        				//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+									PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
                                         				//std::cerr << "torch.tensor is intercepted 3 2 1\n";
                                         				if(elem_size_val_obj != NULL) {
                                         					//std::cout << "torch.tensor is intercepted 3 3\n";
@@ -728,14 +740,18 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 					PyObject* result = PyObject_Call(orig_torchrandn_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
 
 					PyObject* ptr_obj = PyObject_GetAttrString(result, "data_ptr");
-					PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+					//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+					PyObject *empty_tuple = PyTuple_Pack(0);
+					PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
 					unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
 					PyObject* size_obj = PyObject_GetAttrString(result, "__len__");
-					PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+					//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+					PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
 					unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
 
 					PyObject* elem_size_obj = PyObject_GetAttrString(result, "element_size");
-					PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+					//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+					PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
 					unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
 					unsigned long long alloc_size_val = element_count * element_size;
 
@@ -771,15 +787,19 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							//#if 0
 							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
 							std::cerr << "here 4\n";
-							PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							PyObject *empty_tuple = PyTuple_Pack(0);
+							PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
 							unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
 							//fprintf(stderr, "offset value: %lx\n", offset_val);
 							PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
-							PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
 							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
 
 							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
-							PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
 							unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
 							unsigned long long alloc_size_val = element_count * element_size;
 							fprintf(stderr, "to func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
@@ -819,15 +839,19 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 							//#if 0
 							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
 							std::cerr << "here 4\n";
-							PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							PyObject *empty_tuple = PyTuple_Pack(0);
+							//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
 							unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
 							//fprintf(stderr, "offset value: %lx\n", offset_val);
 							PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
-							PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
 							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
 
 							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
-							PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+							PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
 							unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
 							unsigned long long alloc_size_val = element_count * element_size;
 							fprintf(stderr, "cuda func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);
