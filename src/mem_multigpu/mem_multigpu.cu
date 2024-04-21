@@ -2544,7 +2544,7 @@ void *recv_thread_fun(void *args) {
 					if (ma->addrs[i] == 0x0)
 						continue;
 
-					int mem_device_id = find_dev_of_ptr(ma->addrs[i]);
+					int mem_device_id = ma->owner_id;//find_dev_of_ptr(ma->addrs[i]);
 
 					// nvshmem heap_base = 0x10020000000
 					// ignore operations on memory locations not allocated by cudaMalloc

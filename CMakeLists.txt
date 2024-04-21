@@ -68,7 +68,7 @@ add_subdirectory(tests/stencil/stencil-tb-singlestream)
 
 set(NP 4)
 set(SIZE 1024)
-set(NITER 100)
+set(NITER 1000)
 set(MPIRUN mpirun)
 
 #execute_process(COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I${NVSHMEM_HOME}/include -I${MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo
@@ -163,7 +163,13 @@ add_custom_target(stencil_p2p_base_test
   DEPENDS stencil_p2p_base_test_mapping
 #COMMAND mv ${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-p2p_base/memop_to_line.txt ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
   COMMAND rm ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base/*.cubin
-  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=1 DATA_OBJECT_ATTRIBUTION=1 CODE_CONTEXT=0 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+  COMMAND ${CMAKE_COMMAND} -E env NOBANNER=1 KERNEL_NAME=all CODE_ATTRIBUTION=0 DATA_OBJECT_ATTRIBUTION=0 CODE_CONTEXT=0 LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH LD_PRELOAD="../../../src/mem_multigpu/libmem_multigpu.so" ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
+)
+
+add_custom_target(stencil_p2p_base_unprofiled
+#WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/build/tests/stencil/stencil-p2p_base
+  COMMAND ./stencil-p2p_base -nx ${SIZE} -ny ${SIZE} -niter ${NITER}
 )
 
 add_custom_target(stencil_tb_singlestream_test_mapping

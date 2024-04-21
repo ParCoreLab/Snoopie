@@ -42,6 +42,7 @@
 #define MEMTINGS2
 typedef struct {
   int dev_id;
+  int owner_id;
 
   int lane_id;
   //int func_id;
@@ -115,6 +116,7 @@ public:
           if (ma.pointer <= ptr && ptr < ma.pointer + ma.bytesize) {
 
             if (ma.deviceID != this_device) {
+	      mc->owner_id = ma.deviceID;
               found_remote = true;
               break;
             }
