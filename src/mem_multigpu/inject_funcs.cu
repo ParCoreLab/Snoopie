@@ -72,6 +72,7 @@ instrument_mem(int pred, int opcode_id, int dev_id, uint64_t addr,
   ma.opcode_id = opcode_id;
   ma.global_index = global_index;
   //ma.func_id = func_id;
+  ma.owner_id = -1;
   ma.context_id = context_id;
 
   uint64_t blockId =
