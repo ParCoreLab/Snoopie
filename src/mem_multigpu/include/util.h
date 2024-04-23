@@ -1455,6 +1455,8 @@ const char *find_cbid_name(nvbit_api_cuda_t cbid) {
     return "cuGraphMemAllocNodeGetParams";
   case 649:
     return "cuGraphMemFreeNodeGetParams";
+  case 652:
+    return "cuLaunchKernelEx";
   default:
     return "Invalid CUDA API";
   }

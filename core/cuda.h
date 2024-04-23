@@ -179,6 +179,7 @@ typedef uint64_t cuuint64_t;
 #define cuEventRecord __CUDA_API_PTSZ(cuEventRecord)
 #define cuEventRecordWithFlags __CUDA_API_PTSZ(cuEventRecordWithFlags)
 #define cuLaunchKernel __CUDA_API_PTSZ(cuLaunchKernel)
+#define cuLaunchKernelEx __CUDA_API_PTSZ(cuLaunchKernelEx)
 #define cuLaunchHostFunc __CUDA_API_PTSZ(cuLaunchHostFunc)
 #define cuGraphicsMapResources __CUDA_API_PTSZ(cuGraphicsMapResources)
 #define cuGraphicsUnmapResources __CUDA_API_PTSZ(cuGraphicsUnmapResources)
@@ -3774,6 +3775,117 @@ typedef enum CUgraphInstantiate_flags_enum {
       1 /**< Automatically free memory allocated in a graph before relaunching.
          */
 } CUgraphInstantiate_flags;
+
+// new support for snoopie begins
+/**
+ * Cluster scheduling policies. These may be passed to ::cuFuncSetAttribute or ::cuKernelSetAttribute
+ */
+typedef enum CUclusterSchedulingPolicy_enum {
+    CU_CLUSTER_SCHEDULING_POLICY_DEFAULT        = 0, /**< the default policy */
+    CU_CLUSTER_SCHEDULING_POLICY_SPREAD         = 1, /**< spread the blocks within a cluster to the SMs */
+    CU_CLUSTER_SCHEDULING_POLICY_LOAD_BALANCING = 2  /**< allow the hardware to load-balance the blocks in a cluster to the SMs */
+} CUclusterSchedulingPolicy;
+
+typedef enum CUlaunchMemSyncDomain_enum {
+    CU_LAUNCH_MEM_SYNC_DOMAIN_DEFAULT = 0,
+    CU_LAUNCH_MEM_SYNC_DOMAIN_REMOTE  = 1  
+} CUlaunchMemSyncDomain;
+
+typedef struct CUlaunchMemSyncDomainMap_st {
+    unsigned char default_;
+    unsigned char remote;
+} CUlaunchMemSyncDomainMap;
+
+typedef enum CUlaunchAttributeID_enum {
+    CU_LAUNCH_ATTRIBUTE_IGNORE = 0 /**< Ignored entry, for convenient composition */
+  , CU_LAUNCH_ATTRIBUTE_ACCESS_POLICY_WINDOW   = 1 /**< Valid for streams, graph nodes, launches. */
+  , CU_LAUNCH_ATTRIBUTE_COOPERATIVE            = 2 /**< Valid for graph nodes, launches. */
+  , CU_LAUNCH_ATTRIBUTE_SYNCHRONIZATION_POLICY = 3 /**< Valid for streams. */
+  , CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION                    = 4 /**< Valid for graph nodes, launches. */
+  , CU_LAUNCH_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE = 5 /**< Valid for graph nodes, launches. */
+  , CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION    = 6 /**< Valid for launches. Setting
+                                                                      programmaticStreamSerializationAllowed to non-0
+                                                                      signals that the kernel will use programmatic
+                                                                      means to resolve its stream dependency, so that
+                                                                      the CUDA runtime should opportunistically allow
+                                                                      the grid's execution to overlap with the previous
+                                                                      kernel in the stream, if that kernel requests the
+                                                                      overlap. The dependent launches can choose to wait
+                                                                      on the dependency using the programmatic sync
+                                                                      (cudaGridDependencySynchronize() or equivalent PTX
+                                                                      instructions). */
+  , CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_EVENT                   = 7 /**< Valid for launches. Event recorded through this
+                                                                      launch attribute is guaranteed to only trigger
+                                                                      after all block in the associated kernel trigger
+                                                                      the event. A block can trigger the event through
+                                                                      PTX launchdep.release or CUDA builtin function
+                                                                      cudaTriggerProgrammaticLaunchCompletion(). A
+                                                                      trigger can also be inserted at the beginning of
+                                                                      each block's execution if triggerAtBlockStart is
+                                                                      set to non-0. The dependent launches can choose to
+                                                                      wait on the dependency using the programmatic sync
+                                                                      (cudaGridDependencySynchronize() or equivalent PTX
+                                                                      instructions). Note that dependents (including the
+                                                                      CPU thread calling cuEventSynchronize()) are not
+                                                                      guaranteed to observe the release precisely when
+                                                                      it is released.  For example, cuEventSynchronize()
+                                                                      may only observe the event trigger long after the
+                                                                      associated kernel has completed. This recording
+                                                                      type is primarily meant for establishing
+                                                                      programmatic dependency between device tasks. The
+                                                                      event supplied must not be an interprocess or
+                                                                      interop event. The event must disable timing (i.e.
+                                                                      created with ::CU_EVENT_DISABLE_TIMING flag set).
+                                                                      */
+  , CU_LAUNCH_ATTRIBUTE_PRIORITY               = 8 /**< Valid for streams, graph nodes, launches. */
+  , CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN_MAP    = 9
+  , CU_LAUNCH_ATTRIBUTE_MEM_SYNC_DOMAIN        = 10
+#ifdef __CUDA_API_VERSION_INTERNAL
+  , CU_LAUNCH_ATTRIBUTE_MAX
+#endif
+} CUlaunchAttributeID;
+
+typedef union CUlaunchAttributeValue_union {
+    char pad[64]; /**< Pad to 64 bytes */
+    CUaccessPolicyWindow accessPolicyWindow; /**< Attribute ::CUaccessPolicyWindow. */
+    int cooperative; /**< Nonzero indicates a cooperative kernel (see ::cuLaunchCooperativeKernel). */
+    CUsynchronizationPolicy syncPolicy; /**< ::CUsynchronizationPolicy for work queued up in this stream */
+    struct {
+        unsigned int x;
+        unsigned int y;
+        unsigned int z;
+    } clusterDim; /**< Cluster dimensions for the kernel node. */
+    CUclusterSchedulingPolicy clusterSchedulingPolicyPreference; /**< Cluster scheduling policy preference for the kernel node. */
+    int programmaticStreamSerializationAllowed;
+    struct {
+        CUevent event;
+        int flags;                      /* Does not accept ::CU_EVENT_RECORD_EXTERNAL */
+        int triggerAtBlockStart;
+    } programmaticEvent;
+    int priority; /**< Execution priority of the kernel. */
+    CUlaunchMemSyncDomainMap memSyncDomainMap;
+    CUlaunchMemSyncDomain memSyncDomain;
+} CUlaunchAttributeValue;
+
+typedef struct CUlaunchAttribute_st {
+    CUlaunchAttributeID id;
+    char pad[8 - sizeof(CUlaunchAttributeID)];
+    CUlaunchAttributeValue value;
+} CUlaunchAttribute;
+
+typedef struct CUlaunchConfig_st {
+    unsigned int gridDimX;       /**< Width of grid in blocks */
+    unsigned int gridDimY;       /**< Height of grid in blocks */
+    unsigned int gridDimZ;       /**< Depth of grid in blocks */
+    unsigned int blockDimX;      /**< X dimension of each thread block */
+    unsigned int blockDimY;      /**< Y dimension of each thread block */
+    unsigned int blockDimZ;      /**< Z dimension of each thread block */
+    unsigned int sharedMemBytes; /**< Dynamic shared-memory size per thread block in bytes */
+    CUstream hStream;            /**< Stream identifier */
+    CUlaunchAttribute *attrs;    /**< nullable if numAttrs == 0 */
+    unsigned int numAttrs;       /**< number of attributes populated in attrs */
+} CUlaunchConfig; 
+// new support for snoopie ends
 
 /** @} */ /* END CUDA_TYPES */
 
@@ -14489,6 +14601,8 @@ CUresult CUDAAPI cuLaunchKernel(CUfunction f, unsigned int gridDimX,
                                 unsigned int sharedMemBytes, CUstream hStream,
                                 void **kernelParams, void **extra);
 
+CUresult CUDAAPI cuLaunchKernelEx(const CUlaunchConfig* config, CUfunction f, void** kernelParams, void** extra);
+
 /**
  * \brief Launches a CUDA function where thread blocks can cooperate and
  * synchronize as they execute
@@ -20133,6 +20247,7 @@ CUresult CUDAAPI cuGetExportTable(const void **ppExportTable,
 #undef cuMemAllocAsync
 #undef cuMemAllocFromPoolAsync
 #undef cuStreamUpdateCaptureDependencies
+#undef cuLaunchKernelEx
 
 CUresult CUDAAPI cuMemHostRegister(void *p, size_t bytesize,
                                    unsigned int Flags);
@@ -20421,6 +20536,7 @@ CUresult CUDAAPI cuLaunchKernel(CUfunction f, unsigned int gridDimX,
                                 unsigned int blockDimZ,
                                 unsigned int sharedMemBytes, CUstream hStream,
                                 void **kernelParams, void **extra);
+CUresult CUDAAPI cuLaunchKernelEx(const CUlaunchConfig* config, CUfunction f, void** kernelParams, void** extra);
 CUresult CUDAAPI cuLaunchHostFunc(CUstream hStream, CUhostFn fn,
                                   void *userData);
 CUresult CUDAAPI cuGraphicsMapResources(unsigned int count,

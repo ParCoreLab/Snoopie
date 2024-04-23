@@ -1637,6 +1637,7 @@ __global__ void flush_channel(ChannelDev *ch_dev) {
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		const char *name, void *params, CUresult *pStatus) {
 	pthread_mutex_lock(&mutex1);
+	//std::cerr << "cbid: " << cbid << " " << find_cbid_name(cbid) << " " << API_CUDA_cuLaunchKernelEx << "\n";
 	log_time(std::string("Bgn Cuda Event ") + (is_exit ? "Exit" : "Enter") +
 			find_cbid_name(cbid));
 
@@ -1656,6 +1657,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 	MemoryAllocation ma;
 	if (!is_exit && (cbid == API_CUDA_cuLaunchKernel_ptsz ||
 				cbid == API_CUDA_cuLaunchKernel)) {
+		fprintf(stderr, "cuLaunchKernel is intercepted\n");
 		cuLaunchKernel_params *p = (cuLaunchKernel_params *)params;
 
 		/* Make sure GPU is idle */
@@ -1689,7 +1691,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			if (kernel_name == "all" ||
 					kernel_name == func_name.substr(0, func_name.find("("))) {
 				instrument_function_if_needed(ctx, f);
-				//std::cerr << "A kernel named " << func_name << " is detected\n";
+				std::cerr << "A kernel named " << func_name << " is detected\n";
 			} else if (kernel_name == "nccl" &&
 					(func_name.substr(0, std::string("ncclKernel").length())
 					.compare(std::string("ncclKernel")) == 0 || func_name.substr(0, std::string("ncclDev").length())
@@ -1729,8 +1731,79 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 						(uint64_t)ctx, pc, func_name.c_str(), grid_launch_id);
 			}
 		}
+	} if (!is_exit && cbid == API_CUDA_cuLaunchKernelEx) { 
+		fprintf(stderr, "cuLaunchKernelEx is intercepted\n");
+
+		cuLaunchKernelEx_params *p = (cuLaunchKernelEx_params *)params;
+
+                std::string func_name(nvbit_get_func_name(ctx, p->f));
+                uint64_t pc = nvbit_get_func_addr(p->f);
+
+                std::vector<CUfunction> related_functions =
+                        nvbit_get_related_functions(ctx, p->f);
+                related_functions.push_back(p->f);
+
+		for (auto f : related_functions) {
+
+                        // NOTE: Needs to verify if cuda_sm_20_div_s64 contains any addrs writes
+                        // or not. Avoid instrumentting this (possibly a whole family of
+                        // functions similar to this should be avoided to speed up NCCL
+                        // profiling)
+                        if (strcmp(nvbit_get_func_name(ctx, f), "__cuda_sm20_div_s64") == 0) {
+                                continue;
+                        }
+
+                        // only instrument kernel's with the kernel name supplied by the user,
+                        // the substr and find are to extract the func name from the func
+                        // signature
+                        std::string func_name(nvbit_get_func_name(ctx, f));
+                        if (kernel_name == "all" ||
+                                        kernel_name == func_name.substr(0, func_name.find("("))) {
+                                instrument_function_if_needed(ctx, f);
+                                std::cerr << "A kernel named " << func_name << " is detected\n";
+                        } else if (kernel_name == "nccl" &&
+                                        (func_name.substr(0, std::string("ncclKernel").length())
+                                        .compare(std::string("ncclKernel")) == 0 || func_name.substr(0, std::string("ncclDev").length())
+                                        .compare(std::string("ncclDev")) == 0)) {
+                                std::cerr << "A NCCL kernel is detected 1, name: " << func_name << "\n";
+#if 0
+                                py::object traceback = py::module::import("traceback");
+                                py::object extract_summary = traceback.attr("StackSummary").attr("extract");
+                                py::object walk_stack = traceback.attr("walk_stack");
+                                py::object summary = extract_summary(walk_stack(py::none()));
+                                std::vector<py::handle> stack_vec;
+                                for (py::handle frame : summary) {
+                                        std::cerr << frame.attr("filename").attr("__str__")().cast<std::string>() << " " << frame.attr("lineno").attr("__int__")().cast<int>() << " " << frame.attr("name").attr("__str__")().cast<std::string>() << std::endl;
+                                }
+#endif
+                                instrument_function_if_needed(ctx, f);
+                        }
+
+			int nregs = 0;
+                        CUDA_SAFECALL(cuFuncGetAttribute(&nregs, CU_FUNC_ATTRIBUTE_NUM_REGS, f));
+
+                        int shmem_static_nbytes = 0;
+                        CUDA_SAFECALL(cuFuncGetAttribute(&shmem_static_nbytes,
+                                                CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, f));
+
+                        /* set grid launch id at launch time */
+                        nvbit_set_at_launch(ctx, f, &grid_launch_id, sizeof(uint64_t));
+                        /* increment grid launch id for next launch */
+                        grid_launch_id++;
+
+                        /* enable instrumented code to run */
+                        nvbit_enable_instrumented(ctx, f, true);
+
+                        if (verbose) {
+                                printf("MEMTRACE: CTX 0x%016lx - LAUNCH - Kernel pc 0x%016lx - Kernel "
+                                                "name %s - grid launch id %ld\n",
+                                                (uint64_t)ctx, pc, func_name.c_str(), grid_launch_id);
+                        }
+                }
+
 	} else if (!is_exit && (cbid == API_CUDA_cuLaunchCooperativeKernel ||
 				cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz)) {
+		fprintf(stderr, "cuLaunchCooperativeKernel is intercepted\n");
 		cuLaunchCooperativeKernel_params *p =
 			(cuLaunchCooperativeKernel_params *)params;
 

@@ -683,6 +683,9 @@
   ACTION(cuda, 646, cuCtxGetExecAffinity, 0)                                   \
   ACTION(cuda, 647, cuDeviceGetUuid_v2, 0)                                     \
   ACTION(cuda, 648, cuGraphMemAllocNodeGetParams, 0)                           \
-  ACTION(cuda, 649, cuGraphMemFreeNodeGetParams, 0)
+  ACTION(cuda, 649, cuGraphMemFreeNodeGetParams, 0)			       \
+  ACTION(cuda, 650, unknownFunc1, 0)                            	       \
+  ACTION(cuda, 651, unknownFunc2, 0)                                           \
+  ACTION(cuda, 652, cuLaunchKernelEx, 0)
 
 #endif // file guard

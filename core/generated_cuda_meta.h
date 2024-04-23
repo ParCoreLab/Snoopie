@@ -2732,6 +2732,13 @@ typedef struct cuLaunchKernel_params_st {
   void **extra;
 } cuLaunchKernel_params;
 
+typedef struct cuLaunchKernelEx_params_st {
+  CUlaunchConfig* config;
+  CUfunction f;
+  void** kernelParams;
+  void** extra;
+} cuLaunchKernelEx_params;
+
 typedef struct cuLaunchHostFunc_params_st {
   CUstream hStream;
   CUhostFn fn;
