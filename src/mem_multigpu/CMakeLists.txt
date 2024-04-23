@@ -6,6 +6,7 @@ add_library(mem_multigpu SHARED
   mem_multigpu.cu
   inject_funcs.cu
   obj_database.cu
+  python_support.cu
         )
 
 set_target_properties(mem_multigpu PROPERTIES OUTPUT_NAME "mem_multigpu")

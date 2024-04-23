@@ -54,21 +54,21 @@
 #include <iostream>
 
 /* every tool needs to include this once */
-#include "nvbit_tool.h"
+//#include "nvbit_tool.h"
 
 /* nvbit interface file */
-#include "nvbit.h"
+//#include "nvbit.h"
 
 /* for channel */
-#include "utils/channel.hpp"
+//#include "utils/channel.hpp"
 
 /* contains definition of the mem_access_t structure */
-#include "common.h"
-#include "util.h"
+//#include "common.h"
+//#include "util.h"
 
-#include "mpi.h"
-#include "nvshmem.h"
-#include "nvshmemx.h"
+//#include "mpi.h"
+//#include "nvshmem.h"
+//#include "nvshmemx.h"
 
 #include <sys/syscall.h>
 #define gettid() syscall(SYS_gettid)
@@ -95,13 +95,15 @@ using namespace std;
 #define CHILD 1
 #define SIBLING 2
 
-//PyObject* orig_cudadevicendarray_func;
-//PyObject* orig_cudadevicerecord_func;
-//PyObject* orig_cudapinnedarray_func;
-//PyObject* orig_torch_cuda_func;
+PyObject* orig_cudadevicendarray_func;
+PyObject* orig_cudadevicerecord_func;
+PyObject* orig_cudapinnedarray_func;
+PyObject* orig_torch_cuda_func;
 //PyObject* orig_torchtensor_func;
 //PyObject* orig_torchto_func;
+extern std::vector<adm_range_t *> range_nodes;
 
+#if 0
 int object_counter = 0;
 int context_counter = 0;
 int latest_context = 0;
@@ -109,6 +111,7 @@ static long mem_alloc_count = 0;
 
 static bool nvshmem_malloc_handled = false;
 static bool object_attribution = false;
+//#endif
 pool_t<adm_splay_tree_t, ADM_DB_OBJ_BLOCKSIZE> *nodes = nullptr;
 pool_t<adm_range_t, ADM_DB_OBJ_BLOCKSIZE> *ranges = nullptr;
 static int global_index = 0;
@@ -164,10 +167,14 @@ uint32_t get_object_data_type_size(uint64_t pc);
 void set_object_data_type_size(uint64_t pc, const uint32_t type_size);
 
 bool object_exists(uint64_t pc);
+#endif
 /* lock */
-pthread_mutex_t mutex1;
-//pthread_mutex_t mutex_pytorch;
+//pthread_mutex_t mutex1;
+pthread_mutex_t mutex_pytorch;
 
+extern int code_context;
+extern int data_object_attribution;
+#if 0
 /* map to store context state */
 std::unordered_map<CUcontext, CTXstate *> ctx_state_map;
 
@@ -211,8 +218,8 @@ execution_site_t *search_site_at_level(execution_site_t *execution_site, uint64_
 
 std::map<unsigned long long, py::cpp_function> cur_tensorto_func;
 int tensorto_func_count = 0;
+#endif
 
-#if 0
 inline py::object extract_python_callpath()
 {
 	py::object traceback = py::module::import("traceback");
@@ -220,108 +227,13 @@ inline py::object extract_python_callpath()
 	py::object walk_stack = traceback.attr("walk_stack");
 	return extract_summary(walk_stack(py::none()));
 }
-#endif
 
-void update_allocation_site_tree(py::object& summary, allocation_site_t **allocation_site, allocation_site_t **parent)
-{
-	std::vector<py::handle> stack_vec;
-	for (py::handle frame : summary) {
-		stack_vec.push_back(frame);
-                if (root == NULL) {
-			std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
-			uint64_t key_num = std::hash<std::string>()(filename);
-			root = new allocation_site_t(key_num);
-			*allocation_site = root;
-		}
-	}
-	*parent = root;
-        *allocation_site = root->get_first_child();
-	
-	for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
-		std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
-
-		std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
-		int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
-		std::string key_str = filename + ":" + std::to_string(lineno);
-		uint64_t key_num = std::hash<std::string>()(key_str);
-		std::string func_name = itr->attr("name").attr("__str__")().cast<std::string>();
-
-		allocation_line_t *line = allocation_line_table->find(key_num);
-		if (line == NULL) {
-			allocation_line_table->insert(new allocation_line_t(
-				key_num, func_name, filename, lineno));
-                }
-		allocation_site_t *temp = *allocation_site;
-		*allocation_site = search_at_level(*allocation_site, key_num);
-
-		if (*allocation_site == NULL) {
-			if (temp != NULL) {
-				while (temp->get_next_sibling() != NULL)
-					temp = temp->get_next_sibling();
-				temp->set_next_sibling(new allocation_site_t(key_num));
-
-				*allocation_site = temp->get_next_sibling();
-				(*allocation_site)->set_parent(temp->get_parent());
-			} else {
-				(*parent)->set_first_child(new allocation_site_t(key_num));
-				*allocation_site = (*parent)->get_first_child();
-				(*allocation_site)->set_parent(*parent);
-			}
-		}
-		*parent = *allocation_site;
-		*allocation_site = (*allocation_site)->get_first_child();
-	}
-}
-
-void update_exec_site_tree(py::object& summary, execution_site_t **execution_site, execution_site_t **parent)
-{
-	std::vector<py::handle> stack_vec;
-	//execution_site_t *execution_site = NULL;
-	//execution_site_t *parent = NULL; 
-	for (py::handle frame : summary) {
-		stack_vec.push_back(frame);
-		if(exec_root == NULL) {
-			std::string filename = frame.attr("filename").attr("__str__")().cast<std::string>();
-			uint64_t key_num = std::hash<std::string>()(filename);
-			exec_root = new execution_site_t(key_num);
-			*execution_site = exec_root;
-		}
-	}
-	*parent = exec_root;
-	*execution_site = exec_root->get_first_child();
-	
-	for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
-		std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
-		int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
-		std::string key_str = filename + ":" + std::to_string(lineno);
-		uint64_t key_num = std::hash<std::string>()(key_str);
-		execution_site_t *line = execution_site_table->find(key_num);
-		if (line == NULL) {
-			execution_site_table->insert(new execution_site_t(
-				key_num, /*func_name,*/ filename, lineno));
-		}
-		execution_site_t *temp = *execution_site;
-		*execution_site = search_site_at_level(*execution_site, key_num);
-
-		if (*execution_site == NULL) {
-			if (temp != NULL) {
-				while (temp->get_next_sibling() != NULL)
-					temp = temp->get_next_sibling();
-				temp->set_next_sibling(new execution_site_t(key_num));
-				*execution_site = temp->get_next_sibling();
-				(*execution_site)->set_parent(temp->get_parent());
-			} else {
-				(*parent)->set_first_child(new execution_site_t(key_num));
-				*execution_site = (*parent)->get_first_child();
-				(*execution_site)->set_parent(*parent);
-			}
-		}
-		*parent = *execution_site;
-		*execution_site = (*execution_site)->get_first_child();
-	}
-}
+void update_allocation_site_tree(py::object& summary, allocation_site_t **allocation_site, allocation_site_t **parent);
 
 //#if 0
+void update_exec_site_tree(py::object& summary, execution_site_t **execution_site, execution_site_t **parent);
+
+#if 0
 inline void update_exec_site_tree_cpp(std::vector<stacktrace_frame>& trace, execution_site_t **execution_site, execution_site_t **parent)
 {
 	//allocation_site_t *allocation_site = root;
@@ -366,26 +278,15 @@ inline void update_exec_site_tree_cpp(std::vector<stacktrace_frame>& trace, exec
                         *execution_site = (*execution_site)->get_first_child();
 	}
 }
+#endif
+
+void record_exec_context(execution_site_t *parent); 
+
+void record_object_allocation_context(allocation_site_t *parent); 
 //#endif
 
-void record_exec_context(execution_site_t *parent) {
-	if (parent && parent->get_context_id() == 0) {
-		parent->set_context_id(++context_counter);
-		context_nodes.push_back(new execution_context_t(parent->get_context_id(), parent));
-		latest_context = context_counter;
-	} else {
-		latest_context = parent->get_context_id();
-	}
-}
 
-void record_object_allocation_context(allocation_site_t *parent) {
-	if (parent && parent->get_object_id() == 0) {
-		parent->set_object_id(++object_counter);
-		object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
-	} 
-}
 
-#if 0
 PYBIND11_MODULE(libmem_multigpu, m) {
 	pthread_mutexattr_t attr;
 	pthread_mutexattr_init(&attr);
@@ -1007,8 +908,8 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 	my_injection(torch, "nn.parallel.comm");
 	std::cerr << "until here\n";
 }
-#endif
 
+#if 0
 void log_time(string msg) {
 	if (!time_log)
 		return;
@@ -1661,7 +1562,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 	MemoryAllocation ma;
 	if (!is_exit && (cbid == API_CUDA_cuLaunchKernel_ptsz ||
 				cbid == API_CUDA_cuLaunchKernel)) {
-		//fprintf(stderr, "cuLaunchKernel is intercepted\n");
+		fprintf(stderr, "cuLaunchKernel is intercepted\n");
 		cuLaunchKernel_params *p = (cuLaunchKernel_params *)params;
 
 		/* Make sure GPU is idle */
@@ -1695,12 +1596,12 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			if (kernel_name == "all" ||
 					kernel_name == func_name.substr(0, func_name.find("("))) {
 				instrument_function_if_needed(ctx, f);
-				//std::cerr << "A kernel named " << func_name << " is detected\n";
+				std::cerr << "A kernel named " << func_name << " is detected\n";
 			} else if (kernel_name == "nccl" &&
 					(func_name.substr(0, std::string("ncclKernel").length())
 					.compare(std::string("ncclKernel")) == 0 || func_name.substr(0, std::string("ncclDev").length())
                                         .compare(std::string("ncclDev")) == 0)) {
-				//std::cerr << "A NCCL kernel is detected 1, name: " << func_name << "\n";
+				std::cerr << "A NCCL kernel is detected 1, name: " << func_name << "\n";
 #if 0
 				py::object traceback = py::module::import("traceback");
         			py::object extract_summary = traceback.attr("StackSummary").attr("extract");
@@ -1736,7 +1637,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			}
 		}
 	} if (!is_exit && cbid == API_CUDA_cuLaunchKernelEx) { 
-		//fprintf(stderr, "cuLaunchKernelEx is intercepted\n");
+		fprintf(stderr, "cuLaunchKernelEx is intercepted\n");
 
 		cuLaunchKernelEx_params *p = (cuLaunchKernelEx_params *)params;
 
@@ -1764,12 +1665,12 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
                         if (kernel_name == "all" ||
                                         kernel_name == func_name.substr(0, func_name.find("("))) {
                                 instrument_function_if_needed(ctx, f);
-                                //std::cerr << "A kernel named " << func_name << " is detected\n";
+                                std::cerr << "A kernel named " << func_name << " is detected\n";
                         } else if (kernel_name == "nccl" &&
                                         (func_name.substr(0, std::string("ncclKernel").length())
                                         .compare(std::string("ncclKernel")) == 0 || func_name.substr(0, std::string("ncclDev").length())
                                         .compare(std::string("ncclDev")) == 0)) {
-                                //std::cerr << "A NCCL kernel is detected 1, name: " << func_name << "\n";
+                                std::cerr << "A NCCL kernel is detected 1, name: " << func_name << "\n";
 #if 0
                                 py::object traceback = py::module::import("traceback");
                                 py::object extract_summary = traceback.attr("StackSummary").attr("extract");
@@ -1807,7 +1708,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
 	} else if (!is_exit && (cbid == API_CUDA_cuLaunchCooperativeKernel ||
 				cbid == API_CUDA_cuLaunchCooperativeKernel_ptsz)) {
-		//fprintf(stderr, "cuLaunchCooperativeKernel is intercepted\n");
+		fprintf(stderr, "cuLaunchCooperativeKernel is intercepted\n");
 		cuLaunchCooperativeKernel_params *p =
 			(cuLaunchCooperativeKernel_params *)params;
 
@@ -1833,7 +1734,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 					(func_name.substr(0, std::string("ncclKernel").length())
 					.compare(std::string("ncclKernel")) == 0 || func_name.substr(0, std::string("ncclDev").length())
                                         .compare(std::string("ncclDev")) == 0)) {
-				//std::cerr << "A NCCL kernel is detected, name: " << func_name << "\n";
+				std::cerr << "A NCCL kernel is detected, name: " << func_name << "\n";
 #if 0
 				py::object traceback = py::module::import("traceback");
                                 py::object extract_summary = traceback.attr("StackSummary").attr("extract");
@@ -2839,3 +2740,4 @@ void nvbit_at_term() {
 	log_time("End Snoopie");
 	adm_db_fini();
 }
+#endif
