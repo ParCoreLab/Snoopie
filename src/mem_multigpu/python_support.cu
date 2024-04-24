@@ -722,6 +722,229 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
 					return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
 			});
+		} else if(func_name == "full") {
+			std::cerr << "torch.full is injected\n";
+			PyObject* mod = obj.ptr();
+			PyObject* orig_torchfull_func = PyObject_GetAttrString(mod, "full");		
+
+			obj.attr("full") = py::cpp_function([orig_torchfull_func](const py::args &args, const py::kwargs &kwargs) {
+					//std::cout << msg.cast<std::string>();
+					std::cout << "torch.full is intercepted\n";
+					PyObject* result = PyObject_Call(orig_torchfull_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+					PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                        if (PyBool_Check(is_cuda_obj)) {
+                                                if(is_cuda_obj == Py_True) {
+							//std::cout << "torch.tensor is intercepted 1\n";
+							PyObject* ptr_obj = PyObject_GetAttrString(result, "data_ptr");
+							PyObject *empty_tuple = PyTuple_Pack(0);
+							//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj, empty_tuple, NULL);
+							PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
+
+							//std::cout << "torch.tensor is intercepted 2\n";
+							unsigned long long offset_val = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+							//PyObject* size_obj = PyObject_GetAttrString(result, "__len__");
+							PyObject* size_obj = PyObject_GetAttrString(result, "dim");
+							//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
+							//std::cout << "torch.tensor is intercepted 3\n";
+							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
+							unsigned long long alloc_size_val = 1;
+
+							for(long i = 0; i < element_count; i++) {
+                                                                PyObject* torchsize_obj = PyObject_GetAttrString(result, "size");
+                                                                PyObject *dim_obj = PyLong_FromLong(i);
+                                                                PyObject *dim_tuple = PyTuple_Pack(1, dim_obj);
+                                                                PyObject* size_dim_obj = PyObject_CallObject(torchsize_obj, dim_tuple);
+                                                                unsigned long long dim_size = PyLong_AsUnsignedLongLongMask(size_dim_obj);
+                                                                alloc_size_val *= dim_size;
+                                                        }
+							//std::cout << "torch.tensor is intercepted 3 1\n";
+							PyObject* elem_size_obj = PyObject_GetAttrString(result, "element_size");
+
+							if(elem_size_obj != NULL) {
+                                                        	PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
+                                                        	//std::cerr << "torch.tensor is intercepted 3 2 1\n";
+                                                        	if(elem_size_val_obj != NULL) {
+                                                        		//std::cout << "torch.tensor is intercepted 3 3\n";
+                                                        		unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+                                                       			alloc_size_val *= element_size;
+									py::object summary = extract_python_callpath();
+									//#if 0
+									std::vector<py::handle> stack_vec;
+									allocation_site_t *allocation_site = NULL;
+									allocation_site_t *parent = NULL;
+
+									update_allocation_site_tree(summary, &allocation_site, &parent);
+
+									if (parent) {
+										record_object_allocation_context(parent);
+										int deviceID = -1;
+										cudaGetDevice(&deviceID);
+
+										fprintf(stderr, "torch.tensor func call captured for GPU Object, offset value: %lx, allocation size: %ld recorded\n", offset_val, alloc_size_val);
+										adm_range_insert(offset_val, alloc_size_val, parent->get_pc(),
+											deviceID, "", ADM_STATE_ALLOC);
+										range_nodes.push_back(new adm_range_t(
+											offset_val, alloc_size_val, parent->get_object_id(), deviceID));
+									}
+								} 
+							}
+							//fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+						}
+					}	
+
+					py::object result_obj = py::reinterpret_borrow<py::object>(result);
+					PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to"); 
+					result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+							std::cerr << "torch.tensor.to is intercepted\n";
+							//py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+							//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+							PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+							PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                                        if (PyBool_Check(is_cuda_obj)) {
+                                                                if(is_cuda_obj == Py_True) {
+									//#if 0
+									PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
+									std::cerr << "here 4\n";
+									//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+									PyObject *empty_tuple = PyTuple_Pack(0);
+									PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
+									unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+									//fprintf(stderr, "offset value: %lx\n", offset_val);
+									//PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
+									PyObject* size_obj = PyObject_GetAttrString(result1, "dim");
+									//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+									PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
+									unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
+									unsigned long long alloc_size_val = 1;
+
+									for(long i = 0; i < element_count; i++) {
+                                                                		PyObject* torchsize_obj = PyObject_GetAttrString(result1, "size");
+                                                                		PyObject *dim_obj = PyLong_FromLong(i);
+                                                                		PyObject *dim_tuple = PyTuple_Pack(1, dim_obj);
+                                                                		PyObject* size_dim_obj = PyObject_CallObject(torchsize_obj, dim_tuple);
+                                                                		unsigned long long dim_size = PyLong_AsUnsignedLongLongMask(size_dim_obj);
+                                                                		alloc_size_val *= dim_size;
+                                                        		}
+
+									PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
+
+									if(elem_size_obj != NULL) {
+                                                                		//std::cout << "torch.tensor is intercepted 3 2\n";
+                                                                        	//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+                                                                        	PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
+                                                                        	//std::cerr << "torch.tensor is intercepted 3 2 1\n";
+                                                                        	if(elem_size_val_obj != NULL) {
+                                                                                	//std::cout << "torch.tensor is intercepted 3 3\n";
+                                                                                	unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+                                                                                	alloc_size_val *= element_size;
+                                                                        	}
+                                                        		}
+
+									py::object summary = extract_python_callpath(); 
+									std::vector<py::handle> stack_vec;
+									allocation_site_t *allocation_site = NULL;
+									allocation_site_t *parent = NULL;
+
+									update_allocation_site_tree(summary, &allocation_site, &parent);
+
+									if (parent) {
+										record_object_allocation_context(parent);
+										int deviceID = -1;
+										cudaGetDevice(&deviceID);
+
+										fprintf(stderr, "to func call captured for GPU Object, offset value: %lx, allocation size: %ld recorded\n", offset_val1, alloc_size_val);
+										adm_range_insert(offset_val1, alloc_size_val, parent->get_pc(),
+												deviceID, "", ADM_STATE_ALLOC);
+										range_nodes.push_back(new adm_range_t(
+													offset_val1, alloc_size_val, parent->get_object_id(), deviceID));
+									}	
+
+								} 
+							}
+							//#endif
+							return py::reinterpret_borrow<py::object>(result1);
+					});
+										
+					PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+					result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+							std::cerr << "tensor.cuda is intercepted\n";
+							//PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+							PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+							//#if 0
+							PyObject* ptr_obj = PyObject_GetAttrString(result1, "data_ptr");
+							//PyObject* ptr_val_obj = PyObject_CallNoArgs(ptr_obj);
+							PyObject *empty_tuple = PyTuple_Pack(0);
+							PyObject* ptr_val_obj = PyObject_Call(ptr_obj, empty_tuple, NULL);
+							unsigned long long offset_val1 = PyLong_AsUnsignedLongLongMask(ptr_val_obj);
+							//fprintf(stderr, "offset value: %lx\n", offset_val);
+							//#if 0
+							//PyObject* size_obj = PyObject_GetAttrString(result1, "__len__");
+							PyObject* size_obj = PyObject_GetAttrString(result1, "dim");
+							//PyObject* size_val_obj = PyObject_CallNoArgs(size_obj);
+							PyObject* size_val_obj = PyObject_Call(size_obj, empty_tuple, NULL);
+							unsigned long long element_count = PyLong_AsUnsignedLongLongMask(size_val_obj);
+
+							unsigned long long alloc_size_val = 1;
+//#if 0
+							for(long i = 0; i < element_count; i++) {
+								PyObject* torchsize_obj = PyObject_GetAttrString(result1, "size");
+								PyObject *dim_obj = PyLong_FromLong(i);
+								PyObject *dim_tuple = PyTuple_Pack(1, dim_obj);
+								PyObject* size_dim_obj = PyObject_CallObject(torchsize_obj, dim_tuple);
+								unsigned long long dim_size = PyLong_AsUnsignedLongLongMask(size_dim_obj);
+								alloc_size_val *= dim_size;
+							}
+//#endif
+							//#if 0
+							std::cerr << "tensor.cuda is intercepted before element_size\n";
+							PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
+                                        		if(elem_size_obj != NULL) {
+                                        			//std::cout << "torch.tensor is intercepted 3 2\n";
+                                        				//PyObject* elem_size_val_obj = PyObject_CallNoArgs(elem_size_obj);
+									PyObject* elem_size_val_obj = PyObject_Call(elem_size_obj, empty_tuple, NULL);
+                                        				//std::cerr << "torch.tensor is intercepted 3 2 1\n";
+                                        				if(elem_size_val_obj != NULL) {
+                                        					//std::cout << "torch.tensor is intercepted 3 3\n";
+                                        					unsigned long long element_size = PyLong_AsUnsignedLongLongMask(elem_size_val_obj);
+										alloc_size_val *= element_size;
+									}
+							}
+							//PyObject* elem_size_obj = PyObject_GetAttrString(result1, "element_size");
+							std::cerr << "tensor.cuda is intercepted after element_size\n";
+							//#if 0
+							//if(elem_size_obj != NULL) {
+							std::cerr << "tensor.cuda is intercepted after if 1\n";
+							fprintf(stderr, "cuda func call captured, offset value: %lx, allocation size: %ld\n", offset_val1, alloc_size_val);	
+							py::object summary = extract_python_callpath();
+							std::vector<py::handle> stack_vec;
+							allocation_site_t *allocation_site = NULL;
+							allocation_site_t *parent = NULL;
+
+							update_allocation_site_tree(summary, &allocation_site, &parent);
+
+							if (parent) {
+								record_object_allocation_context(parent);
+								int deviceID = -1;
+								cudaGetDevice(&deviceID);
+
+								adm_range_insert(offset_val1, alloc_size_val, parent->get_pc(),
+										deviceID, "", ADM_STATE_ALLOC);
+								range_nodes.push_back(new adm_range_t(
+											offset_val1, alloc_size_val, parent->get_object_id(), deviceID));
+							}
+							//}
+							//#endif
+							std::cerr << "tensor.cuda is intercepted after if 2\n";	
+							//#endif
+							return py::reinterpret_borrow<py::object>(result1);
+					});	
+
+					return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+			});
 		} else if(func_name == "empty_like") {
 			std::cerr << "torch.empty_like is injected\n";
 			PyObject* mod = obj.ptr();
@@ -823,6 +1046,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 	if(data_object_attribution) {
 		my_injection(torch, "tensor");
 		my_injection(torch, "randn");
+		my_injection(torch, "full");
 		//my_injection(torch, "to");
 		my_injection(torch, "empty_like");
 	}
