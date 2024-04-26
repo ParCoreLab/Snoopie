@@ -1,13 +1,35 @@
 # Snoopie: A Multi-GPU communication profiler
 
-## Features:
-* [x] Track Device Initiated Remote Memory Operations
-* [X] Track Specific Kernels
-* [X] Track Host Initiated Remote Memory Operations
-* [X] Attribute Objects to the tracked Memory Operations
-* [X] Track NCCL Remote Memory Operations
-* [X] Track NVSHMEM Remote Memory Operations
-* [ ] Track Specific Thread blocks
+With data movement becoming one of the most expensive
+bottlenecks in computing, the need for profiling tools to
+analyze communication becomes crucial for effectively scal-
+ing multi-GPU applications. While existing profiling tools
+including first-party software by GPU vendors are robust
+and excel at capturing compute operations within a sin-
+gle GPU, support for monitoring GPU-GPU data transfers
+and calls issued by communication libraries is currently
+inadequate. To fill these gaps, we introduce Snoopie, an
+instrumentation-based multi-GPU communication profiling
+tool built on NVBit, capable of tracking peer-to-peer trans-
+fers and GPU-centric communication library calls. To in-
+crease programmer productivity, Snoopie can attribute data
+movement to the source code line and the data objects in-
+volved. It comes with multiple visualization modes at varying
+granularities, from a coarse view of the data movement in the
+system as a whole to specific instructions and addresses. Our
+case studies demonstrate Snoopie’s effectiveness in moni-
+toring data movement, locating performance bugs in applica-
+tions, and understanding concrete data transfers abstracted
+beneath communication libraries
+
+![Snoopie](https://github.com/ParCoreLab/snoopie/assets/45905717/2c2e73f4-2f8d-47ca-b4a7-f830d7216640)
+
+
+## Dependencies
+* CUDA 11.8
+* OPENMPI 4.1.4
+* NVSHMEM 2.7 or above
+* NVBit 1.5.5
 
 ## Build
 
@@ -108,3 +130,25 @@ By default, the file upload limit is 200MB, to change it set the `STREAMLIT_SERV
 ### Electron Build
 
 See [here](./electron_builder) for electron build instructions.
+
+
+
+# Citing
+
+
+```bibtex
+@inproceedings{Snoopie,
+  author = {Issa, Mohammad Kefah Taha and Sasongko, Muhammad Aditya and Turimbetov, Ilyas and Baydamirli, Javid and Sa\u{g}bili, Do\u{g}an and Unat, Didem},
+  title = {Snoopie: A Multi-GPU Communication Profiler and Visualizer},
+  year = {2024},
+  url = {https://doi.org/10.1145/3650200.3656597},
+  doi = {10.1145/3650200.3656597},
+  booktitle = {Proceedings of the 38th International Conference on Supercomputing},
+  series = {ICS '24}
+}
+```
+
+# Acknowledgment
+> [!NOTE]
+> This project has received funding from the European Research Council (ERC) under the European Union’s Horizon 2020 research and innovation programme (grant agreement No 949587).
+
