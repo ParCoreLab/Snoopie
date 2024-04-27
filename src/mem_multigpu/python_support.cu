@@ -472,17 +472,342 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 
 					return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
 			}); 
-		} else if(func_name == "empty_like") {
+		} else if(func_name == "ones_like") {
+                        std::cerr << "torch.ones_like is injected\n";
+                        PyObject* mod = obj.ptr();
+                        PyObject* orig_torchoneslike_func = PyObject_GetAttrString(mod, "ones_like");
+
+                        obj.attr("ones_like") = py::cpp_function([orig_torchoneslike_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cout << "torch.ones_like is intercepted\n";
+                                        PyObject* result = PyObject_Call(orig_torchoneslike_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                        if (PyBool_Check(is_cuda_obj)) {
+                                                if(is_cuda_obj == Py_True) {
+                                                        record_python_data_object(result);
+                                                        //fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+                                                }
+                                        }
+
+                                        py::object result_obj = py::reinterpret_borrow<py::object>(result);
+                                        PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to");
+                                        result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+                                                        std::cerr << "torch.tensor.to is intercepted\n";
+                                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                                        if (PyBool_Check(is_cuda_obj)) {
+                                                                if(is_cuda_obj == Py_True) {
+                                                                        record_python_data_object(result1);
+                                                                }
+                                                        }
+                                                        //#endif
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+                                        result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+                                                        std::cerr << "tensor.cuda is intercepted\n";
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        record_python_data_object(result1);
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+                } else if(func_name == "rand_like") {
+                        std::cerr << "torch.rand_like is injected\n";
+                        PyObject* mod = obj.ptr();
+                        PyObject* orig_torchrandlike_func = PyObject_GetAttrString(mod, "rand_like");
+
+                        obj.attr("rand_like") = py::cpp_function([orig_torchrandlike_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cout << "torch.rand_like is intercepted\n";
+                                        PyObject* result = PyObject_Call(orig_torchrandlike_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                        if (PyBool_Check(is_cuda_obj)) {   
+                                                if(is_cuda_obj == Py_True) {
+                                                        record_python_data_object(result);
+                                                        //fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+                                                }
+                                        }
+
+                                        py::object result_obj = py::reinterpret_borrow<py::object>(result);
+                                        PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to");
+                                        result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+                                                        std::cerr << "torch.tensor.to is intercepted\n";
+                                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                                        if (PyBool_Check(is_cuda_obj)) {
+                                                                if(is_cuda_obj == Py_True) {
+                                                                        record_python_data_object(result1);
+                                                                }
+                                                        }
+                                                        //#endif
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+                                        result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+                                                        std::cerr << "tensor.cuda is intercepted\n";
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        record_python_data_object(result1);
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+                } else if(func_name == "ones") {
+                        std::cerr << "torch.ones is injected\n";
+                        PyObject* mod = obj.ptr();
+                        PyObject* orig_torchones_func = PyObject_GetAttrString(mod, "ones");
+
+                        obj.attr("ones") = py::cpp_function([orig_torchones_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cout << "torch.ones is intercepted\n";
+                                        PyObject* result = PyObject_Call(orig_torchones_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                        if (PyBool_Check(is_cuda_obj)) {
+                                                if(is_cuda_obj == Py_True) {
+                                                        record_python_data_object(result);
+                                                        //fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+                                                }
+                                        }
+
+                                        py::object result_obj = py::reinterpret_borrow<py::object>(result);
+                                        PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to");
+                                        result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+                                                        std::cerr << "torch.tensor.to is intercepted\n";
+                                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                                        if (PyBool_Check(is_cuda_obj)) {
+                                                                if(is_cuda_obj == Py_True) {
+                                                                        record_python_data_object(result1);
+                                                                }
+                                                        }
+                                                        //#endif
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+                                        result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+                                                        std::cerr << "tensor.cuda is intercepted\n";
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        record_python_data_object(result1);
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+                } else if(func_name == "zeros") {
+                        std::cerr << "torch.zeros is injected\n";
+                        PyObject* mod = obj.ptr();
+                        PyObject* orig_torchzeros_func = PyObject_GetAttrString(mod, "zeros");
+
+                        obj.attr("zeros") = py::cpp_function([orig_torchzeros_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cout << "torch.zeros is intercepted\n";
+                                        PyObject* result = PyObject_Call(orig_torchzeros_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                        if (PyBool_Check(is_cuda_obj)) {
+                                                if(is_cuda_obj == Py_True) {
+                                                        record_python_data_object(result);
+                                                        //fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+                                                }
+                                        }
+
+                                        py::object result_obj = py::reinterpret_borrow<py::object>(result);
+                                        PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to");
+                                        result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+                                                        std::cerr << "torch.tensor.to is intercepted\n";
+                                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                                        if (PyBool_Check(is_cuda_obj)) {
+                                                                if(is_cuda_obj == Py_True) {
+                                                                        record_python_data_object(result1);
+                                                                }
+                                                        }
+                                                        //#endif
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+                                        result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+                                                        std::cerr << "tensor.cuda is intercepted\n";
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        record_python_data_object(result1);
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+                } else if(func_name == "cat") {
+                        std::cerr << "torch.cat is injected\n";
+                        PyObject* mod = obj.ptr();
+                        PyObject* orig_torchcat_func = PyObject_GetAttrString(mod, "cat");
+
+                        obj.attr("cat") = py::cpp_function([orig_torchcat_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cout << "torch.cat is intercepted\n";
+                                        PyObject* result = PyObject_Call(orig_torchcat_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                        if (PyBool_Check(is_cuda_obj)) {   
+                                                if(is_cuda_obj == Py_True) {
+                                                        record_python_data_object(result);
+                                                        //fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+                                                }
+                                        }
+
+                                        py::object result_obj = py::reinterpret_borrow<py::object>(result);
+                                        PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to");
+                                        result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+                                                        std::cerr << "torch.tensor.to is intercepted\n";
+                                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                                        if (PyBool_Check(is_cuda_obj)) {   
+                                                                if(is_cuda_obj == Py_True) {
+                                                                        record_python_data_object(result1);
+                                                                }
+                                                        }
+                                                        //#endif
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+                                        result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+                                                        std::cerr << "tensor.cuda is intercepted\n";
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        record_python_data_object(result1);
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+                }  else if(func_name == "empty_like") {
 			std::cerr << "torch.empty_like is injected\n";
 			PyObject* mod = obj.ptr();
 			PyObject* orig_torchemptylike_func = PyObject_GetAttrString(mod, "empty_like");
 			obj.attr("empty_like") = py::cpp_function([orig_torchemptylike_func](const py::args &args, const py::kwargs &kwargs) {
-				std::cerr << "torch.empty_like is intercepted\n";
-				PyObject* result = PyObject_Call(orig_torchemptylike_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
-				py::object result_obj = py::reinterpret_borrow<py::object>(result);
-				return result_obj;
-			});
-		} else if(func_name == "nn.parallel.comm") {
+                                        //std::cout << msg.cast<std::string>();
+                                        std::cout << "torch.empty_like is intercepted\n";
+                                        PyObject* result = PyObject_Call(orig_torchemptylike_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                        if (PyBool_Check(is_cuda_obj)) {   
+                                                if(is_cuda_obj == Py_True) {
+                                                        record_python_data_object(result);
+                                                        //fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+                                                }
+                                        }
+
+                                        py::object result_obj = py::reinterpret_borrow<py::object>(result);
+                                        PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to");
+                                        result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+                                                        std::cerr << "torch.tensor.to is intercepted\n";
+                                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                                        if (PyBool_Check(is_cuda_obj)) {   
+                                                                if(is_cuda_obj == Py_True) {
+                                                                        record_python_data_object(result1);
+                                                                }
+                                                        }
+                                                        //#endif
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+                                        result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+                                                        std::cerr << "tensor.cuda is intercepted\n";
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        record_python_data_object(result1);
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });	
+		} else if(func_name == "linspace") {
+                        std::cerr << "torch.linspace is injected\n";
+                        PyObject* mod = obj.ptr();
+                        PyObject* orig_torchlinspace_func = PyObject_GetAttrString(mod, "linspace");
+                        obj.attr("linspace") = py::cpp_function([orig_torchlinspace_func](const py::args &args, const py::kwargs &kwargs) {
+                                        //std::cout << msg.cast<std::string>();   
+                                        std::cout << "torch.linspace is intercepted\n";
+                                        PyObject* result = PyObject_Call(orig_torchlinspace_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+
+                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result, "is_cuda");
+                                        if (PyBool_Check(is_cuda_obj)) {   
+                                                if(is_cuda_obj == Py_True) {
+                                                        record_python_data_object(result);  
+                                                        //fprintf(stderr, "offset value: %lx, allocation size: %ld\n", offset_val, alloc_size_val);
+                                                }
+                                        }
+
+                                        py::object result_obj = py::reinterpret_borrow<py::object>(result);
+                                        PyObject* orig_torchto_func = PyObject_GetAttrString(result, "to");
+                                        result_obj.attr("to") = py::cpp_function([orig_torchto_func](const py::args &args, const py::kwargs &kwargs) {
+
+                                                        std::cerr << "torch.tensor.to is intercepted\n";
+                                                        //py::object allocated_mem = orig_empty_like_func(args/*, kwargs*/);
+
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchto_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        PyObject* is_cuda_obj = PyObject_GetAttrString(result1, "is_cuda");
+                                                        if (PyBool_Check(is_cuda_obj)) {   
+                                                                if(is_cuda_obj == Py_True) {
+                                                                        record_python_data_object(result1);
+                                                                }
+                                                        }
+                                                        //#endif
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        PyObject* orig_torchcuda_func = PyObject_GetAttrString(result, "cuda");
+                                        result_obj.attr("cuda") = py::cpp_function([orig_torchcuda_func](const py::args &args, const py::kwargs &kwargs) {
+                                                        std::cerr << "tensor.cuda is intercepted\n";
+                                                        //PyObject * allocated_mem_ptr = allocated_mem.ptr();//orig_array_func(args/*, kwargs*/);
+                                                        PyObject* result1 = PyObject_Call(orig_torchcuda_func, (PyObject *) args.ptr(), (PyObject *) kwargs.ptr());
+                                                        record_python_data_object(result1);
+                                                        return py::reinterpret_borrow<py::object>(result1);
+                                        });
+
+                                        return result_obj;//result;//orig_empty_like_func(args/*, kwargs*/);
+                        });
+                }
+		else if(func_name == "nn.parallel.comm") {
                         std::cerr << "nn.parallel.comm is injected\n";
                         PyObject* mod = obj.ptr();
                         PyObject* nn_obj = PyObject_GetAttrString(mod, "nn");
@@ -577,6 +902,12 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 		my_injection(torch, "from_numpy");
 		//my_injection(torch, "to");
 		my_injection(torch, "empty_like");
+		my_injection(torch, "ones_like");
+		my_injection(torch, "rand_like");
+		my_injection(torch, "ones");
+		my_injection(torch, "zeros");
+		my_injection(torch, "cat");
+		my_injection(torch, "linspace");
 	}
 	my_injection(torch, "nn.parallel.comm");
 	std::cerr << "until here\n";
