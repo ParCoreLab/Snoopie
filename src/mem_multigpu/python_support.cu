@@ -105,8 +105,10 @@ extern std::vector<adm_range_t *> range_nodes;
 
 pthread_mutex_t mutex_pytorch;
 
+extern int code_attribution;
 extern int code_context;
 extern int data_object_attribution;
+extern bool handling_python;
 
 inline py::object extract_python_callpath()
 {
@@ -429,7 +431,8 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                         obj.attr("nn").attr("parallel").attr("comm").attr("broadcast_coalesced") = py::cpp_function([orig_broadcastcoalesced_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.broadcast_coalesced is intercepted\n";
-					if(code_context) {
+					handling_python = true;
+					if(code_attribution || code_context) {
                                         	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
 						execution_site_t *execution_site = NULL;
 						execution_site_t *parent = NULL;	
@@ -445,7 +448,8 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 			obj.attr("nn").attr("parallel").attr("comm").attr("broadcast") = py::cpp_function([orig_broadcast_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.broadcast is intercepted\n";
-					if(code_context) {
+					handling_python = true;
+					if(code_attribution || code_context) {
                                         	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
                                         	execution_site_t *execution_site = NULL;
                                         	execution_site_t *parent = NULL;
@@ -461,7 +465,8 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                         obj.attr("nn").attr("parallel").attr("comm").attr("reduce_add") = py::cpp_function([orig_reduceadd_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.reduce_add is intercepted\n";
-					if(code_context) {
+					handling_python = true;
+					if(code_attribution || code_context) {
                                        		py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
                                         	execution_site_t *execution_site = NULL;
                                         	execution_site_t *parent = NULL;
@@ -477,7 +482,8 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                         obj.attr("nn").attr("parallel").attr("comm").attr("scatter") = py::cpp_function([orig_scatter_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.scatter is intercepted\n";
-					if(code_context) {
+					handling_python = true;
+					if(code_attribution || code_context) {
                                         	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
                                         	execution_site_t *execution_site = NULL;
                                         	execution_site_t *parent = NULL;
@@ -493,7 +499,8 @@ PYBIND11_MODULE(libmem_multigpu, m) {
                         obj.attr("nn").attr("parallel").attr("comm").attr("gather") = py::cpp_function([orig_gather_func](const py::args &args, const py::kwargs &kwargs) {
                                         //std::cout << msg.cast<std::string>();
                                         std::cerr << "nn.parallel.comm.gather is intercepted\n";
-					if(code_context) {
+					handling_python = true;
+					if(code_attribution || code_context) {
                                         	py::object summary = extract_python_callpath();//extract_summary(walk_stack(py::none()));
                                         	execution_site_t *execution_site = NULL;
                                         	execution_site_t *parent = NULL;
@@ -521,6 +528,7 @@ PYBIND11_MODULE(libmem_multigpu, m) {
 		my_injection(torch, "linspace");
 	}
 	my_injection(torch, "nn.parallel.comm");
+	handling_python = true;
 	std::cerr << "until here\n";
 }
 

@@ -99,6 +99,7 @@ int object_counter = 0;
 int context_counter = 0;
 int latest_context = 0;
 static long mem_alloc_count = 0;
+bool handling_python = false;
 
 static bool nvshmem_malloc_handled = false;
 static bool object_attribution = false;
@@ -667,7 +668,7 @@ void nvbit_at_init() {
 	initialize_line_table(100);
 	execution_site_table = new execution_site_hash_table_t(100);
 
-	if (code_attribution) {
+	if (!handling_python && code_attribution) {
 		memop_to_line();
 	}
 	adm_db_init();
@@ -710,7 +711,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 	related_functions.push_back(func);
 
 	// begin
-	if(code_context) {
+	if(!handling_python && code_context) {
 		std::vector<stacktrace_frame> trace = generate_trace();
 		execution_site_t *execution_site = NULL;
 		execution_site_t *parent = NULL;
@@ -755,7 +756,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 		std::string file;
 		std::string path;
 
-		if (code_attribution) {
+		if (!handling_python && code_attribution) {
 
 			curr_kernel_name = nvbit_get_func_name(ctx, f);
 			parenthes_pos = curr_kernel_name.find_first_of('<');
@@ -872,7 +873,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 				filename = file_name;
 				dirname = dir_name;
 				sass = instr->getSass();
-				if (code_attribution && path.size() > 0) {
+				if (!handling_python && code_attribution && path.size() > 0) {
 					std::istringstream input1(sass);
 					for (std::string word; std::getline(input1, word, ' ');) {
 						if (word.substr(0, 3) == "LDG" || word.substr(0, 3) == "LD.") {
@@ -1366,7 +1367,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		}
 		
 		// begin
-        	if(code_context) {
+        	if(!handling_python && code_context) {
                 	std::vector<stacktrace_frame> trace = generate_trace();
                 	execution_site_t *execution_site = NULL;
                 	execution_site_t *parent = NULL;
@@ -1405,7 +1406,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		}
 
 		// begin
-                if(code_context) {
+                if(!handling_python && code_context) {
                         std::vector<stacktrace_frame> trace = generate_trace();
                         execution_site_t *execution_site = NULL;
                         execution_site_t *parent = NULL;
@@ -1608,7 +1609,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
         }
 #endif
 
-	if (data_object_attribution) {
+	if (!handling_python && data_object_attribution) {
 	if (is_exit &&
 			(cbid == API_CUDA_cuMemAlloc || cbid == API_CUDA_cuMemAlloc_v2 ||
 			 cbid == API_CUDA_cuMemAllocHost || cbid == API_CUDA_cuMemAllocHost_v2 ||
@@ -2160,7 +2161,7 @@ void nvbit_at_term() {
 		object_outfile2.close();
 	}
 
-	if(code_context) {
+	if(handling_python || code_context) {
 		ofstream object_outfile3;
         	string object_str3("exec_site_log_");
 		string txt_str(".txt");
