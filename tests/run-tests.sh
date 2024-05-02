@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# TODO: Create a function for csv by-name column retreval (instead of the hardcoded column indices)
+
 function run_diim() {
   echo "Running remote direct access tests:"
   echo -n "  "
@@ -58,8 +60,8 @@ function run_nvshmem() {
 
    np=4
    exp_size=64
-   NP=$np SIZE=$exp_size make run 
-    
+   NP=$np SIZE=$exp_size make run
+
    # count the number of operations
    recv_size=$(zstd -dc *.zst | grep -iv "op_code" | grep -iv "cumemcpy" | wc -l)
 
@@ -115,7 +117,7 @@ function run_hipa() {
    SIZE=$exp_size make run
 
    # cut the csv header and count the number of operations
-   recv_size=$(zstd -dc *.zst | sed '1d' | cut -f 10 -d ',')
+   recv_size=$(zstd -dc *.zst | sed '1d' | cut -f 11 -d ',')
 
    # get the sender id
    sender_id=$(zstd -dc *.zst | sed '1d' | cut -f 4 -d ',' | grep -c '0')
@@ -131,7 +133,7 @@ function run_hipa() {
    SIZE=$exp_size make run_async
 
    # cut the csv header and count the number of operations
-   recv_size=$(zstd -dc *.zst | sed '1d' | cut -f 10 -d ',')
+   recv_size=$(zstd -dc *.zst | sed '1d' | cut -f 11 -d ',')
 
    # get the sender id
    sender_id=$(zstd -dc *.zst | sed '1d' | cut -f 4 -d ',' | grep -c '0')

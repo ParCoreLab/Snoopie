@@ -29,7 +29,7 @@ ptx:
 run: main
 	@rm -f *.zst
 	@rm -f *.txt
-	@$(MPIRUN) --oversubscribe -x NVSHMEM_NGPUS=4 -x NOBANNER=1 -x LD_PRELOAD="../../src/mem_multigpu/libmem_multigpu.so" -x KERNEL_NAME="simple_shift" -np $(NP) ./main -n $(SIZE)
+	@$(MPIRUN) --oversubscribe -x NVSHMEM_NGPUS=4 -x NOBANNER=1 -x LD_PRELOAD=${SNOOPIE_PATH} -x KERNEL_NAME="simple_shift" -np $(NP) ./main -n $(SIZE)
 
 clean:
 	rm -f *./address_range_log_*.txt *.txt  *.zst main.o main main.o.ptx main.ptx

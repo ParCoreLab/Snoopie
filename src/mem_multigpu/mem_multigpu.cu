@@ -220,7 +220,7 @@ void update_allocation_site_tree(py::object& summary, allocation_site_t **alloca
 	}
 	*parent = root;
         *allocation_site = root->get_first_child();
-	
+
 	for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
 		std::cerr << itr->attr("filename").attr("__str__")().cast<std::string>() << " " << itr->attr("lineno").attr("__int__")().cast<int>() << " " << itr->attr("name").attr("__str__")().cast<std::string>() << std::endl;
 
@@ -261,7 +261,7 @@ void update_exec_site_tree(py::object& summary, execution_site_t **execution_sit
 {
 	std::vector<py::handle> stack_vec;
 	//execution_site_t *execution_site = NULL;
-	//execution_site_t *parent = NULL; 
+	//execution_site_t *parent = NULL;
 	for (py::handle frame : summary) {
 		stack_vec.push_back(frame);
 		if(exec_root == NULL) {
@@ -273,7 +273,7 @@ void update_exec_site_tree(py::object& summary, execution_site_t **execution_sit
 	}
 	*parent = exec_root;
 	*execution_site = exec_root->get_first_child();
-	
+
 	for (auto itr = stack_vec.rbegin(); itr != stack_vec.rend(); ++itr) {
 		std::string filename = itr->attr("filename").attr("__str__")().cast<std::string>();
 		int lineno = itr->attr("lineno").attr("__int__")().cast<int>();
@@ -366,7 +366,7 @@ void record_object_allocation_context(allocation_site_t *parent) {
 	if (parent && parent->get_object_id() == 0) {
 		parent->set_object_id(++object_counter);
 		object_nodes.push_back(new adm_object_t(parent->get_object_id(), parent, 8));
-	} 
+	}
 }
 
 void log_time(string msg) {
@@ -1085,7 +1085,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 						(uint64_t)ctx, pc, func_name.c_str(), grid_launch_id);
 			}
 		}
-	} if (!is_exit && cbid == API_CUDA_cuLaunchKernelEx) { 
+	} if (!is_exit && cbid == API_CUDA_cuLaunchKernelEx) {
 		//fprintf(stderr, "cuLaunchKernelEx is intercepted\n");
 
 		cuLaunchKernelEx_params *p = (cuLaunchKernelEx_params *)params;
@@ -1288,12 +1288,12 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		ma.bytesize = bytesize;
 		mem_allocs.push_back(ma);
 		mem_alloc_count++;
-		
+
 		for (const auto &ctx_map_pair : ctx_state_map) {
 			ctx_map_pair.second->channel_dev->add_malloc(ma);
 		}
 	}
-#if 0 
+#if 0
 	else if (cbid == API_CUDA_cuMemAllocHost_v2) {
 		//print_trace();
 		std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
@@ -1316,7 +1316,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 			ctx_map_pair.second->channel_dev->add_malloc(ma);
 		}
 	}
-#endif 
+#endif
 	else if (cbid == API_CUDA_cuMemHostAlloc) {
 		cuMemHostAlloc_params *p = (cuMemHostAlloc_params *)params;
 		std::stringstream ss;
@@ -1365,7 +1365,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		} else {
 			addr1 = p->dstDevice;
 		}
-		
+
 		// begin
         	if(!handling_python && code_context) {
                 	std::vector<stacktrace_frame> trace = generate_trace();
@@ -1378,7 +1378,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
 		std::stringstream ss;
 		ss << find_cbid_name(cbid) << "," << HEX(addr1) << "," << -1 << ","
-			<< srcDeviceID << "," << dstDeviceID << "," << -1 << "," << -1 << "," 
+			<< srcDeviceID << "," << dstDeviceID << "," << -1 << "," << -1 << ","
 			<< ((latest_context > 0) ? latest_context : -1) << ","
 			<< -1 << "," << HEX(offset_address_range) << "," << p->ByteCount
 			<< std::endl;
@@ -1417,7 +1417,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
 		std::stringstream ss;
 		ss << find_cbid_name(cbid) << "," << HEX(p->dstDevice) << "," << -1 << ","
-                        << srcDeviceID << "," << dstDeviceID << "," << -1 << "," << -1 << "," 
+                        << srcDeviceID << "," << dstDeviceID << "," << -1 << "," << -1 << ","
                         << ((latest_context > 0) ? latest_context : -1) << ","
                         << -1 << "," << HEX(offset_address_range) << "," << p->ByteCount
                         << std::endl;
@@ -1456,7 +1456,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
                                 << "\"bytesize\": " << p->size << ", \"start\": \""
                                 << ss.str() << "\", \"end\": \"" << ss2.str() << "\"}"
                                 << std::endl;
-                } 
+                }
         }
 //#endif
 #if 0
@@ -1490,7 +1490,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
                         ctx_map_pair.second->channel_dev->add_malloc(ma);
                 }
                 //std::cerr << "cuMemAllocHost_v2 is detected, call stack ends\n";
-        }	
+        }
 	if(is_exit && cbid == API_CUDA_cuMemHostAlloc) {
                 //std::cerr << "cuMemAllocHost is detected, memory address range recorded\n";
 		//std::cerr << "API_CUDA_cuMemAllocHost_v2 is detected\n";
@@ -2084,8 +2084,6 @@ void nvbit_at_ctx_init(CUcontext ctx) {
 	ctx_state_map[ctx] = ctx_state;
 	cudaMallocManaged(&ctx_state->channel_dev, sizeof(ChannelDev));
 
-	if(on_dev_filtering)
-		std::cerr << "on_dev_filtering is active";
 	ctx_state->channel_host.init((int)ctx_state_map.size() - 1, CHANNEL_SIZE,
 			ctx_state->channel_dev, recv_thread_fun,
 			on_dev_filtering, ctx);
@@ -2121,7 +2119,6 @@ void nvbit_at_ctx_term(CUcontext ctx) {
 }
 
 void nvbit_at_term() {
-	std::cerr << "Number of detected memory allocations: " << mem_alloc_count << "\n";
 	if (silent) {
 		return;
 	}
@@ -2178,7 +2175,7 @@ void nvbit_at_term() {
         	object_outfile4 << "context_id,call_stack\n";
         	for (auto i : context_nodes)
                 	i->print(object_outfile4);
-        	object_outfile4.close();	
+        	object_outfile4.close();
 	}
 
 	object_nodes.clear();
