@@ -370,8 +370,6 @@ void record_object_allocation_context(allocation_site_t *parent) {
 }
 
 void log_time(string msg) {
-	if (!time_log)
-		return;
 
 	std::cout << msg << ": "
 		<< std::chrono::time_point_cast<std::chrono::microseconds>(
@@ -988,12 +986,68 @@ __global__ void flush_channel(ChannelDev *ch_dev) {
 	ch_dev->flush();
 }
 
+
+
+
+void _ptrStr(std::string* strPtr, CUdeviceptr ptr) {
+    std::stringstream ss;
+    ss << "0x" << std::hex << std::setw(sizeof(ptr) * 2)
+       << std::setfill('0') << reinterpret_cast<uintptr_t>((void*)ptr);
+
+    *strPtr = ss.str();
+}
+
+#define CUDA_CHECK(call) \
+do { \
+    auto error = call; \
+    if (error != CUDA_SUCCESS) { \
+        fprintf(stderr, "CUDA error in %s:%d: %d\n", __FILE__, __LINE__, error); \
+        exit(EXIT_FAILURE); \
+    } \
+} while(0)
+
+
+void print_memcpyAsyncPointerInfo(cuMemcpyAsync_params* params){
+	auto dst_ptr = params->dst;
+	auto src_ptr = params->src;
+	size_t byte_count = params->ByteCount;
+	// handle stream as well
+
+	std::string to_print = std::string("memcpy asyn info: ");
+	std::string dst_str;
+	std::string src_str;
+	_ptrStr(&dst_str, dst_ptr);
+	_ptrStr(&src_str, src_ptr);
+
+	CUmemorytype dst_memtype = CU_MEMORYTYPE_UNIFIED;
+	CUmemorytype src_memtype = CU_MEMORYTYPE_UNIFIED;
+	
+	CUmemorytype* data[1];
+
+	CUpointer_attribute attribs[1] = {CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
+
+	data[0] = &dst_memtype;
+
+
+	CUDA_CHECK(cuPointerGetAttributes(1, attribs, (void **) data, dst_ptr));
+	
+	data[0] = &src_memtype;
+
+	CUDA_CHECK(cuPointerGetAttributes(1, attribs, (void **) data, src_ptr));
+
+	to_print = to_print + " dst: " + std::to_string(dst_memtype) + " "  + dst_str + 
+		" src: " + std::to_string(src_memtype) + " " + src_str;
+
+	std::cout << to_print << "size: " << byte_count << std::endl;
+
+}
+
 void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		const char *name, void *params, CUresult *pStatus) {
 	pthread_mutex_lock(&mutex1);
-	//std::cerr << "cbid: " << cbid << " " << find_cbid_name(cbid) << " " << API_CUDA_cuLaunchKernelEx << "\n";
+	//std::cout << "cbid: " << cbid << " " << find_cbid_name(cbid) << " " << API_CUDA_cuLaunchKernelEx << "\n";
 	log_time(std::string("Bgn Cuda Event ") + (is_exit ? "Exit" : "Enter") +
-			find_cbid_name(cbid));
+			find_cbid_name(cbid) + " " + std::string(name) + " " +  std::to_string(cbid) + " " + std::string(find_cbid_name(cbid)) );
 
 	/* we prevent re-entry on this callback when issuing CUDA functions inside
 	 * this function */
@@ -1003,10 +1057,23 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 		pthread_mutex_unlock(&mutex1);
 		return;
 	}
+
+
 	skip_callback_flag = true;
 
 	assert(ctx_state_map.find(ctx) != ctx_state_map.end());
 	CTXstate *ctx_state = ctx_state_map[ctx];
+
+	if(!is_exit && cbid == 306){
+		auto _p2 = (cuMemcpyAsync_params*) params;
+		
+		print_memcpyAsyncPointerInfo(_p2);
+	}
+
+	if(!is_exit && cbid == 379){
+		auto _p2 = (cuMemHostRegister_v2_params*) params;
+		std::cout << "cuMemHostRegisterv2 " <<  _p2->p << " " << _p2->bytesize << std::endl;
+	}
 
 	MemoryAllocation ma;
 	if (!is_exit && (cbid == API_CUDA_cuLaunchKernel_ptsz ||
