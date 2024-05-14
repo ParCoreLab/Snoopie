@@ -2,23 +2,17 @@
 
 With data movement becoming one of the most expensive
 bottlenecks in computing, the need for profiling tools to
-analyze communication becomes crucial for effectively scal-
-ing multi-GPU applications. While existing profiling tools
+analyze communication becomes crucial for effectively scaling multi-GPU applications. While existing profiling tools
 including first-party software by GPU vendors are robust
-and excel at capturing compute operations within a sin-
-gle GPU, support for monitoring GPU-GPU data transfers
+and excel at capturing compute operations within a single GPU, support for monitoring GPU-GPU data transfers
 and calls issued by communication libraries is currently
 inadequate. To fill these gaps, we introduce Snoopie, an
 instrumentation-based multi-GPU communication profiling
-tool built on NVBit, capable of tracking peer-to-peer trans-
-fers and GPU-centric communication library calls. To in-
-crease programmer productivity, Snoopie can attribute data
-movement to the source code line and the data objects in-
-volved. It comes with multiple visualization modes at varying
+tool built on NVBit, capable of tracking peer-to-peer transfers and GPU-centric communication library calls. To increase programmer productivity, Snoopie can attribute data
+movement to the source code line and the data objects involved. It comes with multiple visualization modes at varying
 granularities, from a coarse view of the data movement in the
 system as a whole to specific instructions and addresses. Our
-case studies demonstrate Snoopie’s effectiveness in moni-
-toring data movement, locating performance bugs in applica-
+case studies demonstrate Snoopie’s effectiveness in monitoring data movement, locating performance bugs in applica-
 tions, and understanding concrete data transfers abstracted
 beneath communication libraries
 
