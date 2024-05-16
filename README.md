@@ -38,35 +38,35 @@ $ . ./snoopie_path.sh
 ```
 $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" /path/to/multigpu-app
 #or
-$ ./snoop --kernel-name kernel_name_to_track command -- /path/to/multigpu-app
+$ ./snoop --kernel-name kernel_name_to_track -- /path/to/multigpu-app
 ```
 > To enable source code line attribution, pass CODE_ATTRIBUTION=1 environment variable as follow.
 
 ```
 $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 /path/to/multigpu-app
 #or
-$ ./snoop --kernel-name kernel_name_to_track command -- /path/to/multigpu-app
+$ ./snoop --kernel-name kernel_name_to_track -- /path/to/multigpu-app
 ```
 > To run with NVSHMEM version besides 2.8 and 2.9
 
 ```
 $ LD_PRELOAD="/path/to/mem_multigpu.so" NVSHMEM_VERSION="2.7" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 /path/to/multigpu-app
 #or
-$ ./snoop --nvshmem-version 2.7 --kernel-name kernel_name_to_track command -- /path/to/multigpu-app
+$ ./snoop --nvshmem-version 2.7 --kernel-name kernel_name_to_track -- /path/to/multigpu-app
 ```
 > When running with nvshmem version 2.8 or 2.9, you need to specify the number of GPUs being used as follows
 
 ```
 $ LD_PRELOAD="/path/to/mem_multigpu.so" NVSHMEM_NGPUS="4" KERNEL_NAME="kernel_name_to_track" CODE_ATTRIBUTION=1 /path/to/multigpu-app
 #or
-$ ./snoop --nvshmem-ngpus 4 --kernel-name kernel_name_to_track command -- /path/to/multigpu-app
+$ ./snoop --nvshmem-ngpus 4 --kernel-name kernel_name_to_track -- /path/to/multigpu-app
 ```
 > To enable sampling-based profiling, pass SAMPLE_SIZE=<sample_size> environment variable as follow.
 
 ```
 $ LD_PRELOAD="/path/to/mem_multigpu.so" KERNEL_NAME="kernel_name_to_track" SAMPLE_SIZE=<sample_size> /path/to/multigpu-app
 #or
-$ ./snoop --sample-size <sample_size> --kernel-name kernel_name_to_track command -- /path/to/multigpu-app
+$ ./snoop --sample-size <sample_size> --kernel-name kernel_name_to_track -- /path/to/multigpu-app
 ```
 > Note: <sample_size> determines the sample size. If <sample_size> is 100, it means 1/100 of population is sampled.
 
