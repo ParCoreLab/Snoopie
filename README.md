@@ -22,7 +22,7 @@ beneath communication libraries
 ## Dependencies
 * CMake 3.23 or above
 * CUDA 11.8
-* OPENMPI 4.1.4
+* OPENMPI 4.1.4 or above
 * NVSHMEM 2.7 or above
 * NVBit 1.5.5
 * Python 3
