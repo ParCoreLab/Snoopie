@@ -24,6 +24,11 @@ beneath communication libraries
 * OPENMPI 4.1.4
 * NVSHMEM 2.7 or above
 * NVBit 1.5.5
+* Python 3
+* Python 3 development library (python3-dev in Ubuntu/Debian)
+* Zstandard development library (libzstd-dev in Ubuntu/Debian)
+* libunwind development library (libunwind-dev Ubuntu/Debian)
+* NumPy
 
 ## Build
 
