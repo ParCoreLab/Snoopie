@@ -20,6 +20,7 @@ beneath communication libraries
 
 
 ## Dependencies
+* CMake 3.23 or above
 * CUDA 11.8
 * OPENMPI 4.1.4
 * NVSHMEM 2.7 or above
