@@ -67,8 +67,9 @@ add_subdirectory(tests/stencil/stencil-tb-singlestream)
 #message("${CMAKE_CURRENT_LIST_DIR}/tests/stencil/stencil-nvshmem_nvidia")
 
 set(NP 4)
-set(SIZE 1024)
-set(NITER 2000)
+#set(SIZE 1024)
+set(SIZE 512)
+set(NITER 200)
 set(MPIRUN mpirun)
 
 #execute_process(COMMAND nvcc -dc -Xcompiler -fopenmp -gencode arch=compute_80,code=sm_80 -gencode arch=compute_80,code=compute_80 -std=c++17 -ccbin=mpicxx -I${NVSHMEM_HOME}/include -I${MPI_HOME}/include -o jacobi.o jacobi.cu -lineinfo

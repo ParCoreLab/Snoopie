@@ -123,7 +123,8 @@ std::vector<execution_context_t *> context_nodes;
 
 Logger logger("snoopie_log_" + std::to_string(getpid()) + ".zst");
 
-std::map<std::string, std::tuple<std::string, std::vector<int>, std::vector<int>>> line_tracking;
+//std::map<std::string, std::tuple<std::string, std::vector<int>, std::vector<int>>> line_tracking;
+std::map<std::string, std::tuple<std::string, std::unordered_map<uint32_t, uint32_t>>> line_tracking;
 
 void initialize_object_table(int size);
 
@@ -488,23 +489,35 @@ void memop_to_line() {
 	for (std::string line; std::getline(infile, line);) {
 		std::istringstream input1(line);
 		std::string prev_word;
+		uint32_t offset = 0;
 		for (std::string word; std::getline(input1, word, ' ');) {
 			if (word.substr(0, 6) == ".text.") {
 				rtrim(word, ":");
 				kern_name = word;
-			}
-			if (word == "line" && prev_word.find(".cu") != std::string::npos) {
+				std::cerr << "kern_name is " << kern_name << "\n";
+			} else if (word.substr(0, 2) == "/*") {
+				//std::cerr << word.find_last_not_of("*") << "\n";
+				//std::cerr << word.find_last_not_of("/") << "\n";
+				trim(word, "/");
+				trim(word, "*");
+				//std::stringstream ss;
+				//ss << std::hex << word;
+				//ss >> offset;
+				//offset = std::stoul(word, nullptr, 4);
+				char * p;
+				offset = static_cast<uint32_t>(strtol( word.c_str(), &p, 16 ));
+				std::cerr << "offset is " << word << "\n";
+				//offset = static_cast<uint32_t>(std::stoi(word));
+				std::cerr << "offset is " << offset << " after conversion\n";
+			} else if (word == "line" && prev_word.find(".cu") != std::string::npos) {
 				full_path = trim(prev_word);
 				std::getline(input1, word, ' ');
 				curr_line = std::stoi(word);
 				get<0>(line_tracking[kern_name]) = full_path;
-			}
-			if (word.substr(0, 3) == "LDG" || word.substr(0, 3) == "LD.") {
+			} else if (word.substr(0, 3) == "LDG" || word.substr(0, 3) == "LD." || word.substr(0, 3) == "STG" || word.substr(0, 3) == "ST.") {
 
-				get<1>(line_tracking[kern_name]).push_back(curr_line);
-			} else if (word.substr(0, 3) == "STG" || word.substr(0, 3) == "ST.") {
-
-				get<2>(line_tracking[kern_name]).push_back(curr_line);
+				get<1>(line_tracking[kern_name])[offset] = curr_line;
+				std::cerr << "offset " << offset << " is mapped to line " << std::dec << curr_line << "\n";
 			}
 			prev_word = word;
 		}
@@ -648,7 +661,7 @@ void nvbit_at_init() {
 			"Specify the name of the kernel to track");
 	GET_VAR_STR(profiled_nccl_file, "PROFILED_NCCL_FILE",
 			"Specify the name of the file that has the NCCL function calls");
-	GET_VAR_INT(code_attribution, "CODE_ATTRIBUTION", 0,
+	GET_VAR_INT(code_attribution, "CODE_ATTRIBUTION", 1,
 			"Enable source code line attribution");
 	GET_VAR_INT(sample_size, "SAMPLE_SIZE", 1,
 			"Setting the sample size, if 100, it means 1/100 of population "
@@ -848,6 +861,8 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 			}
 		}
 
+		std::cerr << "kernel " << encoded_kernel_name << " is launched\n";
+		uint64_t func_offset = nvbit_get_func_addr(f); 
 		std::string prev_valid_file_name;
 		std::string prev_valid_dir_name;
 		uint32_t prev_valid_line_num = 0;
@@ -857,6 +872,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 		/* iterate on all the static instructions in the function */
 		for (auto instr : instrs) {
 			uint32_t instr_offset = instr->getOffset();
+			//std::cerr << "instr_offset: " << std::hex << func_offset + instr_offset << " " << instr_offset << " " << instr->getSass() << "\n";
 			char *file_name = (char *)malloc(sizeof(char) * FILE_NAME_SIZE);
 			file_name[0] = '\0';
 			char *dir_name = (char *)malloc(sizeof(char) * PATH_NAME_SIZE);
@@ -872,6 +888,18 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 						&dir_name, &line_num);
 				filename = file_name;
 				dirname = dir_name;
+				if (!ret_line_info) {
+					uint32_t instr_offset = static_cast<uint32_t>(instr->getOffset());
+					if(get<1>(line_tracking[encoded_kernel_name]).find(instr_offset) != get<1>(line_tracking[encoded_kernel_name]).end()) {
+						std::cerr << "offset " << std::hex << instr_offset << " is mapped to line no " << std::dec << get<1>(line_tracking[encoded_kernel_name])[instr_offset] << "\n";
+						line_num = get<1>(line_tracking[encoded_kernel_name])[instr_offset];
+						dirname = path;
+						filename = file;
+					}
+				} else {
+					std::cerr << "line no: " << line_num << "\n"; 
+				}
+#if 0
 				sass = instr->getSass();
 				if (!handling_python && code_attribution && path.size() > 0) {
 					std::istringstream input1(sass);
@@ -896,6 +924,7 @@ void instrument_function_if_needed(CUcontext ctx, CUfunction func) {
 						}
 					}
 				}
+#endif
 			} else {
 				filename = nccl_filename;
 				dirname = nccl_dirname;
