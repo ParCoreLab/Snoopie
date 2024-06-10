@@ -21,7 +21,8 @@ beneath communication libraries
 
 ## Dependencies
 * CMake 3.23 or above
-* CUDA 11.8
+* CUDA 11.8 or above
+* NVIDIA driver 545.23.08
 * OPENMPI 4.1.4 or above
 * NVSHMEM 2.7 or above
 * NVBit 1.5.5
